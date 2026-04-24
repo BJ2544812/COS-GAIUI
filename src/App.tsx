@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import * as React from 'react';
 import { AppShell } from './components/layout/AppShell';
 import { ERPModule } from './types';
 import { DashboardModule } from './modules/dashboard/DashboardModule';
@@ -29,7 +29,7 @@ import { CommunicationModule } from './modules/communication/CommunicationModule
 import { Construction } from 'lucide-react';
 
 export default function App() {
-  const [activeModule, setActiveModule] = useState<ERPModule>('dashboard');
+  const [activeModule, setActiveModule] = React.useState<ERPModule>('dashboard');
 
   const renderModule = () => {
     switch (activeModule) {

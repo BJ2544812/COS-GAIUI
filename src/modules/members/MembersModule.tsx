@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import * as React from 'react';
 import { 
   Users, 
   Search, 
@@ -44,9 +44,9 @@ interface MembersModuleProps {
 type ViewState = 'directory' | 'intake' | 'profile';
 
 export function MembersModule({ onModuleChange }: MembersModuleProps) {
-  const [view, setView] = useState<ViewState>('directory');
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [view, setView] = React.useState<ViewState>('directory');
+  const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleAddMember = () => setView('intake');
   const handleViewProfile = (id: string) => {

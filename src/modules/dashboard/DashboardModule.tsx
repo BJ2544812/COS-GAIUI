@@ -77,10 +77,10 @@ export function DashboardModule({ onModuleChange }: DashboardModuleProps) {
   const [testResult, setTestResult] = React.useState<string | null>(null);
   const [showAIInsights, setShowAIInsights] = React.useState(false);
 
-  const testFetch = async () => {
+  const executeApiTest = async () => {
     try {
-      const res = await fetch('https://jsonplaceholder.typicode.com/posts/1');
-      const data = await res.json();
+      const response = await fetch('https://jsonplaceholder.typicode.com/posts/1');
+      const data = await response.json();
       setTestResult(`Success: ${data.title.substring(0, 20)}...`);
     } catch (err) {
       setTestResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -158,7 +158,7 @@ export function DashboardModule({ onModuleChange }: DashboardModuleProps) {
               {testResult}
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={testFetch} className="text-[10px] font-bold uppercase tracking-widest h-9">
+          <Button variant="outline" size="sm" onClick={executeApiTest} className="text-[10px] font-bold uppercase tracking-widest h-9">
             Verify API Bridge
           </Button>
           <Button onClick={() => onModuleChange?.('notifications')} variant="ghost" size="icon" className="relative h-9 w-9">
