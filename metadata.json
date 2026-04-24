@@ -1,0 +1,6 @@
+{
+  "name": "Church ERP Admin",
+  "description": "Enterprise-grade Church Management System for membership, finances, events, and ministry analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["analytics", "management", "financials"]
+}
