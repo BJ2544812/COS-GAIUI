@@ -49,6 +49,36 @@ export function SettingsModule() {
     { id: 'branding', label: 'Branding', icon: Palette, description: 'Visual identity' },
   ];
 
+  const [settings, setSettings] = React.useState({
+    org_name: '',
+    address: '',
+    email: '',
+    phone: ''
+  });
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/settings', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.reduce((acc: any, curr: any) => {
+          acc[curr.key] = curr.value;
+          return acc;
+        }, {});
+        setSettings({
+          org_name: mapped.org_name || '',
+          address: mapped.address || '',
+          email: mapped.email || '',
+          phone: mapped.phone || ''
+        });
+      }
+    };
+    fetchSettings();
+  }, []);
+
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-1000 text-left pb-24 px-4">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -145,20 +175,36 @@ export function SettingsModule() {
                      <div className="grid gap-8">
                         <div className="space-y-3">
                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Legal Entity Display Name</label>
-                           <Input defaultValue="Grace Community Church Intl." className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" />
+                           <Input 
+                              value={settings.org_name} 
+                              onChange={(e) => setSettings({...settings, org_name: e.target.value})}
+                              className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" 
+                           />
                         </div>
                         <div className="space-y-3">
                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Operations HQ</label>
-                           <Input defaultValue="123 Faith Avenue, Grace City, GC 54321" className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" />
+                           <Input 
+                              value={settings.address} 
+                              onChange={(e) => setSettings({...settings, address: e.target.value})}
+                              className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" 
+                           />
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                            <div className="space-y-3">
                               <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Comms Endpoint</label>
-                              <Input defaultValue="hello@grace.org" className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" />
+                              <Input 
+                                value={settings.email} 
+                                onChange={(e) => setSettings({...settings, email: e.target.value})}
+                                className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" 
+                              />
                            </div>
                            <div className="space-y-3">
                               <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Legacy Phone</label>
-                              <Input defaultValue="+91 98765 43210" className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" />
+                              <Input 
+                                value={settings.phone} 
+                                onChange={(e) => setSettings({...settings, phone: e.target.value})}
+                                className="h-14 bg-slate-50 border-none rounded-[1.5rem] px-6 font-bold text-slate-900 shadow-inner focus:ring-2 focus:ring-indigo-500 transition-all" 
+                              />
                            </div>
                         </div>
                      </div>
@@ -304,7 +350,7 @@ export function SettingsModule() {
                <Card className="rounded-[4rem] border-none shadow-3xl bg-white p-16">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-16">
                      <div className="space-y-2">
-                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none italic">Signal Ops</h3>
+                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none">Signal Ops</h3>
                         <p className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] pl-1">Intelligent delivery orchestration</p>
                      </div>
                      <Button className="h-14 bg-slate-950 text-white rounded-[1.5rem] px-10 font-black uppercase text-[11px] tracking-widest shadow-2xl shadow-slate-200 hover:bg-indigo-600 transition-all group">
@@ -385,7 +431,7 @@ export function SettingsModule() {
                <Card className="rounded-[4rem] border-none shadow-2xl bg-white p-16 space-y-16">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-4">
                      <div className="space-y-2">
-                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none italic">Giving Pipeline</h3>
+                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none">Giving Pipeline</h3>
                         <p className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] pl-1">Financial architecture & regulatory compliance</p>
                      </div>
                      <div className="flex items-center gap-4 p-5 bg-indigo-50 rounded-[2rem] border border-indigo-100 ring-8 ring-indigo-50/30">
@@ -409,7 +455,7 @@ export function SettingsModule() {
                                     <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black uppercase px-2 py-0.5 tracking-widest">Live Active</Badge>
                                  </div>
                                  <div className="space-y-1">
-                                    <h4 className="text-2xl font-black text-slate-950 uppercase italic tracking-tight">Razorpay Nexus</h4>
+                                    <h4 className="text-2xl font-black text-slate-950 uppercase tracking-tight">Razorpay Nexus</h4>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Integrated for Credits, Debits, UPI & NetBanking orchestration.</p>
                                  </div>
                               </div>
@@ -426,7 +472,7 @@ export function SettingsModule() {
                                     <Badge variant="outline" className="text-slate-400 border-slate-200 text-[8px] font-black uppercase px-2 py-0.5 tracking-widest">Configuration Required</Badge>
                                  </div>
                                  <div className="space-y-1">
-                                    <h4 className="text-2xl font-black text-slate-950 uppercase italic tracking-tight">Stripe Connect</h4>
+                                    <h4 className="text-2xl font-black text-slate-950 uppercase tracking-tight">Stripe Connect</h4>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Global giving infrastructure for international support base.</p>
                                  </div>
                               </div>
@@ -438,7 +484,7 @@ export function SettingsModule() {
                         <Card className="rounded-[3rem] border-none shadow-3xl bg-slate-950 text-white p-12 space-y-10 relative overflow-hidden">
                            <div className="absolute top-0 left-0 p-8 opacity-5 -translate-x-12"><HeartHandshake size={300} /></div>
                            <div className="space-y-2 relative z-10">
-                              <h4 className="text-3xl font-black italic tracking-tight uppercase leading-none">Tax-Exempt (80G)</h4>
+                              <h4 className="text-3xl font-black tracking-tight uppercase leading-none">Tax-Exempt (80G)</h4>
                               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Automated Section 80G receipting model</p>
                            </div>
                            <div className="space-y-8 relative z-10">
@@ -473,7 +519,7 @@ export function SettingsModule() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <Card className="rounded-[4rem] border-none shadow-2xl bg-white p-16 space-y-16">
                      <div className="space-y-2">
-                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none italic">Aesthetic Core</h3>
+                        <h3 className="text-5xl font-black text-slate-950 tracking-tighter uppercase leading-none">Aesthetic Core</h3>
                         <p className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] pl-1">Visual identity and brand orchestration</p>
                      </div>
 
@@ -518,7 +564,7 @@ export function SettingsModule() {
                                  <FileKey className="w-12 h-12" />
                               </div>
                               <div className="text-center space-y-2">
-                                 <p className="text-sm font-black text-slate-950 uppercase italic">Upload Vector Nexus</p>
+                                 <p className="text-sm font-black text-slate-950 uppercase">Upload Vector Nexus</p>
                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Accepts SVG, PDF or high-fidelity PNG</p>
                               </div>
                            </div>
@@ -530,7 +576,7 @@ export function SettingsModule() {
                      <Card className="rounded-[4rem] border-none shadow-3xl bg-slate-100 p-12 space-y-10 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-10 opacity-30"><Palette size={200} /></div>
                         <div className="space-y-2 relative z-10">
-                           <h4 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Live UI Nexus</h4>
+                           <h4 className="text-3xl font-black tracking-tighter uppercase leading-none">Live UI Nexus</h4>
                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Real-time aesthetic convergence</p>
                         </div>
                         <div className="relative z-10 p-10 bg-white rounded-[3rem] shadow-3xl space-y-6 border border-slate-200/50 overflow-hidden transform scale-110">

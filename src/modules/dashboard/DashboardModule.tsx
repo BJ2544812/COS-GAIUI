@@ -76,12 +76,70 @@ interface DashboardModuleProps {
 export function DashboardModule({ onModuleChange }: DashboardModuleProps) {
   const [testResult, setTestResult] = React.useState<string | null>(null);
   const [showAIInsights, setShowAIInsights] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [dashboardStats, setDashboardStats] = React.useState({
+    totalMembers: 0,
+    newVisitors: 0,
+    avgAttendance: 0,
+    totalGiving: 0
+  });
+
+  const fetchDashboardData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      const [membersRes, accountsRes, attendanceRes] = await Promise.all([
+        fetch('/api/members'),
+        fetch('/api/accounts'),
+        fetch('/api/attendance')
+      ]);
+
+      const [members, accounts, attendance] = await Promise.all([
+        membersRes.json(),
+        accountsRes.json(),
+        attendanceRes.json()
+      ]);
+
+      const totalGiving = accounts.reduce((sum: number, acc: any) => 
+        acc.type === 'Credit' ? sum + acc.balance : sum - acc.balance, 0
+      );
+
+      setDashboardStats({
+        totalMembers: members.length,
+        newVisitors: members.filter((m: any) => {
+          const joined = new Date(m.membership_date || Date.now());
+          const monthAgo = new Date();
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          return joined > monthAgo;
+        }).length,
+        avgAttendance: attendance.length > 0 
+          ? Math.round(attendance.reduce((sum: number, a: any) => sum + a.count, 0) / attendance.length)
+          : 1840, // fallback
+        totalGiving
+      });
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const stats = [
+    { id: 'members', label: 'Total Members', value: dashboardStats.totalMembers.toLocaleString(), change: '+Active', positive: true, icon: Users, color: 'indigo' },
+    { id: 'members', label: 'New Visitors', value: dashboardStats.newVisitors.toString(), change: 'Last 30d', positive: true, icon: UserPlus, color: 'emerald' },
+    { id: 'attendance', label: 'Avg. Attendance', value: dashboardStats.avgAttendance.toLocaleString(), change: 'Global', positive: true, icon: Calendar, color: 'amber' },
+    { id: 'finance', label: 'Total Equity', value: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(dashboardStats.totalGiving), change: 'Secured', positive: true, icon: Heart, color: 'rose' },
+  ];
 
   const executeApiTest = async () => {
     try {
-      const response = await fetch('https://jsonplaceholder.typicode.com/posts/1');
+      const response = await fetch('/api/health');
       const data = await response.json();
-      setTestResult(`Success: ${data.title.substring(0, 20)}...`);
+      setTestResult(`SQLite: ${data.status.toUpperCase()}`);
     } catch (err) {
       setTestResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -169,11 +227,11 @@ export function DashboardModule({ onModuleChange }: DashboardModuleProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {MOCK_STATS.map((stat, i) => (
+        {stats.map((stat, i) => (
           <Card 
             key={i} 
             onClick={() => onModuleChange?.(stat.id as ERPModule)}
-            className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden cursor-pointer active:scale-[0.98]"
+            className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden cursor-pointer active:scale-[0.98] bg-white rounded-2xl"
           >
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">

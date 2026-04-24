@@ -27,8 +27,74 @@ import { Button } from '@/src/components/ui/button';
 import { cn } from '@/src/lib/utils';
 
 export function WebsiteModule() {
-  const [activeTab, setActiveTab] = React.useState('Pages');
+  const [activeTab, setActiveTab] = React.useState('Pages & Hierarchy');
   const [device, setDevice] = React.useState<'desktop' | 'mobile'>('desktop');
+  const [settings, setSettings] = React.useState({
+    org_name: '',
+    about_us: ''
+  });
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/settings', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const orgInfo = data.reduce((acc: any, curr: any) => {
+          acc[curr.key] = curr.value;
+          return acc;
+        }, {});
+        setSettings({
+          org_name: orgInfo.org_name || '',
+          about_us: orgInfo.about_us || ''
+        });
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  if (activeTab === 'Site Settings') {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-700 text-left">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setActiveTab('Pages & Hierarchy')} className="rounded-full">
+            <Globe className="w-5 h-5 text-indigo-600" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Main Portal Settings</h1>
+            <p className="text-sm text-slate-500 font-medium font-sans">Global branding and metadata for your digital presence.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+           <Card className="rounded-[2.5rem] border-none shadow-xl p-10 space-y-8 bg-white">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Universal Organization Identity</label>
+                   <input 
+                      type="text" 
+                      value={settings.org_name}
+                      onChange={(e) => setSettings({...settings, org_name: e.target.value})}
+                      className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-inner outline-none" 
+                   />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Ministry Narrative / About</label>
+                   <textarea 
+                      value={settings.about_us}
+                      onChange={(e) => setSettings({...settings, about_us: e.target.value})}
+                      className="w-full h-40 bg-slate-50 border-none rounded-2xl p-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-inner resize-none outline-none"
+                   />
+                </div>
+                <Button className="w-full h-16 rounded-[2rem] bg-indigo-600 hover:bg-slate-950 text-white font-black uppercase text-[10px] tracking-[0.2em] animate-pulse">Save Core Settings</Button>
+              </div>
+           </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">

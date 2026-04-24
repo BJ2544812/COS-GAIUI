@@ -48,6 +48,7 @@ interface AppShellProps {
   children: React.ReactNode;
   activeModule: ERPModule;
   onModuleChange: (module: ERPModule) => void;
+  onLogout?: () => void;
 }
 
 const MODULE_CONFIG = [
@@ -68,11 +69,30 @@ const MODULE_CONFIG = [
   { id: 'documents', label: 'Documents', icon: FileBox, group: 'Main' },
   { id: 'website', label: 'Public Website', icon: Globe, group: 'Public' },
   { id: 'mobile-app', label: 'Member App', icon: Smartphone, group: 'Public' },
+  { id: 'permissions', label: 'Access Control', icon: ShieldCheck, group: 'Admin' },
   { id: 'settings', label: 'System Settings', icon: Settings, group: 'Admin' },
 ] as const;
 
-export function AppShell({ children, activeModule, onModuleChange }: AppShellProps) {
+export function AppShell({ children, activeModule, onModuleChange, onLogout }: AppShellProps) {
   const groups = Array.from(new Set(MODULE_CONFIG.map(m => m.group)));
+  const [currentUser, setCurrentUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const fetchMe = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) setCurrentUser(await res.json());
+        } catch (err) {
+          console.error('Auth sync failed');
+        }
+      }
+    };
+    fetchMe();
+  }, [activeModule]);
 
   return (
     <SidebarProvider>
@@ -92,29 +112,34 @@ export function AppShell({ children, activeModule, onModuleChange }: AppShellPro
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {MODULE_CONFIG.filter(m => m.group === group).map((item) => (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton
-                          isActive={activeModule === item.id}
-                          onClick={() => onModuleChange(item.id as ERPModule)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200 group text-sm font-medium",
-                            activeModule === item.id 
-                              ? "bg-indigo-50 text-indigo-700 shadow-sm" 
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                          )}
-                        >
-                          <item.icon className={cn(
-                            "w-4 h-4 transition-colors",
-                            activeModule === item.id ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
-                          )} />
-                          <span>{item.label}</span>
-                          {activeModule === item.id && (
-                            <ChevronRight className="ml-auto w-4 h-4 text-indigo-400" />
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    {MODULE_CONFIG.filter(m => m.group === group).map((item) => {
+                      const hasPermission = !currentUser || currentUser.roleId === 'admin' || currentUser.permissions?.some((p: string) => p.includes(item.id) || p === `view_${item.id}`);
+                      if (!hasPermission && item.group !== 'Admin') return null;
+                      
+                      return (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton
+                            isActive={activeModule === item.id}
+                            onClick={() => onModuleChange(item.id as ERPModule)}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200 group text-sm font-medium",
+                              activeModule === item.id 
+                                ? "bg-indigo-50 text-indigo-700 shadow-sm" 
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            )}
+                          >
+                            <item.icon className={cn(
+                              "w-4 h-4 transition-colors",
+                              activeModule === item.id ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                            )} />
+                            <span>{item.label}</span>
+                            {activeModule === item.id && (
+                              <ChevronRight className="ml-auto w-4 h-4 text-indigo-400" />
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -152,17 +177,22 @@ export function AppShell({ children, activeModule, onModuleChange }: AppShellPro
               <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
               
               <div 
-                onClick={() => onModuleChange('profile')}
                 className={cn(
                   "flex items-center gap-3 cursor-pointer group p-1.5 pr-3 rounded-full transition-all",
                   activeModule === 'profile' ? "bg-indigo-50" : "hover:bg-slate-100"
                 )}
               >
-                <div className="text-right hidden sm:block">
-                  <p className={cn("text-xs font-bold leading-none", activeModule === 'profile' ? "text-indigo-900" : "text-slate-800")}>Admin User</p>
-                  <p className="text-[10px] text-slate-400 font-medium tracking-tight">Head Administrator</p>
+                <div className="text-right hidden sm:block" onClick={() => onModuleChange('profile')}>
+                  <p className={cn("text-xs font-bold leading-none", activeModule === 'profile' ? "text-indigo-900" : "text-slate-800")}>
+                    {currentUser?.username || 'Admin User'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium tracking-tight">
+                    {currentUser?.roleId === 'admin' ? 'Super Administrator' : 'Staff Member'}
+                  </p>
                 </div>
-                <div className={cn(
+                <div 
+                  onClick={onLogout}
+                  className={cn(
                   "w-10 h-10 rounded-full bg-indigo-100 border-2 flex items-center justify-center text-indigo-600 overflow-hidden transition-all",
                   activeModule === 'profile' ? "border-indigo-500 ring-4 ring-indigo-500/10" : "border-white shadow-sm group-hover:border-indigo-200"
                 )}>

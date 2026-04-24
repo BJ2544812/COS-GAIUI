@@ -52,4 +52,5 @@ export type ERPModule =
   | 'mobile-app'
   | 'settings'
   | 'notifications'
-  | 'profile';
+  | 'profile'
+  | 'permissions';

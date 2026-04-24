@@ -40,6 +40,33 @@ interface DiscipleshipModuleProps {
 
 export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) {
   const [view, setView] = React.useState<'overview' | 'journey' | 'create-case'>('overview');
+  const [members, setMembers] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const fetchMembers = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/members');
+      const data = await res.json();
+      setMembers(data);
+    } catch (err) {
+      console.error('Failed to fetch members for discipleship:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // Dynamic stages based on real data
+  const stages = [
+    { name: 'First-time Visitor', count: members.filter(m => m.growth_stage === 'Visitor').length, color: 'bg-blue-100 text-blue-700', icon: UserPlus },
+    { name: 'Salvation Decision', count: members.filter(m => m.growth_stage === 'New Convert').length, color: 'bg-emerald-100 text-emerald-700', icon: Heart },
+    { name: 'Membership Class', count: members.filter(m => m.growth_stage === 'In Progress').length, color: 'bg-amber-100 text-amber-700', icon: Star },
+    { name: 'Mature Leader', count: members.filter(m => m.growth_stage === 'Leader').length, color: 'bg-slate-100 text-slate-700', icon: ShieldCheck },
+  ];
 
   if (view === 'create-case') {
     return (
@@ -49,17 +76,22 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Initialize Care Protocol</h1>
-            <p className="text-sm text-slate-500 font-medium tracking-tight">Document and track pastoral interventions, counsel, or prayer focus.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight text-left">Initialize Care Protocol</h1>
+            <p className="text-sm text-slate-500 font-medium tracking-tight text-left">Document and track pastoral interventions, counsel, or prayer focus.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <Card className="lg:col-span-2 rounded-[2.5rem] border-none shadow-2xl p-10 space-y-8 bg-white border border-slate-50">
+           <Card className="lg:col-span-2 rounded-[2.5rem] border-none shadow-2xl p-10 space-y-8 bg-white border border-slate-50 text-left">
               <div className="space-y-6">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1 font-sans">Primary Subject</label>
-                    <input type="text" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-inner" placeholder="Enter member name..." />
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1 font-sans">Primary Subject (Member Search)</label>
+                    <select className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-inner appearance-none">
+                       <option value="">Select a member...</option>
+                       {members.map(m => (
+                         <option key={m.id} value={m.id}>{m.name}</option>
+                       ))}
+                    </select>
                  </div>
 
                  <div className="grid grid-cols-2 gap-6">
@@ -275,8 +307,8 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {STAGES.map((stage, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+        {stages.map((stage, i) => (
           <Card key={i} className="border-none shadow-xl h-full group hover:shadow-2xl transition-all cursor-pointer bg-white rounded-[2.5rem] active:scale-[0.98] overflow-hidden">
             <CardContent className="p-8">
                <div className="flex justify-between items-start mb-6">

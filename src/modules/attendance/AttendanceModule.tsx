@@ -43,12 +43,52 @@ const ATTENDEES = [
 ];
 
 export function AttendanceModule() {
-  const [selectedSession, setSelectedSession] = React.useState<typeof SESSIONS[0] | null>(null);
+  const [selectedSession, setSelectedSession] = React.useState<any | null>(null);
   const [isLiveCheckin, setIsLiveCheckin] = React.useState(false);
   const [showQR, setShowQR] = React.useState<string | null>(null);
   const [checkinMode, setCheckinMode] = React.useState<'default' | 'staff' | 'visitor'>('default');
   const [dutyReason, setDutyReason] = React.useState('');
   const [selectedRole, setSelectedRole] = React.useState('Lead Usher');
+  const [attendanceRecords, setAttendanceRecords] = React.useState<any[]>([]);
+  const [sessions, setSessions] = React.useState(SESSIONS);
+
+  const fetchAttendance = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/attendance');
+      const data = await res.json();
+      setAttendanceRecords(data);
+      
+      // Update session counts if we have real data
+      if (data.length > 0) {
+        const total = data.reduce((sum: number, r: any) => sum + r.count, 0);
+        const avg = Math.round(total / data.length);
+        console.log('Attendance Hydrated:', avg);
+      }
+    } catch (err) {
+      console.error('Failed to fetch attendance:', err);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
+
+  const handleManualCheckIn = async (count: number = 1) => {
+    try {
+      await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_name: selectedSession?.name || 'Manual Entry',
+          count: count,
+          campus: selectedSession?.campus || 'Downtown'
+        })
+      });
+      fetchAttendance();
+    } catch (err) {
+      console.error('Check-in failed:', err);
+    }
+  };
 
   if (isLiveCheckin) {
     const currentSession = selectedSession || SESSIONS[0];
@@ -89,7 +129,7 @@ export function AttendanceModule() {
                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent"></div>
                    <div className="relative z-10 space-y-4">
                       <div className="space-y-2">
-                        <h2 className="text-4xl font-black tracking-tighter uppercase italic">Self Check-in</h2>
+                        <h2 className="text-4xl font-black tracking-tighter uppercase">Self Check-in</h2>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Scan to participate in {currentSession.name}</p>
                       </div>
                       <div className="w-64 h-64 bg-white rounded-[2rem] mx-auto p-6 shadow-[0_0_50px_rgba(99,102,241,0.3)] flex items-center justify-center">
@@ -193,7 +233,7 @@ export function AttendanceModule() {
                  <div className="space-y-8 relative z-10 pt-4">
                     <div className="space-y-2">
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Intake</p>
-                       <p className="text-5xl font-black tracking-tighter leading-none italic">1,242</p>
+                       <p className="text-5xl font-black tracking-tighter leading-none">1,242</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                        <div className="p-5 rounded-3xl bg-white/5 border border-white/10 space-y-1">
@@ -257,14 +297,14 @@ export function AttendanceModule() {
                         )}>
                           {selectedSession.status} Session
                         </Badge>
-                        <CardTitle className="text-4xl font-black text-slate-900 tracking-tighter italic">{selectedSession.name}</CardTitle>
+                        <CardTitle className="text-4xl font-black text-slate-900 tracking-tighter">{selectedSession.name}</CardTitle>
                         <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
                           {selectedSession.date} &bull; {selectedSession.campus} Campus &bull; Managed by AI
                         </CardDescription>
                       </div>
                       <div className="text-right space-y-1">
                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Final Count</p>
-                         <h2 className="text-6xl font-black text-indigo-600 tracking-tighter italic leading-none">{selectedSession.count}</h2>
+                         <h2 className="text-6xl font-black text-indigo-600 tracking-tighter leading-none">{selectedSession.count}</h2>
                       </div>
                    </div>
                 </CardHeader>
@@ -307,7 +347,7 @@ export function AttendanceModule() {
                     <div className="space-y-2">
                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vs Historical Average</p>
                        <div className="flex items-baseline gap-3">
-                         <h3 className="text-5xl font-black italic tracking-tighter text-emerald-400">+12.4%</h3>
+                         <h3 className="text-5xl font-black tracking-tighter text-emerald-400">+12.4%</h3>
                          <TrendingUp className="w-8 h-8 text-emerald-500" />
                        </div>
                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden mt-4">
@@ -316,7 +356,7 @@ export function AttendanceModule() {
                     </div>
                     <div className="space-y-2 pt-4 border-t border-white/5">
                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Integrity Score</p>
-                       <h3 className="text-3xl font-black italic tracking-tighter">98%</h3>
+                       <h3 className="text-3xl font-black tracking-tighter">98%</h3>
                        <p className="text-[10px] text-slate-500 font-bold leading-relaxed mt-2">Processing latency: <span className="text-indigo-400">1.2s</span> &bull; Packet Loss: <span className="text-indigo-400">0.02%</span></p>
                     </div>
                  </div>
@@ -366,7 +406,7 @@ export function AttendanceModule() {
         <Card className="lg:col-span-2 border-none shadow-xl h-full rounded-[2.5rem] bg-white overflow-hidden">
            <CardHeader className="flex flex-row items-center justify-between p-10 pb-6">
               <div className="space-y-1">
-                <CardTitle className="text-2xl font-black text-slate-900 tracking-tight italic">Velocity Trend</CardTitle>
+                <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Velocity Trend</CardTitle>
                 <CardDescription className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Participation momentum across all active clusters</CardDescription>
               </div>
               <Badge className="bg-indigo-50 text-indigo-600 border-none px-4 py-1.5 font-black uppercase text-[9px]">Live Data</Badge>
@@ -374,7 +414,10 @@ export function AttendanceModule() {
            <CardContent className="p-10 pt-0">
               <div className="h-[300px] mt-6">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={[
+                  <AreaChart data={attendanceRecords.length > 0 ? attendanceRecords.slice(-7).map(r => ({ 
+                    day: new Date(r.date).toLocaleDateString(undefined, { weekday: 'short' }), 
+                    count: r.count 
+                  })) : [
                     { day: 'Sun', count: 2400 },
                     { day: 'Mon', count: 120 },
                     { day: 'Tue', count: 210 },
@@ -403,14 +446,19 @@ export function AttendanceModule() {
         <Card className="border-none shadow-xl h-full rounded-[2.5rem] bg-slate-900 text-white overflow-hidden p-8 space-y-8 relative group">
            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent group-hover:from-indigo-500/20 transition-all"></div>
            <CardHeader className="p-0 space-y-1 relative z-10">
-              <CardTitle className="text-xl font-black tracking-tight italic">Key Intake Vectors</CardTitle>
+              <CardTitle className="text-xl font-black tracking-tight">Key Intake Vectors</CardTitle>
               <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Global performance metrics</CardDescription>
            </CardHeader>
            <CardContent className="space-y-6 pt-2 p-0 relative z-10">
               <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex justify-between items-center group-hover:bg-white/10 transition-all">
                  <div>
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] leading-none mb-2">Weekly Average</p>
-                    <p className="text-4xl font-black text-indigo-400 leading-none tracking-tighter">1,942</p>
+                    <p className="text-4xl font-black text-indigo-400 leading-none tracking-tighter uppercase font-mono">
+                       {attendanceRecords.length > 0 
+                         ? Math.round(attendanceRecords.reduce((sum, r) => sum + r.count, 0) / attendanceRecords.length).toLocaleString()
+                         : '1,942'
+                       }
+                    </p>
                  </div>
                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
                     <TrendingUp className="w-6 h-6" />
@@ -440,7 +488,7 @@ export function AttendanceModule() {
 
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h2 className="text-xl font-black text-slate-900 tracking-tight italic uppercase">Active Intake Channels</h2>
+           <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">Active Intake Channels</h2>
            <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600">History Audit</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -462,7 +510,7 @@ export function AttendanceModule() {
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{session.campus} &bull; {session.date}</p>
                             {session.status === 'Live' && <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></span>}
                          </div>
-                         <h3 className="text-2xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tighter leading-none italic uppercase">{session.name}</h3>
+                         <h3 className="text-2xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tighter leading-none uppercase">{session.name}</h3>
                          <div className="flex items-center gap-4 pt-1">
                             <div className="flex items-center gap-2">
                                <Users className="w-4 h-4 text-slate-300" />

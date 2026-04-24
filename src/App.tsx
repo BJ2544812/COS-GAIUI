@@ -26,17 +26,87 @@ import { SettingsModule } from './modules/settings/SettingsModule';
 import { NotificationsModule } from './modules/notifications/NotificationsModule';
 import { ProfileModule } from './modules/profile/ProfileModule';
 import { CommunicationModule } from './modules/communication/CommunicationModule';
-import { Construction } from 'lucide-react';
+import { AuthModule } from './modules/auth/AuthModule';
+import { PermissionsModule } from './modules/permissions/PermissionsModule';
+import { SetupWizard } from './modules/setup/SetupWizard';
+import { Construction, Loader2 } from 'lucide-react';
 
 export default function App() {
   const [activeModule, setActiveModule] = React.useState<ERPModule>('dashboard');
+  const [isAuthenticated, setIsAuthenticated] = React.useState(!!localStorage.getItem('token'));
+  const [isInitialized, setIsInitialized] = React.useState<boolean | null>(null);
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch('/api/setup/status');
+        const data = await res.json();
+        setIsInitialized(data.isInitialized);
+      } catch (err) {
+        console.error('Core Connectivity Failure');
+      }
+    };
+    checkStatus();
+  }, []);
+
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data);
+          } else {
+            handleLogout();
+          }
+        } catch (err) {
+          handleLogout();
+        }
+      }
+    };
+    checkAuth();
+  }, [isAuthenticated]);
+
+  const handleLogin = (token: string, userData: any) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setIsAuthenticated(false);
+  };
 
   const renderModule = () => {
+    if (isInitialized === null) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-10 font-sans text-white">
+           <div className="flex flex-col items-center gap-6 animate-pulse">
+              <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400">Loading Ministry Intelligence...</p>
+           </div>
+        </div>
+      );
+    }
+
+    if (!isInitialized) {
+      return <SetupWizard onComplete={() => setIsInitialized(true)} />;
+    }
+
+    if (!isAuthenticated) return <AuthModule onLogin={handleLogin} />;
+
     switch (activeModule) {
       case 'dashboard':
         return <DashboardModule onModuleChange={setActiveModule} />;
       case 'members':
-        return <MembersModule onModuleChange={setActiveModule} />;
+        return <MembersModule onModuleChange={setActiveModule} user={user} />;
       case 'structure':
         return <StructureModule onModuleChange={setActiveModule} />;
       case 'workforce':
@@ -52,7 +122,7 @@ export default function App() {
       case 'giving':
         return <GivingModule onModuleChange={setActiveModule} />;
       case 'finance':
-        return <FinanceModule onModuleChange={setActiveModule} />;
+        return <FinanceModule onModuleChange={setActiveModule} user={user} />;
       case 'assets':
         return <AssetsModule />;
       case 'events':
@@ -73,6 +143,8 @@ export default function App() {
         return <NotificationsModule />;
       case 'profile':
         return <ProfileModule />;
+      case 'permissions':
+        return <PermissionsModule />;
       default:
         return (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-12">
@@ -90,7 +162,7 @@ export default function App() {
   };
 
   return (
-    <AppShell activeModule={activeModule} onModuleChange={setActiveModule}>
+    <AppShell activeModule={activeModule} onModuleChange={setActiveModule} onLogout={handleLogout}>
       {renderModule()}
     </AppShell>
   );

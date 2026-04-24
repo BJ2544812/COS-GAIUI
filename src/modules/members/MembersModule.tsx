@@ -39,14 +39,34 @@ const MOCK_MEMBERS = [
 
 interface MembersModuleProps {
   onModuleChange?: (module: ERPModule) => void;
+  user?: any;
 }
 
 type ViewState = 'directory' | 'intake' | 'profile';
 
-export function MembersModule({ onModuleChange }: MembersModuleProps) {
+export function MembersModule({ onModuleChange, user }: MembersModuleProps) {
   const [view, setView] = React.useState<ViewState>('directory');
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [members, setMembers] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const fetchMembers = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/members');
+      const data = await res.json();
+      setMembers(data);
+    } catch (err) {
+      console.error('Failed to fetch members:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
 
   const handleAddMember = () => setView('intake');
   const handleViewProfile = (id: string) => {
@@ -58,14 +78,25 @@ export function MembersModule({ onModuleChange }: MembersModuleProps) {
     setSelectedMemberId(null);
   };
 
+  const handleSaveMember = async (data: any) => {
+    try {
+      await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      await fetchMembers();
+      handleBackToDirectory();
+    } catch (err) {
+      console.error('Failed to save member:', err);
+    }
+  };
+
   if (view === 'intake') {
     return (
       <MemberIntake 
         onCancel={handleBackToDirectory} 
-        onSave={(data) => {
-          console.log('Saving member:', data);
-          handleBackToDirectory();
-        }} 
+        onSave={handleSaveMember} 
       />
     );
   }
@@ -78,6 +109,11 @@ export function MembersModule({ onModuleChange }: MembersModuleProps) {
       />
     );
   }
+
+  const filteredMembers = members.filter(m => 
+    m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    m.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -110,7 +146,7 @@ export function MembersModule({ onModuleChange }: MembersModuleProps) {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Total Members</p>
-              <p className="text-2xl font-bold text-slate-900 leading-none">2,482</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">{members.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -155,106 +191,98 @@ export function MembersModule({ onModuleChange }: MembersModuleProps) {
              <button className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
               <Filter className="w-4 h-4" />
               Filters
-            </button>
+             </button>
             <div className="h-6 w-[1px] bg-slate-200 mx-2"></div>
-            <p className="text-sm font-medium text-slate-400">Showing 6 of 2,482 members</p>
+            <p className="text-sm font-medium text-slate-400">Showing {filteredMembers.length} of {members.length} members</p>
           </div>
         </div>
         
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-slate-50/50">
-              <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="w-[300px] font-bold text-slate-600 h-12">Member</TableHead>
-                <TableHead className="font-bold text-slate-600 h-12">Status</TableHead>
-                <TableHead className="font-bold text-slate-600 h-12">Campus</TableHead>
-                <TableHead className="font-bold text-slate-600 h-12">Joined</TableHead>
-                <TableHead className="font-bold text-slate-600 h-12">Engagement</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {MOCK_MEMBERS.map((member) => (
-                <TableRow key={member.id} className="group border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-400 border border-slate-200 overflow-hidden">
-                        {member.name.charAt(0)}
-                      </div>
-                      <div className="flex flex-col">
-                        <span 
-                          onClick={() => handleViewProfile(member.id)}
-                          className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors whitespace-nowrap cursor-pointer hover:underline"
-                        >
-                          {member.name}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <Mail className="w-3 h-3" /> {member.email}
+          {loading ? (
+             <div className="p-12 text-center text-slate-400 font-medium tracking-tight">Syncing with system database...</div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow className="hover:bg-transparent border-none">
+                  <TableHead className="w-[300px] font-bold text-slate-600 h-12">Member</TableHead>
+                  <TableHead className="font-bold text-slate-600 h-12">Status</TableHead>
+                  <TableHead className="font-bold text-slate-600 h-12">Campus</TableHead>
+                  <TableHead className="font-bold text-slate-600 h-12">Joined</TableHead>
+                  <TableHead className="font-bold text-slate-600 h-12">Engagement</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMembers.map((member) => (
+                  <TableRow key={member.id} className="group border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
+                    <TableCell className="py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-400 border border-slate-200 overflow-hidden uppercase">
+                          {member.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span 
+                            onClick={() => handleViewProfile(member.id)}
+                            className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors whitespace-nowrap cursor-pointer hover:underline"
+                          >
+                            {member.name}
                           </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> {member.email || 'No email registered'}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn(
-                      "font-semibold rounded-full px-3 py-0.5 border-none shadow-sm",
-                      member.status === MembershipStatus.MEMBER && "bg-indigo-50 text-indigo-700",
-                      member.status === MembershipStatus.LEADER && "bg-amber-50 text-amber-700",
-                      member.status === MembershipStatus.VISITOR && "bg-rose-50 text-rose-700",
-                      member.status === MembershipStatus.REGULAR && "bg-teal-50 text-teal-700",
-                      member.status === MembershipStatus.STAFF && "bg-slate-100 text-slate-700",
-                    )}>
-                      {member.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-sm text-slate-600 font-medium">
-                      <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                      {member.campus}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-slate-700">{member.joined}</span>
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Registration Date</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1.5 w-32">
-                      <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">
-                        <span>Score</span>
-                        <span className={cn(
-                          member.score > 80 ? "text-emerald-500" : member.score > 50 ? "text-amber-500" : "text-slate-400"
-                        )}>{member.score}%</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        "font-semibold rounded-full px-3 py-0.5 border-none shadow-sm uppercase text-[10px] tracking-widest",
+                        "bg-indigo-50 text-indigo-700"
+                      )}>
+                        {member.role || 'Member'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 text-sm text-slate-600 font-medium">
+                        <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                        {member.campus || 'Main Campus'}
                       </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={cn(
-                            "h-full rounded-full transition-all duration-1000",
-                            member.score > 80 ? "bg-emerald-500" : member.score > 50 ? "bg-amber-500" : "bg-slate-300"
-                          )} 
-                          style={{ width: `${member.score}%` }} 
-                        />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-slate-700">{member.membership_date ? new Date(member.membership_date).toLocaleDateString() : 'Active'}</span>
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Registration Date</span>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <button 
-                      onClick={() => handleViewProfile(member.id)}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1.5 w-32">
+                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">
+                          <span>Progress</span>
+                          <span className="text-indigo-500">Stage: {member.growth_stage || 'Visitor'}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 w-[40%] rounded-full" />
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <button 
+                        onClick={() => handleViewProfile(member.id)}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
         
         <div className="p-6 border-t border-slate-50 flex justify-between items-center bg-slate-50/10">
-          <p className="text-sm text-slate-500 font-medium">Page 1 of 414</p>
+          <p className="text-sm text-slate-500 font-medium font-sans">System synchronized with SQLite Core</p>
           <div className="flex gap-2">
              <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-400 bg-white cursor-not-allowed">Previous</button>
              <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-all">Next</button>
@@ -264,3 +292,4 @@ export function MembersModule({ onModuleChange }: MembersModuleProps) {
     </div>
   );
 }
+
