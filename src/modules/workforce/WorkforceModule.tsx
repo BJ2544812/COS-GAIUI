@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { 
   Briefcase, 
   Search, 
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
+import { Button } from '@/src/components/ui/button';
 import { ERPModule } from '@/src/types';
 
 const STAFF = [

@@ -29,6 +29,8 @@ interface MemberProfileDetailProps {
 
 export function MemberProfileDetail({ memberId, onBack }: MemberProfileDetailProps) {
   const [activeTab, setActiveTab] = React.useState<'overview' | 'family' | 'spiritual' | 'activity'>('overview');
+  const familyPhotoRef = React.useRef<HTMLInputElement>(null);
+  const [familyPhoto, setFamilyPhoto] = React.useState<string | null>(null);
 
   // Mock data for the specific member
   const member = {
@@ -110,8 +112,27 @@ export function MemberProfileDetail({ memberId, onBack }: MemberProfileDetailPro
           <Card className="rounded-3xl border-slate-100 shadow-sm p-6 bg-slate-50 border-dashed">
              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Family Information</p>
              <div className="space-y-4">
-                <div className="w-full aspect-[4/3] rounded-2xl bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-400 overflow-hidden relative group cursor-pointer">
-                   <Users size={32} className="opacity-20" />
+                <input 
+                  type="file" 
+                  ref={familyPhotoRef} 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      const url = URL.createObjectURL(e.target.files[0]);
+                      setFamilyPhoto(url);
+                    }
+                  }}
+                />
+                <div 
+                  onClick={() => familyPhotoRef.current?.click()}
+                  className="w-full aspect-[4/3] rounded-2xl bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-400 overflow-hidden relative group cursor-pointer"
+                >
+                   {familyPhoto ? (
+                     <img src={familyPhoto} alt="Family" className="w-full h-full object-cover" />
+                   ) : (
+                     <Users size={32} className="opacity-20" />
+                   )}
                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <Plus className="text-white w-6 h-6" />
                    </div>

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   MapPin, 
+  Building2,
   Users, 
   LayoutGrid, 
   Network, 

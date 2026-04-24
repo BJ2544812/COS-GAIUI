@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ArrowLeft,
   ArrowRight,
+  Library,
   X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
@@ -28,13 +29,16 @@ const DOCS = [
   { id: 1, name: 'Member_Trust_Agreement_2024.pdf', cat: 'Legal', owner: 'Sarah Jenkins', size: '2.4 MB', date: '2 days ago', status: 'Approved' },
   { id: 2, name: 'Baptism_Certificate_Template.docx', cat: 'Internal', owner: 'Robert Chen', size: '840 KB', date: '1 week ago', status: 'Draft' },
   { id: 3, name: 'Annual_Audit_Report_2023.xlsx', cat: 'Finance', owner: 'James Wilson', size: '15.2 MB', date: 'Mar 12, 2024', status: 'Audit Ready' },
-  { id: 4, name: 'Child_Safety_Policy_v4.pdf', cat: 'Governance', owner: 'Sarah Jenkins', size: '1.1 MB', date: 'Mar 01, 2024', status: 'Approved' },
+  { id: 4, name: 'Status_Card_Renewal_Guide.pdf', cat: 'Indian Act', owner: 'Chief Joseph', size: '1.2 MB', date: 'Mar 15, 2024', status: 'Reference' },
+  { id: 5, name: 'Declaration_of_Indigenous_Rights.pdf', cat: 'Indian Act', owner: 'Legal Office', size: '3.1 MB', date: 'Feb 10, 2024', status: 'Certified' },
+  { id: 6, name: 'Baptism_Certificate_Registry.xlsx', cat: 'Registry', owner: 'Pastoral Office', size: '2.1 MB', date: 'Yesterday', status: 'Live' },
 ];
 
 export function DocumentsModule() {
   const [selectedDoc, setSelectedDoc] = React.useState<any>(null);
   const [activeCategory, setActiveCategory] = React.useState('All');
   const [isUploading, setIsUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const filteredDocs = activeCategory === 'All' 
     ? DOCS 
@@ -53,7 +57,21 @@ export function DocumentsModule() {
           </div>
         </div>
 
-        <Card className="rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50/50 p-12 text-center space-y-6 group hover:border-indigo-400 hover:bg-white transition-all cursor-pointer">
+        <Card 
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50/50 p-12 text-center space-y-6 group hover:border-indigo-400 hover:bg-white transition-all cursor-pointer"
+        >
+           <input 
+             type="file" 
+             ref={fileInputRef} 
+             className="hidden" 
+             onChange={(e) => {
+               if (e.target.files?.length) {
+                 alert(`Selected file: ${e.target.files[0].name}`);
+                 setIsUploading(false);
+               }
+             }}
+           />
            <div className="w-20 h-20 rounded-3xl bg-white shadow-xl shadow-slate-200 mx-auto flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
               <Plus size={32} />
            </div>
@@ -130,10 +148,11 @@ export function DocumentsModule() {
                <CardContent className="p-3">
                   {[
                     { name: 'All Files', count: DOCS.length, icon: Folder },
+                    { name: 'Indian Act Requirements', count: 2, icon: Library },
+                    { name: 'Baptism Registry', count: 1, icon: CheckCircle2 },
                     { name: 'Legal & Policy', count: 12, icon: Lock },
                     { name: 'Financial Records', count: 84, icon: FileText },
                     { name: 'Member Files', count: 248, icon: Folder },
-                    { name: 'Certificates', count: 42, icon: CheckCircle2 },
                   ].map((cat, i) => (
                     <button 
                       key={i} 

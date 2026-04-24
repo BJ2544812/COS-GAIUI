@@ -25,6 +25,8 @@ interface MemberIntakeProps {
 
 export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
   const [step, setStep] = React.useState(1);
+  const profileRef = React.useRef<HTMLInputElement>(null);
+  const familyRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = React.useState({
     firstName: '',
     lastName: '',
@@ -108,7 +110,22 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Profile Photo</label>
                       <div className="flex items-center gap-4">
-                        <div className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:bg-slate-50 transition-all cursor-pointer overflow-hidden">
+                        <input 
+                          type="file" 
+                          ref={profileRef} 
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              const url = URL.createObjectURL(e.target.files[0]);
+                              updateForm('profileImage', url);
+                            }
+                          }}
+                        />
+                        <div 
+                          onClick={() => profileRef.current?.click()}
+                          className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:bg-slate-50 transition-all cursor-pointer overflow-hidden"
+                        >
                            {formData.profileImage ? (
                              <img src={formData.profileImage} alt="Profile" className="w-full h-full object-cover" />
                            ) : (
@@ -222,7 +239,22 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Family Household Photo</label>
                       <div className="flex items-center gap-4">
-                        <div className="w-full h-32 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:bg-slate-50 transition-all cursor-pointer overflow-hidden">
+                        <input 
+                          type="file" 
+                          ref={familyRef} 
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              const url = URL.createObjectURL(e.target.files[0]);
+                              updateForm('familyImage', url);
+                            }
+                          }}
+                        />
+                        <div 
+                          onClick={() => familyRef.current?.click()}
+                          className="w-full h-32 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:bg-slate-50 transition-all cursor-pointer overflow-hidden"
+                        >
                            {formData.familyImage ? (
                              <img src={formData.familyImage} alt="Family" className="w-full h-full object-cover" />
                            ) : (
