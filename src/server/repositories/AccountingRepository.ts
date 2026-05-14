@@ -1,0 +1,348 @@
+import { randomUUID } from 'crypto';
+import { prisma } from '../utils/prisma.js';
+import { Prisma } from '@prisma/client';
+import { accountBalanceChange, type JournalLine } from '../utils/accountingValidation.js';
+import { toDecimal2 } from '../utils/money.js';
+import { CodedError } from '../utils/apiErrors.js';
+
+type Tx = Prisma.TransactionClient;
+
+export interface CreateVoucherInput {
+  type: string;
+  date: Date;
+  amount: number;
+  description?: string;
+  entries: JournalLine[];
+  /** When set, this draft is a reversal of a posted voucher (links after create). */
+  reversesVoucherId?: string | null;
+  /** Traceability: donation | manual | reversal | import */
+  source?: string | null;
+  sourceRefId?: string | null;
+}
+
+export class AccountingRepository {
+  /** Balance is only updated when posting approved vouchers; creation always starts at zero. */
+  static async createAccount(tenantId: string, data: Prisma.AccountCreateInput) {
+    const { balance: _drop, ...rest } = data as Prisma.AccountCreateInput & { balance?: number };
+    return prisma.account.create({
+      data: {
+        ...rest,
+        balance: 0,
+        tenant: { connect: { id: tenantId } },
+      },
+    });
+  }
+
+  static async getAccountById(tenantId: string, id: string) {
+    return prisma.account.findFirst({ where: { id, tenantId } });
+  }
+
+  static async getAccounts(tenantId: string) {
+    return prisma.account.findMany({
+      where: { tenantId },
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  static async getAccountsByIds(tenantId: string, ids: string[]) {
+    if (ids.length === 0) return [];
+    return prisma.account.findMany({ where: { tenantId, id: { in: ids } } });
+  }
+
+  static async getVoucherById(tenantId: string, id: string, tx: Tx = prisma) {
+    return tx.voucher.findFirst({
+      where: { id, tenantId },
+      include: {
+        journalEntries: { include: { account: true } },
+        reversalVoucher: { select: { id: true, voucherNo: true, status: true } },
+      },
+    });
+  }
+
+  private static applyLinesToBalance(
+    tx: Tx,
+    tenantId: string,
+    lines: { accountId: string; debit: unknown; credit: unknown }[]
+  ) {
+    return (async () => {
+      for (const entry of lines) {
+        const account = await tx.account.findUnique({ where: { id: entry.accountId } });
+        if (!account) throw new CodedError('ACCOUNT_NOT_FOUND', `Account ${entry.accountId} not found`);
+        if (account.tenantId !== tenantId) throw new CodedError('ACCOUNT_TENANT', 'Account belongs to another tenant');
+        const delta = accountBalanceChange(account, {
+          debit: entry.debit,
+          credit: entry.credit,
+        });
+        await tx.account.update({
+          where: { id: entry.accountId },
+          data: { balance: { increment: delta } },
+        });
+      }
+    })();
+  }
+
+  private static removeLinesFromBalance(
+    tx: Tx,
+    tenantId: string,
+    lines: { accountId: string; debit: number; credit: number }[]
+  ) {
+    const inverted = lines.map((l) => ({
+      accountId: l.accountId,
+      debit: l.credit,
+      credit: l.debit,
+    }));
+    return this.applyLinesToBalance(tx, tenantId, inverted);
+  }
+
+  static async createVoucherDraft(
+    tenantId: string,
+    data: CreateVoucherInput,
+    tx: Tx | null = null
+  ) {
+    const db = tx ?? prisma;
+    const draftNo = `DRAFT-${randomUUID()}`;
+    return db.voucher.create({
+      data: {
+        tenantId,
+        voucherNo: draftNo,
+        type: data.type,
+        date: data.date,
+        amount: toDecimal2(data.amount as number),
+        description: data.description,
+        status: 'draft',
+        postedAt: null,
+        reversesVoucherId: data.reversesVoucherId ?? null,
+        source: data.source ?? null,
+        sourceRefId: data.sourceRefId ?? null,
+        journalEntries: {
+          create: data.entries.map((e) => ({
+            tenantId,
+            accountId: e.accountId,
+            debit: toDecimal2(e.debit),
+            credit: toDecimal2(e.credit),
+            narration: e.narration,
+            fundId: e.fundId || null,
+            costCenterId: e.costCenterId || null,
+          })),
+        },
+      },
+      include: { journalEntries: { include: { account: true } } },
+    });
+  }
+
+  static async updateVoucherDraft(
+    tenantId: string,
+    voucherId: string,
+    data: { date?: Date; amount?: number; description?: string | null; entries: JournalLine[]; type?: string }
+  ) {
+    return prisma.$transaction(async (tx) => {
+      return AccountingRepository._updateVoucherDraftTx(tenantId, voucherId, data, tx);
+    });
+  }
+
+  static async _updateVoucherDraftTx(
+    tenantId: string,
+    voucherId: string,
+    data: { date?: Date; amount?: number; description?: string | null; entries: JournalLine[]; type?: string },
+    tx: Tx
+  ) {
+    const v = await tx.voucher.findFirst({ where: { id: voucherId, tenantId } });
+    if (!v) throw new Error('Voucher not found');
+    if (v.status !== 'draft') {
+      throw new Error('Only draft vouchers can be edited. Unapprove or use reversal for posted vouchers.');
+    }
+    await tx.journalEntry.deleteMany({ where: { voucherId, tenantId } });
+    return tx.voucher.update({
+      where: { id: voucherId },
+      data: {
+        date: data.date,
+        amount: data.amount !== undefined ? toDecimal2(data.amount) : undefined,
+        description: data.description,
+        type: data.type,
+        journalEntries: {
+          create: data.entries.map((e) => ({
+            tenantId,
+            accountId: e.accountId,
+            debit: toDecimal2(e.debit),
+            credit: toDecimal2(e.credit),
+            narration: e.narration,
+            fundId: e.fundId || null,
+            costCenterId: e.costCenterId || null,
+          })),
+        },
+      },
+      include: { journalEntries: { include: { account: true } } },
+    });
+  }
+
+  static async deleteVoucherDraft(tenantId: string, voucherId: string) {
+    return prisma.$transaction(async (tx) => {
+      const v = await tx.voucher.findFirst({ where: { id: voucherId, tenantId } });
+      if (!v) throw new Error('Voucher not found');
+      if (v.status !== 'draft') throw new Error('Only draft vouchers can be deleted');
+      await tx.journalEntry.deleteMany({ where: { voucherId, tenantId } });
+      await tx.voucher.delete({ where: { id: voucherId } });
+    });
+  }
+
+  static async setVoucherStatus(
+    tenantId: string,
+    voucherId: string,
+    status: 'draft' | 'approved' | 'posted',
+    tx: Tx | null = null
+  ) {
+    const db = tx ?? prisma;
+    return db.voucher.updateMany({
+      where: { id: voucherId, tenantId },
+      data: { status },
+    });
+  }
+
+  static async postApprovedVoucherWithTx(
+    tx: Tx,
+    tenantId: string,
+    voucherId: string,
+    finalVoucherNo: string,
+    postedByUserId?: string | null
+  ) {
+    const v = await tx.voucher.findFirst({
+      where: { id: voucherId, tenantId },
+      include: { journalEntries: true },
+    });
+    if (!v) throw new CodedError('VOUCHER_NOT_FOUND', 'Voucher not found');
+    if (v.status !== 'approved') {
+      throw new CodedError(
+        'VOUCHER_NOT_APPROVED',
+        'Only approved vouchers can be posted. Current status: ' + v.status
+      );
+    }
+    if (v.journalEntries.length < 2) {
+      throw new CodedError('VOUCHER_LINES', 'Voucher has no valid journal lines.');
+    }
+
+    await this.applyLinesToBalance(
+      tx,
+      tenantId,
+      v.journalEntries.map((e) => ({
+        accountId: e.accountId,
+        debit: e.debit,
+        credit: e.credit,
+      }))
+    );
+
+    return tx.voucher.update({
+      where: { id: voucherId },
+      data: {
+        voucherNo: finalVoucherNo,
+        status: 'posted',
+        postedAt: new Date(),
+        ...(postedByUserId !== undefined && { postedByUserId: postedByUserId || null }),
+      },
+      include: { journalEntries: { include: { account: true } } },
+    });
+  }
+
+  static async postApprovedVoucher(
+    tenantId: string,
+    voucherId: string,
+    finalVoucherNo: string,
+    postedByUserId?: string | null
+  ) {
+    return prisma.$transaction(async (tx) =>
+      this.postApprovedVoucherWithTx(tx, tenantId, voucherId, finalVoucherNo, postedByUserId)
+    );
+  }
+
+  static async setVoucherApproved(
+    tenantId: string,
+    voucherId: string,
+    approvedByUserId: string | null,
+    tx: Tx | null = null
+  ) {
+    const db = tx ?? prisma;
+    return db.voucher.updateMany({
+      where: { id: voucherId, tenantId, status: 'draft' },
+      data: { status: 'approved', approvedByUserId: approvedByUserId ?? null },
+    });
+  }
+
+  static async setVoucherUnapproved(tenantId: string, voucherId: string, tx: Tx | null = null) {
+    const db = tx ?? prisma;
+    return db.voucher.updateMany({
+      where: { id: voucherId, tenantId, status: 'approved' },
+      data: { status: 'draft', approvedByUserId: null },
+    });
+  }
+
+  /**
+   * Single atomic row upsert+increment (PostgreSQL) so concurrent posts cannot get the same sequence.
+   */
+  static async reserveNextFySequence(tx: Tx, tenantId: string, fyStartYear: number, voucherType: string = 'Journal'): Promise<number> {
+    const rows = await tx.$queryRaw<{ lastSeq: number }[]>`
+      INSERT INTO "VoucherFySequence" ("id", "tenantId", "fyStartYear", "voucherType", "lastSeq", "createdAt", "updatedAt")
+      VALUES (gen_random_uuid()::text, ${tenantId}, ${fyStartYear}, ${voucherType}, 1, NOW(), NOW())
+      ON CONFLICT ("tenantId", "fyStartYear", "voucherType")
+      DO UPDATE SET
+        "lastSeq" = "VoucherFySequence"."lastSeq" + 1,
+        "updatedAt" = NOW()
+      RETURNING "lastSeq"
+    `;
+    const n = rows[0]?.lastSeq;
+    if (n === undefined || n === null) {
+      throw new Error('Voucher sequence reservation failed');
+    }
+    return Number(n);
+  }
+
+  static async getVouchers(tenantId: string, dateRange?: { gte: Date; lte: Date }, statusIn?: string[]) {
+    return prisma.voucher.findMany({
+      where: {
+        tenantId,
+        ...(dateRange && { date: { gte: dateRange.gte, lte: dateRange.lte } }),
+        ...(statusIn?.length && { status: { in: statusIn } }),
+      },
+      include: { journalEntries: { include: { account: true } } },
+      orderBy: { date: 'desc' },
+    });
+  }
+
+  static async getLedgerRows(
+    tenantId: string,
+    accountId: string,
+    range?: { gte: Date; lte: Date }
+  ) {
+    return prisma.journalEntry.findMany({
+      where: {
+        tenantId,
+        accountId,
+        voucher: {
+          status: 'posted',
+          ...(range && { date: { gte: range.gte, lte: range.lte } }),
+        },
+      },
+      include: {
+        voucher: { select: { id: true, date: true, voucherNo: true, description: true, type: true } },
+      },
+      orderBy: [{ voucher: { date: 'asc' } }, { id: 'asc' }],
+    });
+  }
+
+  /** Posted lines for this account strictly before `beforeExclusive` (opening balance basis). */
+  static async getLedgerRowsBefore(tenantId: string, accountId: string, beforeExclusive: Date) {
+    return prisma.journalEntry.findMany({
+      where: {
+        tenantId,
+        accountId,
+        voucher: { status: 'posted', date: { lt: beforeExclusive } },
+      },
+      include: {
+        voucher: { select: { id: true, date: true, voucherNo: true, description: true, type: true } },
+      },
+      orderBy: [{ voucher: { date: 'asc' } }, { id: 'asc' }],
+    });
+  }
+
+  static async getTrialBalanceAccounts(tenantId: string) {
+    return prisma.account.findMany({ where: { tenantId }, orderBy: { code: 'asc' } });
+  }
+}

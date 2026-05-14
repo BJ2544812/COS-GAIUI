@@ -1,0 +1,1129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------
+// Identity & Multi-Tenancy
+// ---------------------------------------------------------
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  domain    String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  roles             Role[]
+  members           Member[]
+  families          Family[]
+  campuses          Campus[]
+  ministries        Ministry[]
+  events            Event[]
+  attendances       Attendance[]
+  attendanceSessions AttendanceSession[]
+  accounts            Account[]
+  vouchers            Voucher[]
+  voucherFySequences  VoucherFySequence[]
+  journalEntries      JournalEntry[]
+  settings            Setting[]
+  careNotes         CareNote[]
+  donations         Donation[]
+  campaigns         Campaign[]
+  assets            Asset[]
+  contacts          Contact[]
+  communicationLogs CommunicationLog[]
+  documents         Document[]
+  pageData          PageData[]
+  sermons           Sermon[]
+  idempotencyKeys  IdempotencyKey[]
+  processedRazorpayEvents ProcessedRazorpayEvent[]
+  eventLogs         EventLog[]
+  analyticsEvents   AnalyticsEvent[]
+  funds             Fund[]
+  costCenters       CostCenter[]
+  financialYears    FinancialYear[]
+  budgets           Budget[]
+  notifications     Notification[]
+
+  regions           Region[]
+  zones             Zone[]
+  smallGroups       SmallGroup[]
+  smallGroupMembers SmallGroupMember[]
+  careCases         CareCase[]
+  careLogs          CareLog[]
+  prayerRequests    PrayerRequest[]
+  pathways          Pathway[]
+  pathwaySteps      PathwayStep[]
+  memberPathwayProgress MemberPathwayProgress[]
+  mentorships       Mentorship[]
+  tasks             Task[]
+  memberEngagementSnapshots MemberEngagementSnapshot[]
+  assetMaintenanceLogs AssetMaintenanceLog[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String
+  email     String
+  username  String
+  password  String
+  roleId    String
+  status    String   @default("Active")
+  resetToken String?
+  resetTokenExpiry DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  vouchersApproved Voucher[] @relation("VoucherApprovedBy")
+  vouchersPosted  Voucher[] @relation("VoucherPostedBy")
+  notifications   Notification[]
+
+  
+  memberId          String? @unique
+  member            Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  assignedCareCases CareCase[] @relation("AssignedPastor")
+  createdCareCases  CareCase[] @relation("CareCaseCreator")
+  updatedCareCases  CareCase[] @relation("CareCaseUpdater")
+  careLogs          CareLog[]  @relation("CareLogAuthor")
+  createdCareLogs   CareLog[]  @relation("CareLogCreator")
+  createdPrayerRequests PrayerRequest[] @relation("PrayerRequestCreator")
+  assignedTasks     Task[] @relation("AssignedUser")
+  createdTasks      Task[] @relation("TaskCreator")
+  updatedTasks      Task[] @relation("TaskUpdater")
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, username])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  tenantId    String? // null if system role
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, name])
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  moduleKey   String  @unique
+  description String?
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+// ---------------------------------------------------------
+// Core Domain
+// ---------------------------------------------------------
+
+model Family {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  imageUrl  String?  // Family/household group photo
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members Member[]
+}
+
+model Member {
+  id             String    @id @default(uuid())
+  tenantId       String
+  familyId       String?
+  name           String
+  email          String?
+  phone          String?
+  role           String?   // e.g., Deacon, Volunteer
+  dob            DateTime? // Date of birth
+  profileImageUrl String?  // MinIO URL
+  membershipDate DateTime?
+  status         String    @default("Active")
+  growthStage    String    @default("Visitor") // Visitor, Member, Leader
+  gender         String?   // Male, Female, Other
+  aadhaar        String?   // Identity number
+  pan            String?   // Identity number
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  family Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+
+  attendances        Attendance[]
+  careNotes          CareNote[]
+  donations          Donation[]
+  memberDocuments    MemberDocument[]
+  spiritualMilestones SpiritualMilestone[]
+  memberResponsibilities MemberResponsibility[]
+
+  
+  user              User?
+  smallGroupMembers SmallGroupMember[]
+  careCases         CareCase[] @relation("CareCaseSubject")
+  prayerRequests    PrayerRequest[] @relation("PrayerRequester")
+  pathwayProgress   MemberPathwayProgress[]
+  pathwayMentoring  MemberPathwayProgress[] @relation("AssignedMentor")
+  mentees           Mentorship[] @relation("Mentor")
+  mentors           Mentorship[] @relation("Disciple")
+  assignedTasks     Task[] @relation("AssignedMember")
+  engagementSnapshots MemberEngagementSnapshot[]
+  assignedAssets    Asset[] @relation("AssetAssignment")
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+// Member identity documents (Aadhaar, PAN, etc.) — never stored in Member itself
+model MemberDocument {
+  id         String   @id @default(uuid())
+  tenantId   String
+  memberId   String
+  type       String   // Aadhaar, PAN, BaptismCert, DeclarationForm, Other, GeneratedVisitorDeclaration, GeneratedMemberDeclaration, GeneratedBaptismCertificate
+  number     String?  // Document number (masked on read)
+  fileUrl    String?  // MinIO URL
+  verified   Boolean  @default(false)
+  notes      String?
+  acceptedAt DateTime? // When the member/staff recorded formal acceptance (declarations)
+  signerName String?   // Optional display name captured with acceptance
+  signatureDataUrl String? @db.Text // Optional data URL or short placeholder for future e-sign
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([tenantId, type])
+}
+
+// Spiritual milestones (Baptism, Salvation date, Small Group, etc.)
+model SpiritualMilestone {
+  id        String   @id @default(uuid())
+  tenantId  String
+  memberId  String
+  type      String   // Salvation, Baptism, MembershipClass, SmallGroupLeader, Other
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([tenantId, type])
+}
+
+// Assignments / Responsibilities (Event fund handling, leadership, volunteer roles)
+model MemberResponsibility {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  role            String   // e.g., "Funds Handler", "Small Group Leader", "Usher"
+  entityType      String   // e.g., "Event", "Group", "Ministry"
+  entityId        String?  // ID of the event/group
+  status          String   @default("Active")
+  startDate       DateTime @default(now())
+  endDate         DateTime?
+  allocatedFunds  Float?   // Total funds assigned to them for this role
+  usedFunds       Float?   // Funds they have spent
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([tenantId, role])
+}
+
+model Campus {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  type      String?
+  leader    String?
+  address   String?
+  upiId     String?
+  bankInfo  String?
+  departments String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ministries Ministry[]
+  events     Event[]
+  attendanceSessions AttendanceSession[]
+
+  regions Region[]
+}
+
+model Ministry {
+  id        String   @id @default(uuid())
+  tenantId  String
+  campusId  String?
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------
+// Events & Attendance
+// ---------------------------------------------------------
+
+model Event {
+  id        String   @id @default(uuid())
+  tenantId  String
+  campusId  String?
+  name      String
+  type      String // Service, SmallGroup, Special
+  date      DateTime
+  /// Venue or room label for operational run sheets
+  location       String?
+  /// Staff-only follow-up / pastoral notes (not public website)
+  internalNotes  String?
+  /// Optional recurrence hint, e.g. RRULE or `WEEKLY:SUNDAY` — interpreted by clients
+  recurringRule  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  attendanceSessions AttendanceSession[]
+}
+
+model AttendanceSession {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  date        DateTime @default(now())
+  startTime   DateTime?
+  endTime     DateTime?
+  status      String   @default("OPEN") // OPEN, CLOSED, ARCHIVED
+  type        String   @default("SERVICE") // SERVICE, EVENT, GROUP, VOLUNTEER
+  campusId    String?
+  eventId     String?
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campus      Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  attendances Attendance[]
+
+  @@index([tenantId, date])
+}
+
+model Attendance {
+  id                String   @id @default(uuid())
+  tenantId          String
+  sessionId         String
+  memberId          String?
+  visitorName       String?
+  visitorPhone      String?
+  status            String   @default("PRESENT") // PRESENT, LATE, EXCUSED, ABSENT
+  checkInTime       DateTime @default(now())
+  method            String   @default("MANUAL") // MANUAL, KIOSK, MOBILE, QR
+  notes             String?
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session           AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member            Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sessionId])
+  @@index([memberId])
+}
+
+// ---------------------------------------------------------
+// Accounting & Finance (Indian Context)
+// ---------------------------------------------------------
+
+model Account {
+  id        String   @id @default(uuid())
+  tenantId  String
+  code      String
+  name      String
+  type      String // Asset, Liability, Equity, Revenue, Expense
+  parentId  String?
+  isActive  Boolean  @default(true)
+  balance   Decimal  @default(0) @db.Decimal(18, 2) // Denormalized; updated only in post transaction
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent    Account?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Account[] @relation("AccountHierarchy")
+
+  journalEntries JournalEntry[]
+
+  @@unique([tenantId, code])
+}
+
+model Fund {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String   // General, Missions, Building
+  type        String   // Restricted, Unrestricted
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  budgets Budget[]
+}
+
+model CostCenter {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String   // Main Campus, Downtown, Youth Ministry
+  code        String   // CC-01
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  budgets Budget[]
+}
+
+model Voucher {
+  id          String    @id @default(uuid())
+  tenantId    String
+  /** Final number (PREFIX-YYYY-#####) assigned on post. Drafts use DRAFT-… until posted. */
+  voucherNo   String
+  type        String // Receipt, Payment, Journal, Contra, Reversal
+  date        DateTime
+  amount      Decimal  @db.Decimal(18, 2)
+  description String?
+  /** draft → approved → posted. Only posted updates account balances. */
+  status      String    @default("draft")
+  postedAt    DateTime?
+  /** Set on a reversal voucher → posted voucher it reverses. UNIQUE enforces at most one reversal per original. */
+  reversesVoucherId String? @unique
+
+  approvedByUserId String?
+  postedByUserId    String?
+
+  /** donation | manual | reversal | import — traceability, not a workflow gate */
+  source      String?
+  sourceRefId String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvedByUser User? @relation("VoucherApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  postedByUser  User? @relation("VoucherPostedBy", fields: [postedByUserId], references: [id], onDelete: SetNull)
+
+  journalEntries  JournalEntry[]
+  originalVoucher   Voucher?  @relation("VoucherReversal", fields: [reversesVoucherId], references: [id], onDelete: SetNull)
+  reversalVoucher  Voucher?  @relation("VoucherReversal")
+
+  @@unique([tenantId, voucherNo])
+  @@index([tenantId, status])
+  @@index([tenantId, date])
+  @@index([tenantId, source])
+}
+
+/// Per-tenant, per–FY-start-year sequential counter for posted voucher numbers (PREFIX-YYYY-#####).
+model VoucherFySequence {
+  id          String   @id @default(uuid())
+  tenantId    String
+  fyStartYear Int
+  voucherType String   @default("Journal")
+  lastSeq     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, fyStartYear, voucherType])
+}
+
+model FinancialYear {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String   // e.g. "FY 2026"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  isClosed  Boolean  @default(false)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  periods FinancialPeriod[]
+  budgets Budget[]
+}
+
+model FinancialPeriod {
+  id              String   @id @default(uuid())
+  financialYearId String
+  name            String   // e.g. "April 2026"
+  startDate       DateTime
+  endDate         DateTime
+  isOpen          Boolean  @default(false)
+  isLocked        Boolean  @default(false)
+
+  financialYear FinancialYear @relation(fields: [financialYearId], references: [id], onDelete: Cascade)
+}
+
+model Budget {
+  id           String   @id @default(uuid())
+  tenantId     String
+  financialYearId String
+  fundId       String?
+  costCenterId String?
+  amount       Decimal  @db.Decimal(18,2)
+  trackingMode String   @default("SOFT") // STRICT, SOFT
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [financialYearId], references: [id], onDelete: Cascade)
+  fund          Fund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  costCenter    CostCenter?   @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+}
+
+/// Gateway / payment idempotency: one row per (tenant, key, operation); resultRefId stores JSON { voucherId, donationId }.
+model IdempotencyKey {
+  id          String   @id @default(uuid())
+  tenantId    String
+  key         String
+  operation   String
+  resultRefId String
+  createdAt   DateTime @default(now())
+  /** Expired rows are deleted by cleanup job; not returned by findValid. */
+  expiresAt   DateTime
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key, operation])
+  @@index([tenantId, createdAt])
+  @@index([expiresAt])
+}
+
+/// Razorpay webhook `id` (evt_…) — prevents replay after successful handling.
+model ProcessedRazorpayEvent {
+  id            String   @id @default(uuid())
+  tenantId      String
+  eventId      String
+  paymentId     String?
+  /** sha256 hex of raw body for audit */
+  signatureHash String?
+  donationId    String?
+  voucherId     String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eventId])
+  @@index([tenantId, createdAt])
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid())
+  tenantId  String
+  voucherId String
+  accountId String
+  debit     Decimal  @default(0) @db.Decimal(18, 2)
+  credit    Decimal  @default(0) @db.Decimal(18, 2)
+  narration String?
+  fundId       String?
+  costCenterId String?
+  createdAt DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  fund       Fund?       @relation(fields: [fundId], references: [id], onDelete: Restrict)
+  costCenter CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+}
+
+// ---------------------------------------------------------
+// Settings
+// ---------------------------------------------------------
+
+model Setting {
+  id       String @id @default(uuid())
+  tenantId String
+  key      String
+  value    String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+}
+
+// ---------------------------------------------------------
+// Discipleship & Pastoral Care
+// ---------------------------------------------------------
+
+model CareNote {
+  id        String   @id @default(uuid())
+  tenantId  String
+  memberId  String
+  authorId  String
+  note      String
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  // author User   @relation(fields: [authorId], references: [id], onDelete: SetNull) // Optional relation if we want strict FK
+}
+
+// ---------------------------------------------------------
+// Giving & Donations
+// ---------------------------------------------------------
+
+model Campaign {
+  id        String    @id @default(uuid())
+  tenantId  String
+  name      String
+  goal      Float?
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  donations Donation[]
+}
+
+model Donation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  donorId    String?
+  campaignId String?
+  amount     Decimal  @db.Decimal(18, 2)
+  date       DateTime @default(now())
+  method     String // Cash, Card, Bank Transfer
+  reference  String?
+  /** e.g. user | gateway | razorpay_webhook */
+  source     String?
+  sourceRefId String? // e.g. pay_… from gateway
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  donor    Member?   @relation(fields: [donorId], references: [id], onDelete: SetNull)
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, date])
+}
+
+// ---------------------------------------------------------
+// Assets & Facilities
+// ---------------------------------------------------------
+
+model Asset {
+  id           String    @id @default(uuid())
+  tenantId     String
+  name         String
+  category     String?
+  serialNumber String?
+  location     String?   // Physical location / station
+  value        Float
+  purchaseDate DateTime?
+  status       String    @default("Active") // Active, Maintenance, Damaged, Retired, Archived
+  condition    String?   // Good, Fair, Poor
+  imageUrl     String?
+  notes        String?
+  assignedToId String?   // Member ID if assigned
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedTo Member? @relation("AssetAssignment", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  maintenanceLogs AssetMaintenanceLog[]
+}
+
+model AssetMaintenanceLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  assetId     String
+  serviceType String   // Routine, Emergency, Upgrade, Inspection
+  description String
+  scheduledAt DateTime?
+  completedAt DateTime?
+  cost        Float?
+  technician  String?
+  status      String   @default("Scheduled") // Scheduled, InProgress, Completed, Cancelled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assetId])
+}
+
+// ---------------------------------------------------------
+// Outreach & Missions
+// ---------------------------------------------------------
+
+model Contact {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  status    String   @default("New") // New, Contacted, Converted
+  source    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------
+// Communication
+// ---------------------------------------------------------
+
+model CommunicationLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  type      String // Email, SMS
+  recipient String
+  subject   String?
+  content   String
+  status    String   @default("Sent") // Sent, Failed, Pending
+  sentAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------
+// Documents
+// ---------------------------------------------------------
+
+model Document {
+  id         String   @id @default(uuid())
+  tenantId   String
+  title      String
+  category   String?
+  url        String
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------
+// Website Management
+// ---------------------------------------------------------
+
+model PageData {
+  id          String   @id @default(uuid())
+  tenantId    String
+  slug        String
+  title       String
+  content     String // JSON or Markdown
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+}
+
+model Sermon {
+  id          String   @id @default(uuid())
+  tenantId    String
+  title       String
+  speaker     String?
+  date        DateTime @default(now())
+  videoUrl    String?
+  audioUrl    String?
+  description String?
+  thumbnail   String?
+  scripture   String?
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+}
+
+// ---------------------------------------------------------
+// Event System & Analytics
+// ---------------------------------------------------------
+
+model EventLog {
+  id          String    @id @default(uuid()) // Use UUID for eventId
+  eventName   String
+  tenantId    String
+  entityId    String
+  entityType  String
+  payload     Json
+  version     Int       @default(1)
+  occurredAt  DateTime  @default(now())
+  processedAt DateTime?
+  status      String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  error       String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, occurredAt])
+}
+
+// ---------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------
+
+model Notification {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String?
+  targetRole  String?  // 'Admin', 'Finance', 'Pastoral', etc. used if userId is null
+  type        String   // 'BudgetExceeded', 'FailedEvent', 'VoucherPosted', 'DonationReceived'
+  title       String
+  message     String
+  status      String   @default("unread") // 'unread', 'read'
+  priority    String   @default("MEDIUM") // 'LOW', 'MEDIUM', 'HIGH'
+  actionType  String?  // 'VIEW_EVENTS', 'REVIEW_BUDGET', etc.
+  actionLink  String?  // e.g. '/finance' or a deep link payload
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+  expiresAt   DateTime?
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, status])
+  @@index([tenantId, targetRole, status])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  tenantId  String
+  type      String
+  timestamp DateTime @default(now())
+  payload   Json
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, timestamp])
+}
+
+
+
+// ---------------------------------------------------------
+// Discipleship V2 Enums
+// ---------------------------------------------------------
+
+enum TaskTargetType {
+  MEMBER
+  CARE_CASE
+  SMALL_GROUP
+  PRAYER_REQUEST
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ConfidentialityLevel {
+  PUBLIC
+  GROUP
+  PASTORAL
+  SENIOR_PASTORAL
+  RESTRICTED
+}
+
+enum CareCaseStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum SmallGroupRole {
+  LEADER
+  HOST
+  PARTICIPANT
+}
+
+// ---------------------------------------------------------
+// Geographic & Small Group Models
+// ---------------------------------------------------------
+
+model Region {
+  id        String   @id @default(uuid())
+  tenantId  String
+  campusId  String?
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  zones  Zone[]
+}
+
+model Zone {
+  id        String   @id @default(uuid())
+  tenantId  String
+  regionId  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  region      Region       @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  smallGroups SmallGroup[]
+}
+
+model SmallGroup {
+  id         String   @id @default(uuid())
+  tenantId   String
+  zoneId     String?
+  name       String
+  type       String   // e.g. "Cell", "Interest"
+  meetingDay String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  zone   Zone?  @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  members SmallGroupMember[]
+}
+
+model SmallGroupMember {
+  id        String         @id @default(uuid())
+  tenantId  String
+  groupId   String
+  memberId  String
+  role      SmallGroupRole @default(PARTICIPANT)
+  joinedAt  DateTime       @default(now())
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group  SmallGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, groupId])
+  @@index([tenantId, memberId])
+}
+
+// ---------------------------------------------------------
+// Audit-Ready Care System
+// ---------------------------------------------------------
+
+model CareCase {
+  id                   String               @id @default(uuid())
+  tenantId             String
+  memberId             String
+  assignedUserId       String?
+  category             String
+  urgency              TaskPriority         @default(MEDIUM)
+  confidentialityLevel ConfidentialityLevel @default(PASTORAL)
+  status               CareCaseStatus       @default(OPEN)
+  createdById          String?
+  updatedById          String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member       Member    @relation("CareCaseSubject", fields: [memberId], references: [id], onDelete: Cascade)
+  assignedUser User?     @relation("AssignedPastor", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdBy    User?     @relation("CareCaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?     @relation("CareCaseUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  logs         CareLog[]
+
+  @@index([tenantId, assignedUserId, status])
+}
+
+model CareLog {
+  id              String   @id @default(uuid())
+  tenantId        String
+  careCaseId      String
+  authorId        String
+  interactionType String
+  content         String
+  date            DateTime @default(now())
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  careCase CareCase @relation(fields: [careCaseId], references: [id], onDelete: Cascade)
+  author   User     @relation("CareLogAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("CareLogCreator", fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+model PrayerRequest {
+  id          String               @id @default(uuid())
+  tenantId    String
+  requesterId String?
+  content     String
+  visibility  ConfidentialityLevel @default(PUBLIC)
+  status      String               @default("Active")
+  createdById String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester Member? @relation("PrayerRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  createdBy User?   @relation("PrayerRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, requesterId, status])
+}
+
+// ---------------------------------------------------------
+// Scalable Mentorship & Journey
+// ---------------------------------------------------------
+
+model Pathway {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  steps    PathwayStep[]
+  progress MemberPathwayProgress[]
+}
+
+model PathwayStep {
+  id        String @id @default(uuid())
+  tenantId  String
+  pathwayId String
+  name      String
+  sequence  Int
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+}
+
+model MemberPathwayProgress {
+  id               String   @id @default(uuid())
+  tenantId         String
+  memberId         String
+  pathwayId        String
+  currentStepId    String?
+  assignedMentorId String?
+  status           String   @default("InProgress")
+  updatedAt        DateTime @updatedAt
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member         Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  pathway        Pathway  @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  assignedMentor Member?  @relation("AssignedMentor", fields: [assignedMentorId], references: [id], onDelete: SetNull)
+}
+
+model Mentorship {
+  id         String    @id @default(uuid())
+  tenantId   String
+  mentorId   String
+  discipleId String
+  startDate  DateTime  @default(now())
+  endDate    DateTime?
+  status     String    @default("Active")
+  notes      String?
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mentor   Member @relation("Mentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  disciple Member @relation("Disciple", fields: [discipleId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, mentorId])
+  @@index([tenantId, discipleId])
+}
+
+// ---------------------------------------------------------
+// Universal Task Engine
+// ---------------------------------------------------------
+
+model Task {
+  id               String         @id @default(uuid())
+  tenantId         String
+  title            String
+  description      String?
+  assignedUserId   String?
+  assignedMemberId String?
+  targetType       TaskTargetType
+  targetId         String
+  dueDate          DateTime?
+  status           TaskStatus     @default(PENDING)
+  priority         TaskPriority   @default(MEDIUM)
+  createdById      String?
+  updatedById      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  tenant         Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedUser   User?   @relation("AssignedUser", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  assignedMember Member? @relation("AssignedMember", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  createdBy      User?   @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy      User?   @relation("TaskUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, assignedUserId, status])
+  @@index([tenantId, targetType, targetId])
+}
+
+// ---------------------------------------------------------
+// Analytics Intelligence
+// ---------------------------------------------------------
+
+model MemberEngagementSnapshot {
+  id               String   @id @default(uuid())
+  tenantId         String
+  memberId         String
+  score            Float
+  attendanceMetric Float?
+  givingMetric     Float?
+  calculatedAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, memberId, calculatedAt])
+}

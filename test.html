@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+  fetch('http://localhost:4002/api/v1/website/public/pages', {
+    headers: { 'x-tenant-id': 'default-tenant-id' }
+  })
+  .then(r => r.json())
+  .then(d => {
+    document.body.innerHTML = JSON.stringify(d, null, 2);
+  })
+  .catch(e => {
+    document.body.innerHTML = e.message;
+  });
+</script>
+</body>
+</html>

@@ -15,6 +15,10 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    
+    --color-brand-primary: hsl(var(--brand-primary-hsl));
+    --color-brand-secondary: hsl(var(--brand-secondary-hsl));
+    
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -80,6 +84,17 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+
+    /* Brand colors — overridden at runtime by SettingsContext.applyBranding() */
+    --brand-primary: #4F46E5;
+    --brand-secondary: #10B981;
+    --brand-primary-hsl: 239 84% 67%;
+    --brand-secondary-hsl: 160 84% 39%;
+    /* Charts & accents should read from these, not hardcoded palette hex */
+    --chart-primary: var(--brand-primary);
+    --chart-secondary: var(--brand-secondary);
+    --chart-grid: var(--border);
+    --chart-tick: var(--muted-foreground);
 }
 
 .dark {

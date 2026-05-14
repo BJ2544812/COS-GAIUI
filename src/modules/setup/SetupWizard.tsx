@@ -1,7 +1,8 @@
 import React from 'react';
-import { Card, CardContent } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Church, ShieldCheck, ArrowRight, Wallet, Users, Globe } from 'lucide-react';
+import { apiRequest, formatApiError } from '@/lib/apiClient';
 
 interface SetupWizardProps {
   onComplete: () => void;
@@ -13,19 +14,28 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [adminUser, setAdminUser] = React.useState('admin');
   const [adminPassword, setAdminPassword] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const [setupError, setSetupError] = React.useState<string | null>(null);
 
   const handleInitialize = async () => {
     setLoading(true);
+    setSetupError(null);
     try {
-      const res = await fetch('/api/setup/initialize', {
+      const json = await apiRequest<Record<string, unknown>>('auth/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgName, adminUser, adminPassword })
+        body: {
+          tenantName: orgName,
+          adminUsername: adminUser,
+          adminPassword: adminPassword,
+          adminEmail: `${adminUser.replace(/\s/g, '') || 'admin'}@setup.local`,
+        },
       });
-      if (!res.ok) throw new Error('Deployment failed');
+      if (!json || typeof json !== 'object' || (json as { status?: string }).status !== 'success') {
+        throw new Error('Deployment failed');
+      }
       onComplete();
     } catch (err) {
       console.error(err);
+      setSetupError(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -45,8 +55,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                  <Church className="w-8 h-8" />
               </div>
               <div className="space-y-2">
-                 <h1 className="text-4xl font-black tracking-tight leading-none">Church OS Deployment</h1>
-                 <p className="text-indigo-100 font-bold uppercase tracking-widest text-[10px]">Ministry Intelligence Platform &bull; v2.0</p>
+                 <h1 className="text-4xl font-black tracking-tight leading-none">Kingdom OS setup</h1>
+                 <p className="text-indigo-100 font-bold uppercase tracking-widest text-[10px]">New tenant &amp; admin account</p>
               </div>
            </div>
 
@@ -83,6 +93,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               </h2>
               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Configuring environment parameters</p>
            </div>
+
+           {setupError && (
+              <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm font-bold text-rose-700 flex items-center justify-between animate-in slide-in-from-top-2">
+                <span>{setupError}</span>
+                <button onClick={() => setSetupError(null)} className="text-rose-400 hover:text-rose-600 font-black text-xs ml-2">✕</button>
+              </div>
+           )}
 
            <div className="space-y-8">
               {step === 1 && (

@@ -12,12 +12,15 @@ import {
   Activity,
   PlayCircle
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { Badge } from '@/src/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 export function MobileAppModule() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+       <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 font-medium text-left" role="status">
+         <span className="font-black">Preview only:</span> This is a static mock of a member app shell — not connected to check-in, giving, or messaging backends.
+       </div>
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Member App Experience</h1>

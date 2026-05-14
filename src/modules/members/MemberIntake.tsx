@@ -12,21 +12,32 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
-import { Button } from '@/src/components/ui/button';
-import { Input } from '@/src/components/ui/input';
-import { Badge } from '@/src/components/ui/badge';
-import { cn } from '@/src/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { INTAKE_SPIRITUAL_TRACK_LABELS, type IntakeFormData } from './buildMemberPayload';
 
 interface MemberIntakeProps {
   onCancel: () => void;
-  onSave: (data: any) => void;
+  onSave: (
+    data: IntakeFormData & Record<string, unknown>,
+    files: { profile?: File | null; family?: File | null },
+  ) => Promise<void>;
 }
 
 export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
   const [step, setStep] = React.useState(1);
   const profileRef = React.useRef<HTMLInputElement>(null);
   const familyRef = React.useRef<HTMLInputElement>(null);
+  const profileFileRef = React.useRef<File | null>(null);
+  const familyFileRef = React.useRef<File | null>(null);
+  const [spiritualTrack, setSpiritualTrack] = React.useState<Record<string, boolean>>(() =>
+    Object.fromEntries(INTAKE_SPIRITUAL_TRACK_LABELS.map((k) => [k, false])) as Record<string, boolean>,
+  );
   const [formData, setFormData] = React.useState({
     firstName: '',
     lastName: '',
@@ -39,12 +50,16 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
     joinDate: new Date().toISOString().split('T')[0],
     familyRole: 'Head of Household',
     familyName: '',
+    growthStage: 'Visitor' as const,
     profileImage: null as string | null,
     familyImage: null as string | null,
+    aadhaar: '',
+    pan: '',
+    declarationAccepted: false,
   });
 
-  const updateForm = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateForm = (field: string, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const steps = [
@@ -104,6 +119,14 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
         <div className="md:col-span-3">
           <Card className="rounded-3xl border-slate-100 shadow-xl shadow-slate-200/50">
             <CardContent className="p-8">
+              {submitError && (
+                <div
+                  className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+                  role="alert"
+                >
+                  {submitError}
+                </div>
+              )}
               {step === 1 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div className="grid grid-cols-2 gap-4">
@@ -116,8 +139,10 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                           className="hidden" 
                           accept="image/*"
                           onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              const url = URL.createObjectURL(e.target.files[0]);
+                            const f = e.target.files?.[0];
+                            if (f) {
+                              profileFileRef.current = f;
+                              const url = URL.createObjectURL(f);
                               updateForm('profileImage', url);
                             }
                           }}
@@ -245,8 +270,10 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                           className="hidden" 
                           accept="image/*"
                           onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              const url = URL.createObjectURL(e.target.files[0]);
+                            const f = e.target.files?.[0];
+                            if (f) {
+                              familyFileRef.current = f;
+                              const url = URL.createObjectURL(f);
                               updateForm('familyImage', url);
                             }
                           }}
@@ -297,6 +324,58 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
 
               {step === 4 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="text-xs font-bold uppercase tracking-widest text-slate-500" htmlFor="growthStage">
+                      Growth stage
+                    </label>
+                    <select
+                      id="growthStage"
+                      value={formData.growthStage}
+                      onChange={(e) =>
+                        updateForm(
+                          'growthStage',
+                          e.target.value === 'Member' ? 'Member' : 'Visitor',
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800"
+                    >
+                      <option value="Visitor">Visitor</option>
+                      <option value="Member">Member</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Aadhaar (optional)</label>
+                      <Input
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="12-digit Aadhaar"
+                        value={formData.aadhaar}
+                        onChange={(e) => updateForm('aadhaar', e.target.value)}
+                        className="rounded-xl h-12 bg-slate-50 border-slate-200 focus:bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">PAN (optional)</label>
+                      <Input
+                        placeholder="e.g. ABCDE1234F"
+                        value={formData.pan}
+                        onChange={(e) => updateForm('pan', e.target.value.toUpperCase())}
+                        className="rounded-xl h-12 bg-slate-50 border-slate-200 focus:bg-white uppercase"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-200 bg-white p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={formData.declarationAccepted}
+                      onChange={(e) => updateForm('declarationAccepted', e.target.checked)}
+                    />
+                    <span className="text-sm font-medium text-slate-700 leading-snug">
+                      I confirm this person (or guardian) has accepted the church&apos;s visitor / membership declaration policy where applicable. A declaration record will be stored on the member profile.
+                    </span>
+                  </label>
                   <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm text-amber-500">
@@ -304,15 +383,31 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                       </div>
                       <div className="flex-1 space-y-4">
                         <h3 className="font-bold text-slate-800">Spiritual Growth Track</h3>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Selected items are saved as milestones on the member record and appear after registration.
+                        </p>
                         <div className="grid grid-cols-2 gap-3">
-                          {['Baptized', 'Membership Class', 'Volunteer Trained', 'Group Leader'].map(tag => (
-                            <div key={tag} className="flex items-center gap-2 group cursor-pointer">
-                              <div className="w-5 h-5 rounded border border-slate-300 flex items-center justify-center group-hover:border-indigo-500 transition-colors">
-                                <div className="w-3 h-3 rounded-full bg-transparent group-hover:bg-indigo-500 transition-all scale-0 group-hover:scale-100" />
-                              </div>
-                              <span className="text-sm font-medium text-slate-600">{tag}</span>
-                            </div>
-                          ))}
+                          {INTAKE_SPIRITUAL_TRACK_LABELS.map((tag) => {
+                            const on = !!spiritualTrack[tag];
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setSpiritualTrack((prev) => ({ ...prev, [tag]: !prev[tag] }))}
+                                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:border-indigo-300"
+                              >
+                                <div
+                                  className={cn(
+                                    'w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                                    on ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white',
+                                  )}
+                                >
+                                  {on ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+                                </div>
+                                <span className="text-sm font-medium text-slate-700">{tag}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -338,10 +433,25 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
                   </Button>
                 ) : (
                   <Button 
-                    onClick={() => onSave(formData)}
+                    type="button"
+                    disabled={saving}
+                    onClick={async () => {
+                      setSubmitError(null);
+                      setSaving(true);
+                      try {
+                        await onSave(
+                          { ...formData, spiritualTrack },
+                          { profile: profileFileRef.current, family: familyFileRef.current },
+                        );
+                      } catch (e) {
+                        setSubmitError(e instanceof Error ? e.message : 'Request failed');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
                     className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 px-8 rounded-xl font-bold group"
                   >
-                    <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> Complete Registration
+                    <Save className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> {saving ? 'Saving…' : 'Complete Registration'}
                   </Button>
                 )}
               </div>

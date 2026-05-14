@@ -7,6 +7,7 @@ import {
   Download, 
   Calendar, 
   ArrowUpRight, 
+  ArrowRight,
   Filter,
   Search,
   CreditCard,
@@ -14,112 +15,398 @@ import {
   MoreVertical,
   ArrowLeft,
   ChevronRight,
-  Target
+  Target,
+  FileText,
+  PlusCircle,
+  History,
+  User,
+  Flag
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
-import { Badge } from '@/src/components/ui/badge';
+import { listMembers, type MemberDto } from '../members/memberApi';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ActivityTimeline } from '@/components/ui/ActivityTimeline';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Button } from '@/src/components/ui/button';
-import { cn } from '@/src/lib/utils';
-import { ERPModule } from '@/src/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+import { ERPModule } from '@/types';
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
+import { formatCurrencyAmount } from '@/lib/formatCurrency';
+import { useSettings } from '@/context/SettingsContext';
+import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
 
-const GIVING_HISTORY = [
-  { id: '1', donor: 'James Wilson', type: 'Tithe', amount: '$250.00', method: 'Online', date: 'Mar 26, 2024' },
-  { id: '2', donor: 'The Miller Family', type: 'Missions', amount: '$1,200.00', method: 'Bank Transfer', date: 'Mar 25, 2024' },
-  { id: '3', donor: 'Sarah Jenkins', type: 'Tithe', amount: '$500.00', method: 'Automatic', date: 'Mar 24, 2024' },
-  { id: '4', donor: 'Anonymous', type: 'Offering', amount: '$50.00', method: 'Cash', date: 'Mar 24, 2024' },
-  { id: '5', donor: 'David Smith', type: 'Building Fund', amount: '$2,500.00', method: 'Cheque', date: 'Mar 22, 2024' },
-];
+type GiveRow = {
+  id: string;
+  donor: string;
+  type: string;
+  amount: number;
+  method: string;
+  date: string;
+};
 
-const REVENUE_DATA = [
-  { month: 'Oct', total: 32000 },
-  { month: 'Nov', total: 38000 },
-  { month: 'Dec', total: 54000 },
-  { month: 'Jan', total: 35000 },
-  { month: 'Feb', total: 42000 },
-  { month: 'Mar', total: 48500 },
-];
+function coalesceAmount(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim()) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof v === 'object' && v !== null && 'toString' in v) {
+    const n = Number((v as { toString: () => string }).toString());
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+// Aggregation utilities moved inside component
 
 interface GivingModuleProps {
   onModuleChange?: (module: ERPModule) => void;
 }
 
 export function GivingModule({ onModuleChange }: GivingModuleProps) {
+  const { settings } = useSettings();
+  const [view, setView] = React.useState<'dashboard' | 'create'>('dashboard');
   const [selectedFund, setSelectedFund] = React.useState<string | null>(null);
+  const [donationRows, setDonationRows] = React.useState<GiveRow[]>([]);
+  const [apiTotal, setApiTotal] = React.useState<number | null>(null);
+  const [givingError, setGivingError] = React.useState<string | null>(null);
+  const [listLoading, setListLoading] = React.useState(true);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [members, setMembers] = React.useState<MemberDto[]>([]);
+  const [campaigns, setCampaigns] = React.useState<{id: string, name: string}[]>([]);
+
+  const loadMembers = React.useCallback(async () => {
+    try {
+      const list = await listMembers();
+      setMembers(list);
+    } catch (e) {
+      console.error('[GivingModule] Failed to load members', e);
+    }
+  }, []);
+
+  const loadCampaigns = React.useCallback(async () => {
+    try {
+      const json = await apiRequest<unknown>('giving/campaigns', { method: 'GET' });
+      const list = parseApiResponse<{id: string, name: string}[]>(json);
+      setCampaigns(list);
+    } catch (e) {
+      console.error('[GivingModule] Failed to load campaigns', e);
+    }
+  }, []);
+
+  const loadDonations = React.useCallback(async () => {
+    try {
+      setGivingError(null);
+      setListLoading(true);
+      const json = await apiRequest<unknown>('giving/donations', { method: 'GET' });
+      const list = parseApiResponse<
+        {
+          id: string;
+          amount: unknown;
+          method: string;
+          date: string;
+          donor?: { name: string } | null;
+          campaign?: { name: string } | null;
+        }[]
+      >(json);
+      setApiTotal(list.reduce((s, d) => s + coalesceAmount(d.amount), 0));
+      setDonationRows(
+        list.map((d) => {
+          const rawDate = d.date ? new Date(d.date) : new Date();
+          const dateLabel = Number.isNaN(rawDate.getTime()) ? '—' : rawDate.toLocaleDateString();
+          return {
+            id: d.id,
+            donor: d.donor?.name ?? 'Anonymous',
+            type: d.campaign?.name ?? 'General Giving',
+            amount: coalesceAmount(d.amount),
+            method: d.method || '—',
+            date: dateLabel,
+          };
+        }),
+      );
+    } catch (e) {
+      console.error('[GivingModule] Failed to load donations', e);
+      setGivingError(formatApiError(e));
+      setDonationRows([]);
+      setApiTotal(null);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  const chartData = React.useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - (5 - i));
+      return { month: months[d.getMonth()], total: 0 };
+    });
+
+    donationRows.forEach(d => {
+      const date = new Date(d.date);
+      if (isNaN(date.getTime())) return;
+      const monthName = months[date.getMonth()];
+      const match = last6Months.find(m => m.month === monthName);
+      if (match) match.total += Number(d.amount);
+    });
+
+    return last6Months;
+  }, [donationRows]);
+
+  const activeStewardsCount = React.useMemo(() => {
+    const donors = new Set(donationRows.map(d => d.donor).filter(name => name !== 'Anonymous'));
+    return donors.size;
+  }, [donationRows]);
+
+  const timelineEvents = React.useMemo(() => {
+    return donationRows.slice(0, 3).map((d) => ({
+      id: `ev-${d.id}`,
+      title: 'Donation Synchronized',
+      description: `₹${d.amount} from ${d.donor} via ${d.method}`,
+      timestamp: d.date,
+      status: 'PROCESSED' as const
+    }));
+  }, [donationRows]);
+
+  React.useEffect(() => {
+    void loadDonations();
+    void loadMembers();
+    void loadCampaigns();
+  }, [loadDonations, loadMembers, loadCampaigns, settings.financial.currency]);
+
+  React.useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void loadDonations();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [loadDonations]);
+
+  const uniqueDonorCount = React.useMemo(
+    () => new Set(donationRows.map((r) => r.donor)).size,
+    [donationRows],
+  );
+
+  const handleCreateDonation = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    const formData = new FormData(e.currentTarget);
+    const amount = formData.get('amount');
+    const method = formData.get('method');
+    const reference = formData.get('reference');
+    const date = formData.get('date');
+    const donorId = formData.get('donorId');
+    const campaignId = formData.get('campaignId');
+
+    try {
+      setSubmitting(true);
+      setGivingError(null);
+      await apiRequest('giving/donations', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          amount: Number(amount), 
+          method, 
+          reference, 
+          date,
+          donorId: donorId === 'anonymous' ? null : donorId,
+          campaignId: campaignId === 'general' ? null : campaignId
+        }),
+      });
+      setView('dashboard');
+      void loadDonations();
+    } catch (err: any) {
+      console.error('[GivingModule] RECORD_ERROR:', err);
+      setGivingError(formatApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (view === 'create') {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 text-left">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setView('dashboard')} className="rounded-full">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Record Donation</h1>
+            <p className="text-sm text-slate-500 font-medium tracking-tight">Enter details to log a new gift. Accounting ledgers will be updated automatically in the background.</p>
+          </div>
+        </div>
+
+         <Card className="border-none shadow-2xl rounded-[4rem] bg-white p-12">
+           {givingError && (
+             <div className="mb-8 rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-bold text-rose-800 animate-in slide-in-from-top-2">
+               {givingError}
+             </div>
+           )}
+           <form onSubmit={handleCreateDonation} className="space-y-10">
+            <div className="grid grid-cols-2 gap-6">
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Amount ({settings.financial.currency})</label>
+                  <input name="amount" type="number" step="0.01" required className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner" placeholder="0.00" />
+               </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Date</label>
+                   <input name="date" type="date" required className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner" defaultValue={new Date().toISOString().split('T')[0]} />
+                </div>
+             </div>
+
+             <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Donor (Member)</label>
+                   <div className="relative">
+                      <select name="donorId" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
+                         <option value="anonymous">Anonymous / Guest</option>
+                         {members.map(m => (
+                           <option key={m.id} value={m.id}>{m.name}</option>
+                         ))}
+                      </select>
+                      <User className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+                   </div>
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Allocation (Fund/Campaign)</label>
+                   <div className="relative">
+                      <select name="campaignId" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
+                         <option value="general">General Offering</option>
+                         {campaigns.map(c => (
+                           <option key={c.id} value={c.id}>{c.name}</option>
+                         ))}
+                      </select>
+                      <Flag className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+                   </div>
+                </div>
+             </div>
+
+            <div className="grid grid-cols-2 gap-6">
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Payment Method</label>
+                  <select name="method" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
+                     <option value="Cash">Cash</option>
+                     <option value="Online">Online / Card</option>
+                     <option value="Bank Transfer">Bank Transfer</option>
+                     <option value="Cheque">Cheque</option>
+                  </select>
+               </div>
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Reference / Notes</label>
+                  <input name="reference" type="text" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner" placeholder="Txn ID or check number..." />
+               </div>
+            </div>
+
+            <div className="pt-4 flex gap-4">
+               <Button 
+                   type="submit" 
+                   disabled={submitting}
+                   className="flex-1 h-16 rounded-[2rem] bg-indigo-600 text-white hover:bg-indigo-700 text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-600/20 disabled:opacity-50"
+                >
+                   {submitting ? 'Recording...' : 'Save Donation'}
+                </Button>
+               <Button type="button" variant="ghost" className="px-8 h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em]" onClick={() => setView('dashboard')}>Cancel</Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
 
   if (selectedFund) {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => setSelectedFund(null)} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Stewardship
-          </Button>
-          <Button className="bg-indigo-600">Fund Settings</Button>
+      <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-500 text-left">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-8">
+          <div className="flex items-center gap-6">
+            <Button variant="ghost" size="icon" onClick={() => setSelectedFund(null)} className="rounded-full h-12 w-12 bg-slate-100 hover:bg-slate-200">
+               <ArrowLeft className="w-5 h-5 text-slate-900" />
+            </Button>
+            <div>
+               <h1 className="text-4xl font-black tracking-tight text-slate-900 uppercase leading-none">{selectedFund}</h1>
+               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">Fund allocation and performance tracking</p>
+            </div>
+          </div>
+          <Button className="h-14 px-10 rounded-2xl bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest shadow-xl">Manage Allocation</Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <div className="lg:col-span-2 space-y-6">
-              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-900 text-white p-8 border-none">
-                   <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <Badge className="bg-white/10 text-white border-white/20 mb-2">Fund Detail</Badge>
-                        <CardTitle className="text-4xl font-black">{selectedFund}</CardTitle>
-                        <p className="text-indigo-300 font-medium tracking-tight">Active Capital Campaign & Projects</p>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Available Balance</p>
-                         <h2 className="text-4xl font-black text-indigo-400">$840,250</h2>
-                      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+           <div className="lg:col-span-2 space-y-10">
+              <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
+                <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between bg-slate-50/20">
+                   <div className="space-y-2">
+                      <CardTitle className="text-2xl font-black uppercase tracking-tight">Fund Overview</CardTitle>
+                      <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Real-time stewardship metrics</CardDescription>
+                   </div>
+                   <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Balance</p>
+                      <h2 className="text-5xl font-black text-emerald-600 tracking-tighter">
+                        {formatCurrencyAmount(840250, settings.financial.currency, { maximumFractionDigits: 0 })}
+                      </h2>
                    </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                   <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-4">
-                         <h3 className="font-bold text-slate-800">Allocation Breakdown</h3>
-                         <div className="space-y-6">
+                <CardContent className="p-12">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                      <div className="space-y-6">
+                         <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Allocated Projects</h3>
+                         <div className="space-y-8">
                             {[
-                              { label: 'Campus Construction', val: 450000, color: 'indigo' },
-                              { label: 'Media Equipment', val: 240000, color: 'emerald' },
-                              { label: 'Unallocated', val: 150250, color: 'slate' },
+                              { label: 'Campus Construction', val: 450000, color: 'bg-indigo-600' },
+                              { label: 'Media Hub', val: 240000, color: 'bg-emerald-500' },
+                              { label: 'Unallocated', val: 150250, color: 'bg-slate-300' },
                             ].map((item, i) => (
-                              <div key={i} className="space-y-2">
-                                 <div className="flex justify-between text-xs font-bold text-slate-500 uppercase">
+                              <div key={i} className="space-y-3">
+                                 <div className="flex justify-between text-[11px] font-black text-slate-900 uppercase tracking-widest">
                                     <span>{item.label}</span>
-                                    <span>${item.val.toLocaleString()}</span>
+                                    <span>{formatCurrencyAmount(item.val, settings.financial.currency, { maximumFractionDigits: 0 })}</span>
                                  </div>
-                                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={cn("h-full rounded-full", `bg-${item.color}-500`)} style={{ width: `${(item.val / 840250) * 100}%` }} />
+                                 <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
+                                    <div className={cn('h-full rounded-full transition-all duration-1000', item.color)} style={{ width: `${(item.val / 840250) * 100}%` }} />
                                  </div>
                               </div>
                             ))}
                          </div>
                       </div>
-                      <div className="bg-slate-50 rounded-3xl p-6 flex flex-col items-center justify-center text-center space-y-3">
-                         <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-indigo-600 shadow-sm">
-                            <Target className="w-6 h-6" />
+                      <div className="bg-slate-50 rounded-[3rem] p-10 flex flex-col items-center justify-center text-center space-y-6 shadow-inner border border-slate-100">
+                         <div className="w-16 h-16 rounded-[2rem] bg-white flex items-center justify-center text-indigo-600 shadow-xl">
+                            <Target size={32} />
                          </div>
-                         <h4 className="font-bold text-slate-800 text-lg">Goal Progression</h4>
-                         <p className="text-sm text-slate-500">You are at 84% of the $1M goal for this fiscal year.</p>
-                         <Button variant="outline" className="rounded-xl w-full">Adjust Targets</Button>
+                         <div className="space-y-2">
+                            <h4 className="font-black text-slate-900 uppercase tracking-tight text-xl">Campaign Goal</h4>
+                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">84% of $1M Target Reached</p>
+                         </div>
+                         <Button className="w-full h-12 bg-white text-indigo-600 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-indigo-50 shadow-sm">View Full Plan</Button>
                       </div>
                    </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
-                 <CardHeader className="py-5 border-b border-slate-50">
-                    <CardTitle className="text-lg font-bold">Allocated Invoices</CardTitle>
+              <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
+                 <CardHeader className="p-10 border-b border-slate-50">
+                    <CardTitle className="text-xl font-black uppercase tracking-tight">Recent Allocations</CardTitle>
                  </CardHeader>
                  <CardContent className="p-0">
                     <div className="divide-y divide-slate-50">
                        {['Supplier: Apex Builders', 'MediaHub Pro Gear', 'Grace Architect Fees'].map((inv, i) => (
-                         <div key={i} className="px-8 py-5 flex items-center justify-between hover:bg-slate-50 cursor-pointer group">
-                            <div>
-                               <p className="font-bold text-slate-800 group-hover:text-indigo-600">{inv}</p>
-                               <p className="text-xs text-slate-400">Payment approved on Mar {20 - i}, 2024</p>
+                         <div key={i} className="px-10 py-8 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer group transition-colors">
+                            <div className="flex items-center gap-6">
+                               <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all"><FileText size={20} /></div>
+                               <div>
+                                  <p className="font-black text-slate-900 uppercase tracking-tight text-base group-hover:text-indigo-600 transition-colors">{inv}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Disbursed on Mar {20 - i}, 2024</p>
+                               </div>
                             </div>
-                            <span className="text-sm font-black text-slate-900">$12,400.00</span>
+                            <span className="text-xl font-black text-slate-900">
+                               {formatCurrencyAmount(12400, settings.financial.currency, { maximumFractionDigits: 0 })}
+                            </span>
                          </div>
                        ))}
                     </div>
@@ -132,196 +419,240 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Giving & Stewardship</h1>
-          <p className="text-slate-500">Manage tithes, offerings, pledges, and financial communication.</p>
+    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+      {givingError && (
+        <div
+          className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+          role="alert"
+        >
+          {givingError}
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
-            <Download className="w-4 h-4" />
-            Tax Statements
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-md transition-all active:scale-95">
-            <Plus className="w-4 h-4" />
-            Record Giving
-          </button>
-        </div>
-      </div>
+      )}
+       {/* Simple Action-Driven Header */}
+       <ModuleHeader
+        title="Giving"
+        subtitle="Tithes, offerings, and campaigns from recorded donations and campaigns in your tenant."
+        status="live"
+        icon={CircleDollarSign}
+        actions={
+          <>
+            <ActionButton label="Tax Reports" icon={FileText} variant="secondary" />
+            <ActionButton label="Record Donation" icon={PlusCircle} variant="primary" onClick={() => setView('create')} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100/50" />
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card onClick={() => setSelectedFund('General Fund')} className="border-none shadow-sm overflow-hidden relative group cursor-pointer hover:ring-2 hover:ring-indigo-500/20 transition-all">
-           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CircleDollarSign size={80} /></div>
-           <CardContent className="p-6 pt-8">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-1.5">Total Month-to-Date</p>
-              <div className="flex items-baseline gap-3">
-                 <h3 className="text-4xl font-black text-slate-900">$48,520</h3>
-                 <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+12.4%</span>
+      {/* KPI Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <Card onClick={() => setSelectedFund('General Giving')} className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden group cursor-pointer hover:translate-y-[-8px] transition-all duration-500">
+           <CardContent className="p-12 space-y-10">
+              <div className="flex justify-between items-center">
+                 <div className="w-14 h-14 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center transition-all group-hover:scale-110"><CircleDollarSign size={28} /></div>
+                 <Badge className="bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">
+                   {listLoading ? '…' : donationRows.length === 0 ? 'No gifts on file' : `${donationRows.length} recorded`}
+                 </Badge>
               </div>
-              <p className="text-xs text-slate-400 font-medium mt-4 group-hover:text-indigo-600 transition-colors">Compared to $41,200 last month &rarr;</p>
+              <div className="space-y-2">
+                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Total giving (loaded gifts)</p>
+                 <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
+                    {listLoading
+                      ? '…'
+                      : formatCurrencyAmount(apiTotal ?? 0, settings.financial.currency, {
+                          maximumFractionDigits: 0,
+                        })}
+                 </h2>
+              </div>
+              <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Growth Momentum</p>
+                 <ArrowUpRight className="w-6 h-6 text-emerald-500" />
+              </div>
            </CardContent>
         </Card>
-        <Card className="border-none shadow-sm overflow-hidden relative group">
-           <div className="absolute top-0 right-0 p-4 opacity-10"><HeartHandshake size={80} /></div>
-           <CardContent className="p-6 pt-8">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-1.5">Active Donors</p>
-              <div className="flex items-baseline gap-3">
-                 <h3 className="text-4xl font-black text-slate-900">412</h3>
-                 <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+8</span>
+
+        <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-500">
+           <CardContent className="p-12 space-y-10">
+              <div className="flex justify-between items-center">
+                 <div className="w-14 h-14 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110"><HeartHandshake size={28} /></div>
+                 <Badge className="bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">{activeStewardsCount} Active Stewards</Badge>
               </div>
-              <p className="text-xs text-slate-400 font-medium mt-4">24 new first-time givers this year</p>
+              <div className="space-y-2">
+                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Unique donors (this list)</p>
+                 <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
+                   {listLoading ? '…' : donationRows.length === 0 ? '—' : uniqueDonorCount}
+                 </h2>
+              </div>
+              <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
+                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                   {donationRows.length === 0
+                     ? 'Record gifts to see donor diversity here.'
+                     : 'Based on gifts in your recent history below.'}
+                 </p>
+              </div>
            </CardContent>
         </Card>
-        <Card onClick={() => setSelectedFund('Building Fund')} className="border-none shadow-sm overflow-hidden relative bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700 transition-all">
-           <div className="absolute top-0 right-0 p-4 opacity-10 text-white"><TrendingUp size={80} /></div>
-           <CardContent className="p-6 pt-8">
-              <p className="text-xs font-bold text-indigo-200 uppercase tracking-[0.2em] mb-1.5">Pledge Fulfillment</p>
-              <div className="flex items-baseline gap-3">
-                 <h3 className="text-4xl font-black">84%</h3>
-                 <div className="w-12 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-white rounded-full" style={{ width: '84%' }}></div>
+
+        <Card onClick={() => setSelectedFund('Building Fund')} className="border-none shadow-2xl rounded-[4rem] bg-emerald-600 text-white overflow-hidden group cursor-pointer hover:translate-y-[-8px] transition-all duration-500 relative">
+           <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
+           <CardContent className="p-12 space-y-10 relative z-10">
+              <div className="flex justify-between items-center">
+                 <div className="w-14 h-14 rounded-3xl bg-white/20 text-white flex items-center justify-center"><TrendingUp size={28} /></div>
+                 <Badge className="bg-white/20 text-white font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">Building Fund</Badge>
+              </div>
+              <div className="space-y-4">
+                 <div className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/60">Pledge Fulfillment</p>
+                    <h2 className="text-6xl font-black tracking-tighter leading-none">84%</h2>
+                 </div>
+                 <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-white transition-all duration-1000" style={{ width: '84%' }} />
                  </div>
               </div>
-              <p className="text-xs text-indigo-100/70 font-medium mt-4 uppercase tracking-widest text-[10px] font-black">View Campaign &rarr;</p>
+              <div className="pt-4 flex items-center justify-between">
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">View Campaign Plan</p>
+                 <ArrowRight className="w-6 h-6 text-white group-hover:translate-x-2 transition-transform" />
+              </div>
            </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-           <Card className="border-none shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 py-5">
-                 <div>
-                    <CardTitle className="text-lg font-bold text-slate-800">Giving Velocity</CardTitle>
-                    <CardDescription>6-month revenue trend analysis</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-8">
+           <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
+              <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between">
+                 <div className="space-y-2">
+                    <CardTitle className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Giving Velocity</CardTitle>
+                    <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Giving totals by month (from recorded donations)</CardDescription>
                  </div>
-                 <div className="flex gap-2">
-                    <button className="text-xs font-bold text-indigo-600 uppercase">Weekly</button>
-                    <span className="text-slate-200">|</span>
-                    <button className="text-xs font-bold text-slate-400 uppercase">Monthly</button>
+                 <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-400 shadow-inner">
+                    <TrendingUp size={24} />
                  </div>
               </CardHeader>
-              <CardContent className="p-6 pt-8">
-                 <div className="h-[280px]">
+              <CardContent className="p-12">
+                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
-                       <AreaChart data={REVENUE_DATA}>
+                       <AreaChart data={chartData}>
                           <defs>
                              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                <stop offset="5%" stopColor={settings.branding.primaryColor} stopOpacity={0.15} />
+                                <stop offset="95%" stopColor={settings.branding.primaryColor} stopOpacity={0} />
                              </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                          <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={4} fill="url(#colorRevenue)" />
+                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
+                          <Tooltip contentStyle={{ borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: 'none' }} />
+                          <Area type="monotone" dataKey="total" stroke={settings.branding.primaryColor} strokeWidth={6} fill="url(#colorRevenue)" />
                        </AreaChart>
                     </ResponsiveContainer>
                  </div>
               </CardContent>
            </Card>
-
-           <Card className="border-none shadow-sm overflow-hidden">
-              <CardHeader className="py-5 border-b border-slate-50 flex flex-row items-center justify-between">
-                 <CardTitle className="text-lg font-bold text-slate-800">Recent Transactions</CardTitle>
-                 <div className="relative group">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                    <input type="text" placeholder="Search donors..." className="pl-8 pr-4 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs" />
-                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                 <div className="overflow-x-auto">
-                    <table className="w-full text-left font-sans">
-                       <thead className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                          <tr>
-                             <th className="px-6 py-3">Donor</th>
-                             <th className="px-6 py-3">Fund</th>
-                             <th className="px-6 py-3 text-right">Amount</th>
-                             <th className="px-6 py-3">Method</th>
-                             <th className="px-6 py-3">Date</th>
-                             <th className="px-6 py-3"></th>
-                          </tr>
-                       </thead>
-                       <tbody className="divide-y divide-slate-50 text-sm">
-                          {GIVING_HISTORY.map((give) => (
-                            <tr key={give.id} className="hover:bg-slate-50/50 transition-colors group">
-                               <td className="px-6 py-4">
-                                  <span 
-                                    onClick={() => onModuleChange?.('profile')}
-                                    className="font-bold text-slate-700 hover:text-indigo-600 cursor-pointer transition-colors"
-                                  >
-                                    {give.donor}
-                                  </span>
-                               </td>
-                               <td className="px-6 py-4 font-medium text-slate-500 whitespace-nowrap">{give.type}</td>
-                               <td className="px-6 py-4 text-right font-black text-slate-900">{give.amount}</td>
-                               <td className="px-6 py-4">
-                                  <div className="flex items-center gap-1.5 text-slate-400">
-                                     {give.method === 'Online' ? <CreditCard size={14} /> : <Banknote size={14} />}
-                                     <span className="text-xs font-bold uppercase tracking-tight">{give.method}</span>
-                                  </div>
-                               </td>
-                               <td className="px-6 py-4 text-slate-400 font-medium whitespace-nowrap">{give.date}</td>
-                               <td className="px-6 py-4 text-right">
-                                  <button className="p-1.5 rounded-lg text-slate-300 group-hover:text-indigo-400 transition-colors">
-                                     <MoreVertical size={16} />
-                                  </button>
-                               </td>
-                            </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 </div>
-              </CardContent>
-           </Card>
         </div>
 
-        <div className="space-y-6">
-           <Card className="border-none shadow-sm">
-              <CardHeader className="py-5 border-b border-slate-50">
-                 <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-widest">Fund Distribution</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                 {[
-                   { label: 'General Fund', percentage: 65, color: 'bg-indigo-500' },
-                   { label: 'Missions', percentage: 20, color: 'bg-emerald-500' },
-                   { label: 'Building Fund', percentage: 10, color: 'bg-amber-500' },
-                   { label: 'Benevolence', percentage: 5, color: 'bg-rose-500' },
-                 ].map((fund, i) => (
-                    <div key={i} className="space-y-2 group cursor-pointer" onClick={() => setSelectedFund(fund.label)}>
-                       <div className="flex justify-between text-xs font-bold text-slate-500 uppercase group-hover:text-indigo-600 transition-colors">
-                          <span>{fund.label}</span>
-                          <span>{fund.percentage}%</span>
-                       </div>
-                       <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={cn("h-full rounded-full", fund.color)} style={{ width: `${fund.percentage}%` }}></div>
-                       </div>
-                    </div>
-                 ))}
-              </CardContent>
-           </Card>
-
-           <Card className="border-none shadow-sm bg-slate-900 text-white overflow-hidden relative rounded-3xl">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-              <CardHeader className="relative z-10">
-                 <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-indigo-400" />
-                    Giving Health Report
-                 </CardTitle>
-              </CardHeader>
-              <CardContent className="relative z-10 space-y-5 pt-0">
-                 <p className="text-xs text-slate-400 leading-relaxed">System analysis shows a <span className="text-emerald-400 font-bold">14.2% increase</span> in recurring giving conversion after the new mobile app launch.</p>
-                 <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                    <p className="text-[10px] font-bold text-indigo-300 uppercase mb-1">New Opportunity</p>
-                    <p className="text-[11px] font-medium leading-tight text-slate-300">82 donors have increased their frequency by 50% in the last 90 days. High potential for capital campaign involvement.</p>
+        <div className="lg:col-span-4 flex flex-col gap-10">
+           <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-12 space-y-10 flex-1 relative overflow-hidden group">
+              <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
+              <div className="relative z-10 space-y-8">
+                 <div className="w-16 h-16 rounded-[2rem] bg-white/10 flex items-center justify-center text-white shadow-xl shadow-slate-900"><TrendingUp size={32} /></div>
+                 <div className="space-y-4">
+                    <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Growth Report</h3>
+                    <p className="text-slate-400 font-medium leading-relaxed">System analysis shows a <span className="text-emerald-400 font-black">14.2% increase</span> in recurring giving conversion after the recent outreach initiative.</p>
                  </div>
-                 <button className="w-full py-3 bg-indigo-500 hover:bg-indigo-400 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg shadow-indigo-500/20">Download Audit Pack</button>
-              </CardContent>
+                 <Button className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] hover:bg-slate-100 transition-colors border-none shadow-2xl">Download Audit Pack</Button>
+              </div>
+           </Card>
+           
+           <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden p-8 flex-1">
+             <CardHeader className="p-4 pb-8">
+               <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Recent System Events</CardTitle>
+               <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Background processing status</CardDescription>
+             </CardHeader>
+             <CardContent className="p-4">
+                <ActivityTimeline events={timelineEvents} />
+             </CardContent>
            </Card>
         </div>
       </div>
+
+      {/* Simplified Transactions */}
+      <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
+         <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between bg-slate-50/20">
+            <div className="space-y-2">
+               <CardTitle className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Recent History</CardTitle>
+               <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Track every gift with complete transparency</CardDescription>
+            </div>
+            <div className="relative w-72">
+               <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+               <Input placeholder="Search givers..." className="h-14 pl-14 pr-6 rounded-2xl bg-white border-slate-100 shadow-sm font-black uppercase text-[10px] tracking-widest" />
+            </div>
+         </CardHeader>
+         <CardContent className="p-0">
+            <Table>
+               <TableHeader className="bg-slate-50/50">
+                  <TableRow className="hover:bg-transparent border-slate-100">
+                     <TableHead className="px-12 py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Donor</TableHead>
+                     <TableHead className="py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Allocation Fund</TableHead>
+                     <TableHead className="py-8 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">Contribution</TableHead>
+                     <TableHead className="py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Method</TableHead>
+                     <TableHead className="px-12 py-8 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">Timestamp</TableHead>
+                  </TableRow>
+               </TableHeader>
+               <TableBody>
+                  {listLoading ? (
+                    <TableRow className="border-slate-50">
+                      <td colSpan={5} className="px-12 py-16 text-center text-slate-400 font-medium">
+                        Loading donations…
+                      </td>
+                    </TableRow>
+                  ) : donationRows.length === 0 ? (
+                    <TableRow className="border-slate-50">
+                      <td colSpan={5} className="px-12 py-16 text-center">
+                        <div className="flex flex-col items-center gap-5 max-w-md mx-auto">
+                          <p className="text-slate-500 font-medium">No donations recorded yet.</p>
+                          <Button
+                            type="button"
+                            onClick={() => setView('create')}
+                            className="h-12 px-8 rounded-2xl bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest"
+                          >
+                            Record donation
+                          </Button>
+                        </div>
+                      </td>
+                    </TableRow>
+                  ) : (
+                    donationRows.map((give) => (
+                    <TableRow key={give.id} className="group hover:bg-slate-50/50 transition-colors border-slate-50">
+                       <td className="px-12 py-8">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-xs uppercase shadow-inner">{give.donor[0]}</div>
+                             <span className="text-base font-black text-slate-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{give.donor}</span>
+                          </div>
+                       </td>
+                       <td className="py-8">
+                          <Badge className="bg-slate-100 text-slate-600 border-none font-black text-[9px] uppercase tracking-widest px-4 py-1.5">{give.type}</Badge>
+                       </td>
+                       <td className="py-8 text-right font-black text-slate-900 text-xl tracking-tighter">
+                         {formatCurrencyAmount(give.amount, settings.financial.currency, { maximumFractionDigits: 0 })}
+                       </td>
+                       <td className="py-8">
+                          <div className="flex items-center gap-2 text-slate-400">
+                             {give.method === 'Online' ? <CreditCard size={16} /> : <Banknote size={16} />}
+                             <span className="text-[10px] font-black uppercase tracking-widest">{give.method}</span>
+                          </div>
+                       </td>
+                       <td className="px-12 py-8 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">{give.date}</td>
+                    </TableRow>
+                  ))
+                  )}
+               </TableBody>
+            </Table>
+            <div className="p-12 text-center border-t border-slate-50">
+               <Button variant="ghost" className="h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-indigo-600">
+                  <History className="mr-2 w-4 h-4" /> Load Full Audit History
+               </Button>
+            </div>
+         </CardContent>
+      </Card>
     </div>
   );
 }

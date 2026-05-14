@@ -18,14 +18,45 @@ import {
   Activity,
   UserPlus
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
-import { Badge } from '@/src/components/ui/badge';
-import { Button } from '@/src/components/ui/button';
-import { cn } from '@/src/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 
 export function OutreachModule() {
   const [selectedProject, setSelectedProject] = React.useState<any>(null);
   const [isAdding, setIsAdding] = React.useState(false);
+  const [contacts, setContacts] = React.useState<{ name: string; source: string; time: string }[]>([]);
+  const [outreachError, setOutreachError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setOutreachError(null);
+        const json = await apiRequest<unknown>('outreach', { method: 'GET' });
+        const list = parseApiResponse<{ name: string; source?: string | null; createdAt: string; status: string }[]>(json);
+        if (cancelled) return;
+        if (!list.length) {
+          if (!cancelled) setContacts([]);
+          return;
+        }
+        setContacts(
+          list.map((c) => ({
+            name: c.name,
+            source: c.source || c.status,
+            time: new Date(c.createdAt).toLocaleString(),
+          }))
+        );
+      } catch (e) {
+        if (!cancelled) setOutreachError(formatApiError(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (isAdding) {
     return (
@@ -190,7 +221,7 @@ export function OutreachModule() {
                  <div className="absolute -right-4 -top-4 opacity-5"><TrendingUp size={120} /></div>
                  <div className="space-y-1">
                     <h3 className="text-lg font-black uppercase tracking-tight">Project Impact Score</h3>
-                    <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Calculated by AI Engine</p>
+                    <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Statistical Analysis Engine</p>
                  </div>
                  <h2 className="text-5xl font-black">94<span className="text-lg text-slate-500 ml-1">/100</span></h2>
                  <p className="text-xs text-slate-400 italic">"This project is currently the highest performing outreach initiative in the West Sector."</p>
@@ -234,6 +265,7 @@ export function OutreachModule() {
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Outreach & Communications</h1>
           <p className="text-slate-500">Coordinate missions, track field data, and manage multi-channel engagement.</p>
+          {outreachError && <p className="text-sm text-rose-600 font-medium mt-1">{outreachError}</p>}
         </div>
         <div className="flex gap-3">
           <button 
@@ -293,11 +325,7 @@ export function OutreachModule() {
                   </CardHeader>
                   <CardContent className="p-0">
                      <div className="divide-y divide-slate-50">
-                        {[
-                          { name: 'Alex Rivera', source: 'Street Outreach', time: '2h ago' },
-                          { name: 'The Thompson Family', source: 'Easter Night', time: '1d ago' },
-                          { name: 'Li Wei', source: 'Website Inquiry', time: '2d ago' },
-                        ].map((c, i) => (
+                        {contacts.map((c, i) => (
                           <div key={i} className="px-6 py-4 flex justify-between items-center hover:bg-slate-50 transition-colors cursor-pointer group">
                              <div>
                                 <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{c.name}</p>

@@ -20,12 +20,23 @@ import {
   Library,
   X
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
-import { Badge } from '@/src/components/ui/badge';
-import { Button } from '@/src/components/ui/button';
-import { cn } from '@/src/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 
-const DOCS = [
+type DocRow = {
+  id: string | number;
+  name: string;
+  cat: string;
+  owner: string;
+  size: string;
+  date: string;
+  status: string;
+};
+
+const DOCS: DocRow[] = [
   { id: 1, name: 'Member_Trust_Agreement_2024.pdf', cat: 'Legal', owner: 'Sarah Jenkins', size: '2.4 MB', date: '2 days ago', status: 'Approved' },
   { id: 2, name: 'Baptism_Certificate_Template.docx', cat: 'Internal', owner: 'Robert Chen', size: '840 KB', date: '1 week ago', status: 'Draft' },
   { id: 3, name: 'Annual_Audit_Report_2023.xlsx', cat: 'Finance', owner: 'James Wilson', size: '15.2 MB', date: 'Mar 12, 2024', status: 'Audit Ready' },
@@ -39,10 +50,43 @@ export function DocumentsModule() {
   const [activeCategory, setActiveCategory] = React.useState('All');
   const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [docs, setDocs] = React.useState<DocRow[]>(DOCS);
+  const [docsError, setDocsError] = React.useState<string | null>(null);
+  const [uploadFeedback, setUploadFeedback] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setDocsError(null);
+        const json = await apiRequest<unknown>('documents', { method: 'GET' });
+        const list = parseApiResponse<
+          { id: string; title: string; category?: string | null; createdAt: string; url: string }[]
+        >(json);
+        if (cancelled || !list.length) return;
+        setDocs(
+          list.map((d) => ({
+            id: d.id,
+            name: d.title,
+            cat: d.category || 'General',
+            owner: '—',
+            size: '—',
+            date: new Date(d.createdAt).toLocaleDateString(),
+            status: 'Live',
+          })),
+        );
+      } catch (e) {
+        if (!cancelled) setDocsError(formatApiError(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredDocs = activeCategory === 'All' 
-    ? DOCS 
-    : DOCS.filter(d => activeCategory.toLowerCase().includes(d.cat.toLowerCase()));
+    ? docs 
+    : docs.filter(d => activeCategory.toLowerCase().includes(String(d.cat).toLowerCase()));
 
   if (isUploading) {
     return (
@@ -67,7 +111,8 @@ export function DocumentsModule() {
              className="hidden" 
              onChange={(e) => {
                if (e.target.files?.length) {
-                 alert(`Selected file: ${e.target.files[0].name}`);
+                 setUploadFeedback(`File selected: ${e.target.files[0].name}`);
+                 setTimeout(() => setUploadFeedback(null), 3000);
                  setIsUploading(false);
                }
              }}
@@ -123,10 +168,17 @@ export function DocumentsModule() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+       {uploadFeedback && (
+         <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-bold text-emerald-700 flex items-center justify-between animate-in slide-in-from-top-2">
+           <span>✓ {uploadFeedback}</span>
+           <button onClick={() => setUploadFeedback(null)} className="text-emerald-400 hover:text-emerald-600 font-black text-xs ml-2">✕</button>
+         </div>
+       )}
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Secure Document Vault</h1>
           <p className="text-slate-500">Encrypted institutional record storage, policy management, and audit trailing.</p>
+          {docsError && <p className="text-sm text-rose-600 font-medium mt-1">{docsError}</p>}
         </div>
         <div className="flex gap-3">
           <button 
