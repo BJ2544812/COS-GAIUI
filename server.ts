@@ -1,4 +1,5 @@
 import express from 'express';
+/** @deprecated Legacy monolithic dev server. Prefer `npm run dev:server` → `src/server/index.ts` (Express + Prisma API). */
 import { createServer as createViteServer } from 'vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -339,7 +340,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Church OS Core initialized at http://localhost:${PORT}`);
+    console.log(`Kingdom OS API initialized at http://localhost:${PORT}`);
   });
 }
 

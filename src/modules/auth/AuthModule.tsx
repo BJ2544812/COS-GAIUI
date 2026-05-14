@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card, CardContent } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock, User, Church } from 'lucide-react';
 
 interface AuthModuleProps {
@@ -45,8 +45,8 @@ export function AuthModule({ onLogin }: AuthModuleProps) {
               <Church className="w-10 h-10" />
            </div>
            <div className="space-y-1">
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Church OS Core</h1>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">High-Security Ministry Operations</p>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Kingdom OS</h1>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Secure staff sign-in</p>
            </div>
         </div>
 

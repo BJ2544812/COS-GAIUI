@@ -31,26 +31,68 @@ export interface DashboardStats {
   growthRate: number;
 }
 
+/** Nav / module honesty: use `placeholder` and `prototype` for non-production surfaces. */
+export type ModuleStatus =
+  | 'live'
+  | 'operational'
+  | 'partial'
+  | 'prototype'
+  | 'placeholder'
+  | 'backend-ready'
+  | 'planned'
+  | 'experimental';
+
 // Module identifiers for navigation
-export type ERPModule = 
+export type ERPModule =
+  // Special
   | 'dashboard'
+  | 'profile'
+  // IDENTITY
   | 'members'
-  | 'structure'
+  | 'families'
+  | 'volunteers'
   | 'workforce'
-  | 'attendance'
+  | 'small-groups'
+  | 'pathways'
   | 'discipleship'
+  // OPERATIONS
+  | 'events'
+  | 'attendance'
   | 'services'
-  | 'content'
+  | 'worship'
+  | 'outreach'
+  | 'missions'
+  | 'structure'
+  // FINANCE
   | 'giving'
   | 'finance'
+  | 'budgets'
+  | 'funds'
   | 'assets'
-  | 'events'
-  | 'outreach'
-  | 'communication'
   | 'documents'
-  | 'website'
-  | 'mobile-app'
-  | 'settings'
+  | 'vendors'
+  // ENGAGEMENT
+  | 'sermons'
+  | 'content'
+  | 'communication'
   | 'notifications'
-  | 'profile'
-  | 'permissions';
+  | 'mobile'
+  // WEBSITE & DIGITAL
+  | 'website'
+  | 'pages'
+  | 'forms'
+  | 'media-library'
+  | 'landing-pages'
+  | 'seo'
+  // INTELLIGENCE
+  | 'analytics'
+  | 'engagement'
+  | 'workflow-monitor'
+  | 'event-admin'
+  | 'audit-logs'
+  // PLATFORM
+  | 'settings'
+  | 'permissions'
+  | 'feature-flags'
+  | 'tenant-settings'
+  | 'integrations';
