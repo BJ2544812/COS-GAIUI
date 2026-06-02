@@ -12,7 +12,7 @@ const UCOS_EVENTS_ACTIVE_TAB = 'ucos_events_active_tab';
 
 type Ev = { id: string; name: string; type: string; date: string; location?: string | null };
 
-export function WorshipPlanningModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
+export function WorshipPlanningModule({ onModuleChange }: { onModuleChange?: import('@/types').ModuleNavigate }) {
   const [events, setEvents] = React.useState<Ev[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -48,7 +48,7 @@ export function WorshipPlanningModule({ onModuleChange }: { onModuleChange?: (m:
         icon={Music4}
         actions={
           <div className="flex flex-wrap gap-2">
-            <ActionButton label="Worship services" icon={Calendar} variant="secondary" onClick={() => onModuleChange?.('services')} />
+            <ActionButton label="Worship services" icon={Calendar} variant="secondary" onClick={() => onModuleChange?.('events', 'services')} />
             <ActionButton label="Events" icon={ArrowRight} variant="primary" onClick={() => onModuleChange?.('events')} />
           </div>
         }
@@ -112,7 +112,7 @@ export function WorshipPlanningModule({ onModuleChange }: { onModuleChange?: (m:
 
         <Card className="rounded-[2rem] border-slate-100 shadow-sm space-y-4">
           <CardHeader>
-            <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Operational links</CardTitle>
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Quick links</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             <Button type="button" variant="outline" className="w-full justify-start font-bold" onClick={() => onModuleChange?.('attendance')}>

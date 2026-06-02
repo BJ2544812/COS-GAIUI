@@ -34,6 +34,12 @@ import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
 import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import {
+  enqueueOfflineCheckIn,
+  getOfflineQueue,
+  removeOfflineIds,
+} from '@/lib/offlineAttendanceQueue';
+import { ApiError } from '@/lib/apiClient';
 
 export function AttendanceModule() {
   const { settings } = useSettings();
@@ -47,6 +53,7 @@ export function AttendanceModule() {
   const [submitting, setSubmitting] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [attendanceError, setAttendanceError] = React.useState<string | null>(null);
+  const [offlinePending, setOfflinePending] = React.useState(0);
   const [metrics, setMetrics] = React.useState<any>({
     totalAttendances: 0,
     memberParticipation: 0,
@@ -96,7 +103,39 @@ export function AttendanceModule() {
     loadSessions();
     loadMembers();
     loadMetrics();
+    setOfflinePending(getOfflineQueue().length);
   }, [loadSessions, loadMembers, loadMetrics]);
+
+  const flushOfflineQueue = React.useCallback(async () => {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+    const synced = new Set<string>();
+    for (const item of queue) {
+      try {
+        await apiRequest(`attendance/sessions/${item.sessionId}/records`, {
+          method: 'POST',
+          body: {
+            memberId: item.memberId,
+            ...item.visitor,
+            method: item.method,
+          },
+        });
+        synced.add(item.id);
+      } catch {
+        break;
+      }
+    }
+    if (synced.size > 0) {
+      removeOfflineIds(synced);
+      setOfflinePending(getOfflineQueue().length);
+      void loadSessions();
+      if (selectedSession) void loadRecords(selectedSession.id);
+    }
+  }, [loadSessions, loadRecords, selectedSession]);
+
+  React.useEffect(() => {
+    if (offlinePending > 0) void flushOfflineQueue();
+  }, [offlinePending, flushOfflineQueue]);
 
   /** Deep link from Events: open a specific session in the live portal */
   React.useEffect(() => {
@@ -134,7 +173,21 @@ export function AttendanceModule() {
       loadRecords(selectedSession.id);
       loadSessions(); // Update counts
     } catch (err) {
-      setAttendanceError(formatApiError(err));
+      const offline =
+        err instanceof ApiError && (err.status === 0 || err.status >= 500) ||
+        (err instanceof TypeError && err.message.includes('fetch'));
+      if (offline) {
+        enqueueOfflineCheckIn({
+          sessionId: selectedSession.id,
+          memberId,
+          visitor: visitorData,
+          method: 'MANUAL',
+        });
+        setOfflinePending(getOfflineQueue().length);
+        setAttendanceError('Saved offline — will sync when connection returns.');
+      } else {
+        setAttendanceError(formatApiError(err));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -144,6 +197,14 @@ export function AttendanceModule() {
     const currentSession = selectedSession;
     return (
       <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500 text-left">
+        {offlinePending > 0 && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm font-medium flex justify-between items-center gap-3">
+            <span>{offlinePending} check-in(s) queued offline</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => void flushOfflineQueue()}>
+              Sync now
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between border-b border-slate-100 pb-8">
            <div className="flex items-center gap-6">
               <Button variant="ghost" size="icon" onClick={() => setIsLiveCheckin(false)} className="rounded-full h-12 w-12 bg-slate-100">
@@ -239,7 +300,7 @@ export function AttendanceModule() {
                                   handleCheckIn(m.id);
                                   setSearchTerm('');
                                 }}
-                                className="p-4 bg-white rounded-xl flex items-center justify-between hover:border-indigo-600 border border-transparent cursor-pointer transition-all"
+                                className="p-4 min-h-[56px] touch-manipulation bg-white rounded-xl flex items-center justify-between hover:border-indigo-600 border border-transparent cursor-pointer transition-all active:bg-indigo-50"
                               >
                                 <span className="font-bold text-slate-900">{m.name}</span>
                                 <Plus size={16} className="text-slate-300" />
@@ -367,7 +428,7 @@ export function AttendanceModule() {
         icon={CalendarCheck}
         actions={
           <>
-            <ActionButton label="Audit Pack" icon={Download} variant="secondary" />
+            <ActionButton label="Export records" icon={Download} variant="secondary" />
             <ActionButton 
               label="Open Live Portal" 
               icon={PlusCircle} 

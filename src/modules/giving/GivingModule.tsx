@@ -20,7 +20,10 @@ import {
   PlusCircle,
   History,
   User,
-  Flag
+  Flag,
+  RefreshCw,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { listMembers, type MemberDto } from '../members/memberApi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,10 +41,11 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { ERPModule } from '@/types';
-import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
+import { apiDownloadBlob, apiRequest, formatApiError, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { FeedbackBanner, ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { navigateToFinanceTab } from '@/lib/financeNavigation';
 
 type GiveRow = {
   id: string;
@@ -49,6 +53,7 @@ type GiveRow = {
   type: string;
   amount: number;
   method: string;
+  dateIso: string;
   date: string;
 };
 
@@ -75,14 +80,22 @@ interface GivingModuleProps {
 export function GivingModule({ onModuleChange }: GivingModuleProps) {
   const { settings } = useSettings();
   const [view, setView] = React.useState<'dashboard' | 'create'>('dashboard');
+  const [workspaceTab, setWorkspaceTab] = React.useState<'overview' | 'registry' | 'donors' | 'campaigns' | 'sessions' | 'receipts' | 'settlements'>('overview');
   const [selectedFund, setSelectedFund] = React.useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = React.useState('');
   const [donationRows, setDonationRows] = React.useState<GiveRow[]>([]);
   const [apiTotal, setApiTotal] = React.useState<number | null>(null);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [currentPage, setCurrentPage] = React.useState(0);
+  const PAGE_SIZE = 50;
   const [givingError, setGivingError] = React.useState<string | null>(null);
   const [listLoading, setListLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
   const [members, setMembers] = React.useState<MemberDto[]>([]);
   const [campaigns, setCampaigns] = React.useState<{id: string, name: string}[]>([]);
+  const [registrySearch, setRegistrySearch] = React.useState('');
+  const [registryMethod, setRegistryMethod] = React.useState('');
+  const [receiptBusyId, setReceiptBusyId] = React.useState<string | null>(null);
 
   const loadMembers = React.useCallback(async () => {
     try {
@@ -103,21 +116,34 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
     }
   }, []);
 
-  const loadDonations = React.useCallback(async () => {
+  const loadDonations = React.useCallback(async (page?: number, search?: string, method?: string) => {
+    const p = page ?? 0;
+    const s = search ?? '';
+    const m = method ?? '';
     try {
       setGivingError(null);
       setListLoading(true);
-      const json = await apiRequest<unknown>('giving/donations', { method: 'GET' });
-      const list = parseApiResponse<
-        {
-          id: string;
-          amount: unknown;
-          method: string;
-          date: string;
-          donor?: { name: string } | null;
-          campaign?: { name: string } | null;
-        }[]
-      >(json);
+      const params = new URLSearchParams();
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(p * PAGE_SIZE));
+      if (s) params.set('search', s);
+      if (m) params.set('method', m);
+      const json = await apiRequest<unknown>(`giving/donations?${params.toString()}`, { method: 'GET' });
+      const raw = json as any;
+      const list = (raw?.data ?? []) as Array<{
+        id: string;
+        amount: unknown;
+        method: string;
+        date: string;
+        donor?: { name: string } | null;
+        campaign?: { name: string } | null;
+        fund?: { name: string } | null;
+        voucher?: { voucherNo: string; status: string } | null;
+        reversalVoucher?: { voucherNo: string } | null;
+        reference?: string | null;
+      }>;
+      const meta = raw?.meta as { total?: number } | undefined;
+      setTotalCount(meta?.total ?? list.length);
       setApiTotal(list.reduce((s, d) => s + coalesceAmount(d.amount), 0));
       setDonationRows(
         list.map((d) => {
@@ -129,6 +155,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
             type: d.campaign?.name ?? 'General Giving',
             amount: coalesceAmount(d.amount),
             method: d.method || '—',
+            dateIso: d.date || rawDate.toISOString(),
             date: dateLabel,
           };
         }),
@@ -143,6 +170,18 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
     }
   }, []);
 
+  const downloadDonationReceipt = async (donationId: string) => {
+    try {
+      setReceiptBusyId(donationId);
+      const blob = await apiDownloadBlob(`giving/donations/${donationId}/receipt/pdf`);
+      triggerBrowserDownload(blob, `receipt-${donationId.slice(0, 8)}.pdf`);
+    } catch (e) {
+      setGivingError(formatApiError(e));
+    } finally {
+      setReceiptBusyId(null);
+    }
+  };
+
   const chartData = React.useMemo(() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -152,7 +191,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
     });
 
     donationRows.forEach(d => {
-      const date = new Date(d.date);
+      const date = new Date(d.dateIso);
       if (isNaN(date.getTime())) return;
       const monthName = months[date.getMonth()];
       const match = last6Months.find(m => m.month === monthName);
@@ -195,6 +234,45 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
     () => new Set(donationRows.map((r) => r.donor)).size,
     [donationRows],
   );
+
+  const visibleDonationRows = React.useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return donationRows;
+    return donationRows.filter((row) =>
+      [row.donor, row.type, row.method, row.date].some((part) =>
+        part.toLowerCase().includes(q),
+      ),
+    );
+  }, [donationRows, searchTerm]);
+
+  const donorTimeline = React.useMemo(
+    () =>
+      [...donationRows]
+        .sort((a, b) => +new Date(b.dateIso) - +new Date(a.dateIso))
+        .slice(0, 30),
+    [donationRows],
+  );
+
+  const campaignRollup = React.useMemo(() => {
+    const map = new Map<string, { name: string; count: number; amount: number }>();
+    donationRows.forEach((r) => {
+      const key = r.type || 'General Giving';
+      const cur = map.get(key) || { name: key, count: 0, amount: 0 };
+      cur.count += 1;
+      cur.amount += r.amount;
+      map.set(key, cur);
+    });
+    return [...map.values()].sort((a, b) => b.amount - a.amount);
+  }, [donationRows]);
+
+  const memberCrm = React.useMemo(() => {
+    const totals = new Map<string, number>();
+    donationRows.forEach((r) => totals.set(r.donor, (totals.get(r.donor) || 0) + r.amount));
+    return members
+      .map((m) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone, totalGiving: totals.get(m.name) || 0 }))
+      .sort((a, b) => b.totalGiving - a.totalGiving)
+      .slice(0, 40);
+  }, [members, donationRows]);
 
   const handleCreateDonation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -240,7 +318,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Record Donation</h1>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Record gift</h1>
             <p className="text-sm text-slate-500 font-medium tracking-tight">Enter details to log a new gift. Accounting ledgers will be updated automatically in the background.</p>
           </div>
         </div>
@@ -323,6 +401,8 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
   }
 
   if (selectedFund) {
+    const selectedRows = donationRows.filter((row) => row.type === selectedFund);
+    const selectedTotal = selectedRows.reduce((sum, row) => sum + row.amount, 0);
     return (
       <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-500 text-left">
         <div className="flex items-center justify-between border-b border-slate-100 pb-8">
@@ -332,10 +412,12 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
             </Button>
             <div>
                <h1 className="text-4xl font-black tracking-tight text-slate-900 uppercase leading-none">{selectedFund}</h1>
-               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">Fund allocation and performance tracking</p>
+               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">Fund records from saved donations</p>
             </div>
           </div>
-          <Button className="h-14 px-10 rounded-2xl bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest shadow-xl">Manage Allocation</Button>
+          <Button disabled className="h-14 px-10 rounded-2xl bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest shadow-xl">
+            Fund Settings Unavailable
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -344,46 +426,26 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                 <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between bg-slate-50/20">
                    <div className="space-y-2">
                       <CardTitle className="text-2xl font-black uppercase tracking-tight">Fund Overview</CardTitle>
-                      <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Real-time stewardship metrics</CardDescription>
+                      <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Derived from recorded donations only</CardDescription>
                    </div>
                    <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Balance</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recorded Total</p>
                       <h2 className="text-5xl font-black text-emerald-600 tracking-tighter">
-                        {formatCurrencyAmount(840250, settings.financial.currency, { maximumFractionDigits: 0 })}
+                        {formatCurrencyAmount(selectedTotal, settings.financial.currency, { maximumFractionDigits: 0 })}
                       </h2>
                    </div>
                 </CardHeader>
                 <CardContent className="p-12">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                      <div className="space-y-6">
-                         <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Allocated Projects</h3>
-                         <div className="space-y-8">
-                            {[
-                              { label: 'Campus Construction', val: 450000, color: 'bg-indigo-600' },
-                              { label: 'Media Hub', val: 240000, color: 'bg-emerald-500' },
-                              { label: 'Unallocated', val: 150250, color: 'bg-slate-300' },
-                            ].map((item, i) => (
-                              <div key={i} className="space-y-3">
-                                 <div className="flex justify-between text-[11px] font-black text-slate-900 uppercase tracking-widest">
-                                    <span>{item.label}</span>
-                                    <span>{formatCurrencyAmount(item.val, settings.financial.currency, { maximumFractionDigits: 0 })}</span>
-                                 </div>
-                                 <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
-                                    <div className={cn('h-full rounded-full transition-all duration-1000', item.color)} style={{ width: `${(item.val / 840250) * 100}%` }} />
-                                 </div>
-                              </div>
-                            ))}
-                         </div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gift Count</p>
+                        <p className="mt-2 text-4xl font-black text-slate-900 tracking-tight">{selectedRows.length}</p>
                       </div>
-                      <div className="bg-slate-50 rounded-[3rem] p-10 flex flex-col items-center justify-center text-center space-y-6 shadow-inner border border-slate-100">
-                         <div className="w-16 h-16 rounded-[2rem] bg-white flex items-center justify-center text-indigo-600 shadow-xl">
-                            <Target size={32} />
-                         </div>
-                         <div className="space-y-2">
-                            <h4 className="font-black text-slate-900 uppercase tracking-tight text-xl">Campaign Goal</h4>
-                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">84% of $1M Target Reached</p>
-                         </div>
-                         <Button className="w-full h-12 bg-white text-indigo-600 rounded-xl font-black uppercase text-[10px] tracking-widest border-2 border-indigo-50 shadow-sm">View Full Plan</Button>
+                      <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Distinct Donors</p>
+                        <p className="mt-2 text-4xl font-black text-slate-900 tracking-tight">
+                          {new Set(selectedRows.map((r) => r.donor)).size}
+                        </p>
                       </div>
                    </div>
                 </CardContent>
@@ -391,24 +453,29 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
 
               <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
                  <CardHeader className="p-10 border-b border-slate-50">
-                    <CardTitle className="text-xl font-black uppercase tracking-tight">Recent Allocations</CardTitle>
+                    <CardTitle className="text-xl font-black uppercase tracking-tight">Recent Donations In This Fund</CardTitle>
                  </CardHeader>
                  <CardContent className="p-0">
                     <div className="divide-y divide-slate-50">
-                       {['Supplier: Apex Builders', 'MediaHub Pro Gear', 'Grace Architect Fees'].map((inv, i) => (
-                         <div key={i} className="px-10 py-8 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer group transition-colors">
+                      {selectedRows.length === 0 && (
+                        <div className="px-10 py-12 text-sm text-slate-500 font-medium">
+                          No donations are currently mapped to this fund.
+                        </div>
+                      )}
+                      {selectedRows.slice(0, 8).map((row) => (
+                         <div key={row.id} className="px-10 py-8 flex items-center justify-between hover:bg-slate-50/50 group transition-colors">
                             <div className="flex items-center gap-6">
                                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300 font-black group-hover:bg-indigo-600 group-hover:text-white transition-all"><FileText size={20} /></div>
                                <div>
-                                  <p className="font-black text-slate-900 uppercase tracking-tight text-base group-hover:text-indigo-600 transition-colors">{inv}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Disbursed on Mar {20 - i}, 2024</p>
+                                  <p className="font-black text-slate-900 uppercase tracking-tight text-base group-hover:text-indigo-600 transition-colors">{row.donor}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{row.method} · {row.date}</p>
                                </div>
                             </div>
                             <span className="text-xl font-black text-slate-900">
-                               {formatCurrencyAmount(12400, settings.financial.currency, { maximumFractionDigits: 0 })}
+                               {formatCurrencyAmount(row.amount, settings.financial.currency, { maximumFractionDigits: 0 })}
                             </span>
                          </div>
-                       ))}
+                      ))}
                     </div>
                  </CardContent>
               </Card>
@@ -421,27 +488,197 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
   return (
     <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
       {givingError && (
-        <div
-          className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
-          role="alert"
-        >
-          {givingError}
-        </div>
+        <FeedbackBanner tone="error">{givingError}</FeedbackBanner>
       )}
        {/* Simple Action-Driven Header */}
        <ModuleHeader
         title="Giving"
-        subtitle="Tithes, offerings, and campaigns from recorded donations and campaigns in your tenant."
+        subtitle="Record gifts, thank donors, print receipts, and track campaigns."
         status="live"
         icon={CircleDollarSign}
         actions={
           <>
-            <ActionButton label="Tax Reports" icon={FileText} variant="secondary" />
-            <ActionButton label="Record Donation" icon={PlusCircle} variant="primary" onClick={() => setView('create')} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100/50" />
+            <ActionButton label="Record gift" icon={PlusCircle} variant="primary" onClick={() => setView('create')} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100/50" />
           </>
         }
       />
+      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-full max-w-full overflow-x-auto">
+        {[
+          ['overview', 'Overview'],
+          ['registry', 'All gifts'],
+          ['donors', 'Donors'],
+          ['campaigns', 'Campaigns'],
+          ['sessions', 'Sunday & services'],
+          ['receipts', 'Receipts'],
+          ['settlements', 'Settlement status'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setWorkspaceTab(id as any)}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${workspaceTab === id ? 'bg-white text-indigo-600' : 'text-slate-500'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
+      {workspaceTab === 'registry' && (
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+          <CardHeader className="p-10 border-b border-slate-50">
+            <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight">All gifts</CardTitle>
+            <CardDescription className="text-xs uppercase tracking-widest font-bold text-slate-400">Search, filter, and download receipts for every gift</CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search by donor name or reference..."
+                  value={registrySearch}
+                  onChange={(e) => setRegistrySearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { setCurrentPage(0); void loadDonations(0, registrySearch, registryMethod); } }}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+              <select
+                value={registryMethod}
+                onChange={(e) => { setRegistryMethod(e.target.value); setCurrentPage(0); void loadDonations(0, registrySearch, e.target.value); }}
+                className="h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 bg-white"
+              >
+                <option value="">All Methods</option>
+                <option value="CASH">Cash</option>
+                <option value="ONLINE">Online</option>
+                <option value="UPI">UPI</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+              </select>
+              <Button variant="outline" size="sm" onClick={() => { setRegistrySearch(''); setRegistryMethod(''); setCurrentPage(0); void loadDonations(0, '', ''); }}>
+                Reset
+              </Button>
+            </div>
+            {listLoading ? (
+              <div className="py-12 text-center text-sm text-slate-400 animate-pulse">Loading donations...</div>
+            ) : donationRows.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-500">No donations match your criteria.</div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[10px] font-black uppercase">Donor</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Amount</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Method</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Fund/Campaign</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Status</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase text-right">Receipt</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {donationRows.map((row) => (
+                        <TableRow key={row.id} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-900">{row.donor}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-slate-900">{formatCurrencyAmount(row.amount, settings.financial.currency, { maximumFractionDigits: 0 })}</td>
+                          <td className="px-4 py-3"><Badge variant="outline" className="text-[9px] font-bold uppercase">{row.method}</Badge></td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{row.type}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{row.date}</td>
+                          <td className="px-4 py-3"><Badge className="bg-emerald-100 text-emerald-700 text-[9px] font-bold border-none">Recorded</Badge></td>
+                          <td className="px-4 py-3 text-right">
+                            <Button variant="ghost" size="sm" disabled={receiptBusyId === row.id} onClick={() => void downloadDonationReceipt(row.id)} title="Download PDF receipt">
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xs text-slate-500">
+                    Showing {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalCount)} of {totalCount}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => { const p = currentPage - 1; setCurrentPage(p); void loadDonations(p); }}>Previous</Button>
+                    <Button variant="outline" size="sm" disabled={(currentPage + 1) * PAGE_SIZE >= totalCount} onClick={() => { const p = currentPage + 1; setCurrentPage(p); void loadDonations(p); }}>Next</Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {workspaceTab === 'donors' && (
+        <DonorTimelinePanel
+          donationRows={donationRows}
+          currency={settings.financial.currency}
+          members={members}
+        />
+      )}
+
+      {workspaceTab === 'campaigns' && (
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+          <CardHeader className="p-10 border-b border-slate-50">
+            <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight">Campaigns</CardTitle>
+            <CardDescription className="text-xs uppercase tracking-widest font-bold text-slate-400">How much each campaign has received</CardDescription>
+          </CardHeader>
+          <CardContent className="p-8 space-y-3">
+            {campaignRollup.length === 0 ? (
+              <p className="text-sm text-slate-500">No campaign-linked giving data yet.</p>
+            ) : (
+              campaignRollup.map((c) => (
+                <div key={c.name} className="rounded-xl border border-slate-100 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900">{c.name}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-400">{c.count} donations</p>
+                  </div>
+                  <p className="font-black text-slate-900">{formatCurrencyAmount(c.amount, settings.financial.currency, { maximumFractionDigits: 0 })}</p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      
+      {workspaceTab === 'settlements' && (
+        <GivingSettlementStatusPanel onOpenFinance={() => navigateToFinanceTab(onModuleChange, 'settlements')} />
+      )}
+
+      {workspaceTab === 'receipts' && (
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+          <CardHeader className="p-8 border-b border-slate-50">
+            <CardTitle className="text-xl font-bold text-slate-900">Receipts</CardTitle>
+            <CardDescription className="text-sm text-slate-500">Download PDF receipts from the gift registry — use the download icon on each row.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-8">
+            <Button variant="outline" onClick={() => setWorkspaceTab('registry')}>Open all gifts</Button>
+            <Button variant="ghost" className="ml-2" onClick={() => navigateToFinanceTab(onModuleChange, 'receipts')}>Finance receipt archive</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {workspaceTab === 'sessions' && (
+        <ServiceCollectionPanel />
+      )}
+
+      {workspaceTab !== 'overview' ? null : (
+      <>
+
+      {listLoading && (
+        <div className="space-y-6 animate-pulse">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-56 rounded-[4rem] bg-slate-100" />
+            ))}
+          </div>
+          <div className="h-[300px] rounded-[4rem] bg-slate-100" />
+        </div>
+      )}
+
+      {!listLoading && (
+      <>
       {/* KPI Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
         <Card onClick={() => setSelectedFund('General Giving')} className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden group cursor-pointer hover:translate-y-[-8px] transition-all duration-500">
@@ -463,7 +700,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                  </h2>
               </div>
               <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Growth Momentum</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recorded Donations</p>
                  <ArrowUpRight className="w-6 h-6 text-emerald-500" />
               </div>
            </CardContent>
@@ -473,7 +710,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
            <CardContent className="p-12 space-y-10">
               <div className="flex justify-between items-center">
                  <div className="w-14 h-14 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110"><HeartHandshake size={28} /></div>
-                 <Badge className="bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">{activeStewardsCount} Active Stewards</Badge>
+                 <Badge className="bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">{activeStewardsCount} Active Donors</Badge>
               </div>
               <div className="space-y-2">
                  <p className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Unique donors (this list)</p>
@@ -491,25 +728,25 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
            </CardContent>
         </Card>
 
-        <Card onClick={() => setSelectedFund('Building Fund')} className="border-none shadow-2xl rounded-[4rem] bg-emerald-600 text-white overflow-hidden group cursor-pointer hover:translate-y-[-8px] transition-all duration-500 relative">
+        <Card className="border-none shadow-2xl rounded-[4rem] bg-emerald-600 text-white overflow-hidden group transition-all duration-500 relative">
            <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
            <CardContent className="p-12 space-y-10 relative z-10">
               <div className="flex justify-between items-center">
                  <div className="w-14 h-14 rounded-3xl bg-white/20 text-white flex items-center justify-center"><TrendingUp size={28} /></div>
-                 <Badge className="bg-white/20 text-white font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">Building Fund</Badge>
+                 <Badge className="bg-white/20 text-white font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">Campaigns</Badge>
               </div>
               <div className="space-y-4">
                  <div className="space-y-2">
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/60">Pledge Fulfillment</p>
-                    <h2 className="text-6xl font-black tracking-tighter leading-none">84%</h2>
+                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/60">Configured Campaigns</p>
+                    <h2 className="text-6xl font-black tracking-tighter leading-none">{campaigns.length}</h2>
                  </div>
-                 <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-white transition-all duration-1000" style={{ width: '84%' }} />
-                 </div>
+                 <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
+                   Campaign data is loaded from the campaigns API.
+                 </p>
               </div>
               <div className="pt-4 flex items-center justify-between">
-                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">View Campaign Plan</p>
-                 <ArrowRight className="w-6 h-6 text-white group-hover:translate-x-2 transition-transform" />
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Open Campaign Management in Giving</p>
+                 <ArrowRight className="w-6 h-6 text-white" />
               </div>
            </CardContent>
         </Card>
@@ -556,15 +793,17 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                  <div className="w-16 h-16 rounded-[2rem] bg-white/10 flex items-center justify-center text-white shadow-xl shadow-slate-900"><TrendingUp size={32} /></div>
                  <div className="space-y-4">
                     <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Growth Report</h3>
-                    <p className="text-slate-400 font-medium leading-relaxed">System analysis shows a <span className="text-emerald-400 font-black">14.2% increase</span> in recurring giving conversion after the recent outreach initiative.</p>
+                    <p className="text-slate-400 font-medium leading-relaxed">
+                      This panel reflects recorded donations only. Use Finance and Change history for accountant-ready reports.
+                    </p>
                  </div>
-                 <Button className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] hover:bg-slate-100 transition-colors border-none shadow-2xl">Download Audit Pack</Button>
+                 <Button disabled className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] hover:bg-slate-100 transition-colors border-none shadow-2xl">Export for accountant</Button>
               </div>
            </Card>
            
            <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden p-8 flex-1">
              <CardHeader className="p-4 pb-8">
-               <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Recent System Events</CardTitle>
+               <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Recent Donation Events</CardTitle>
                <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Background processing status</CardDescription>
              </CardHeader>
              <CardContent className="p-4">
@@ -583,7 +822,12 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
             </div>
             <div className="relative w-72">
                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-               <Input placeholder="Search givers..." className="h-14 pl-14 pr-6 rounded-2xl bg-white border-slate-100 shadow-sm font-black uppercase text-[10px] tracking-widest" />
+               <Input
+                 placeholder="Search givers..."
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="h-14 pl-14 pr-6 rounded-2xl bg-white border-slate-100 shadow-sm font-black uppercase text-[10px] tracking-widest"
+               />
             </div>
          </CardHeader>
          <CardContent className="p-0">
@@ -604,11 +848,13 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                         Loading donations…
                       </td>
                     </TableRow>
-                  ) : donationRows.length === 0 ? (
+                  ) : visibleDonationRows.length === 0 ? (
                     <TableRow className="border-slate-50">
                       <td colSpan={5} className="px-12 py-16 text-center">
                         <div className="flex flex-col items-center gap-5 max-w-md mx-auto">
-                          <p className="text-slate-500 font-medium">No donations recorded yet.</p>
+                          <p className="text-slate-500 font-medium">
+                            {donationRows.length === 0 ? 'No donations recorded yet.' : 'No records match this search.'}
+                          </p>
                           <Button
                             type="button"
                             onClick={() => setView('create')}
@@ -620,7 +866,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                       </td>
                     </TableRow>
                   ) : (
-                    donationRows.map((give) => (
+                    visibleDonationRows.map((give) => (
                     <TableRow key={give.id} className="group hover:bg-slate-50/50 transition-colors border-slate-50">
                        <td className="px-12 py-8">
                           <div className="flex items-center gap-4">
@@ -647,12 +893,134 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                </TableBody>
             </Table>
             <div className="p-12 text-center border-t border-slate-50">
-               <Button variant="ghost" className="h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-indigo-600">
-                  <History className="mr-2 w-4 h-4" /> Load Full Audit History
+               <Button disabled variant="ghost" className="h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400">
+                  <History className="mr-2 w-4 h-4" /> Full giving history export coming soon
                </Button>
             </div>
          </CardContent>
       </Card>
+      </>
+      )}
+      </>
+      )}
     </div>
   );
 }
+
+function GivingSettlementStatusPanel({ onOpenFinance }: { onOpenFinance: () => void }) {
+  const [dash, setDash] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiRequest('giving/gateway/reconciliation');
+        setDash(parseApiResponse(res));
+      } catch { setDash(null); } finally { setLoading(false); }
+    })();
+  }, []);
+  return (
+    <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+      <CardHeader className="p-8 border-b border-slate-50">
+        <CardTitle className="text-xl font-bold text-slate-900">Online gift settlement status</CardTitle>
+        <CardDescription className="text-sm text-slate-500">Import payouts and record bank deposits in Finance.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-8 space-y-4">
+        {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
+        {dash && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-amber-50 p-4"><p className="text-2xl font-bold">{dash.pendingSettlement}</p><p className="text-xs font-semibold text-amber-800">Waiting for payout</p></div>
+            <div className="rounded-xl bg-slate-50 p-4"><p className="text-2xl font-bold">{dash.unmatchedDonations}</p><p className="text-xs font-semibold">Need matching</p></div>
+            <div className="rounded-xl bg-indigo-50 p-4"><p className="text-2xl font-bold">{dash.recentSettlements?.length ?? 0}</p><p className="text-xs font-semibold text-indigo-800">Recent batches</p></div>
+          </div>
+        )}
+        <Button onClick={onOpenFinance}>Manage settlements in Finance</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ServiceCollectionPanel() {
+  const [sessions, setSessions] = React.useState<any[]>([]);
+  const [name, setName] = React.useState('Sunday 9AM Service');
+  const load = React.useCallback(async () => {
+    const res = await apiRequest('giving/service-sessions');
+    setSessions(parseApiResponse<any[]>(res) || []);
+  }, []);
+  React.useEffect(() => { void load(); }, [load]);
+  const create = async () => {
+    await apiRequest('giving/service-sessions', { method: 'POST', body: { name, serviceDate: new Date().toISOString() } });
+    void load();
+  };
+  return (
+    <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+      <CardHeader className="p-8"><CardTitle className="text-xl font-bold">Sunday & service collections</CardTitle></CardHeader>
+      <CardContent className="p-8 space-y-4">
+        <div className="flex gap-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
+          <Button onClick={() => void create()}>Open session</Button>
+        </div>
+        {sessions.map((s) => (
+          <div key={s.id} className="rounded-xl border p-4 flex justify-between items-center">
+            <div><p className="font-bold">{s.name}</p><p className="text-xs text-slate-500">{new Date(s.serviceDate).toLocaleString()}</p></div>
+            <p className="text-sm font-bold">{s.donations?.length ?? 0} gifts</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DonorTimelinePanel({ donationRows, currency, members }: { donationRows: GiveRow[]; currency: string; members: MemberDto[] }) {
+  const [selectedDonor, setSelectedDonor] = React.useState<string | null>(null);
+  const donorSummaries = React.useMemo(() => {
+    const map = new Map<string, { name: string; total: number; count: number }>();
+    donationRows.forEach((r) => {
+      const cur = map.get(r.donor) || { name: r.donor, total: 0, count: 0 };
+      cur.total += r.amount;
+      cur.count += 1;
+      map.set(r.donor, cur);
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  }, [donationRows]);
+
+  if (selectedDonor) {
+    const gifts = donationRows.filter((r) => r.donor === selectedDonor);
+    const member = members.find((m) => m.name === selectedDonor);
+    return (
+      <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+        <CardHeader className="p-8">
+          <button type="button" onClick={() => setSelectedDonor(null)} className="text-sm text-indigo-600 font-semibold mb-2">← All donors</button>
+          <CardTitle className="text-xl font-bold">{selectedDonor}</CardTitle>
+          <CardDescription>{member?.email || member?.phone || 'Donor profile'}</CardDescription>
+        </CardHeader>
+        <CardContent className="p-8 space-y-2">
+          {gifts.map((g) => (
+            <div key={g.id} className="flex justify-between border-b border-slate-50 py-2 text-sm">
+              <span>{g.type} · {g.date}</span>
+              <span className="font-bold">{formatCurrencyAmount(g.amount, currency, { maximumFractionDigits: 0 })}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+      <CardHeader className="p-8"><CardTitle className="text-xl font-bold">Donors</CardTitle></CardHeader>
+      <CardContent className="p-8 space-y-2">
+        {donorSummaries.length === 0 ? (
+          <p className="text-sm text-slate-500">No donors yet.</p>
+        ) : (
+          donorSummaries.map((d) => (
+            <button key={d.name} type="button" onClick={() => setSelectedDonor(d.name)} className="w-full rounded-xl border border-slate-100 px-4 py-3 flex justify-between hover:bg-slate-50 text-left">
+              <span className="font-semibold">{d.name}</span>
+              <span className="font-bold">{formatCurrencyAmount(d.total, currency, { maximumFractionDigits: 0 })}</span>
+            </button>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

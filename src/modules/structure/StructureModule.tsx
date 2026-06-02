@@ -34,6 +34,7 @@ import { ERPModule } from '@/types';
 import { ModuleHeader, ActionButton, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
+import { isUuid, servingTierForRole } from '@/lib/servingRoles';
 
 interface StructureModuleProps {
   onModuleChange?: (module: ERPModule) => void;
@@ -51,6 +52,12 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
   const [campusForm, setCampusForm] = React.useState({ name: '', type: 'Sub-Campus', address: '', upiId: '', bankInfo: '', leaderId: '' });
   const [ministryForm, setMinistryForm] = React.useState({ name: '', campusId: '', leaderId: '' });
   const [showMinistryModal, setShowMinistryModal] = React.useState(false);
+  const [campusMinistries, setCampusMinistries] = React.useState<any[]>([]);
+  const [rosterMinistry, setRosterMinistry] = React.useState<any | null>(null);
+  const [rosterRows, setRosterRows] = React.useState<any[]>([]);
+  const [rosterLoading, setRosterLoading] = React.useState(false);
+  const [regionName, setRegionName] = React.useState('');
+  const [showRegionModal, setShowRegionModal] = React.useState(false);
 
   const fetchCampuses = async () => {
     setLoading(true);
@@ -111,20 +118,70 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
     }
   };
 
+  const refreshCampusDetail = async (campusId: string) => {
+    const [campusRes, ministriesRes] = await Promise.all([
+      apiRequest(`structure/campuses/${campusId}`),
+      apiRequest(`structure/ministries?campusId=${encodeURIComponent(campusId)}`),
+    ]);
+    const campus = parseApiResponse<any>(campusRes);
+    setSelectedCampus(campus);
+    setCampusMinistries(parseApiResponse<any[]>(ministriesRes) || campus?.ministries || []);
+  };
+
   const handleAddMinistry = async () => {
     if (!ministryForm.name || !selectedCampus) return;
     try {
-      await apiRequest('structure/ministries', { 
-        method: 'POST', 
-        body: { ...ministryForm, campusId: selectedCampus.id } 
-      });
+      const created = parseApiResponse<any>(
+        await apiRequest('structure/ministries', {
+          method: 'POST',
+          body: { name: ministryForm.name, campusId: selectedCampus.id },
+        }),
+      );
+      if (ministryForm.leaderId && created?.id) {
+        await apiRequest(`members/${ministryForm.leaderId}/responsibilities`, {
+          method: 'POST',
+          body: {
+            role: 'Ministry Leader',
+            entityType: 'Ministry',
+            entityId: created.id,
+            status: 'Active',
+          },
+        });
+      }
       setShowMinistryModal(false);
       setMinistryForm({ name: '', campusId: '', leaderId: '' });
-      // Refresh campus data
-      const res = await apiRequest(`structure/campuses/${selectedCampus.id}`);
-      setSelectedCampus(parseApiResponse(res));
+      await refreshCampusDetail(selectedCampus.id);
     } catch (e) {
       alert('Failed to add ministry');
+    }
+  };
+
+  const handleAddRegion = async () => {
+    if (!selectedCampus || !regionName.trim()) return;
+    try {
+      await apiRequest('structure/regions', {
+        method: 'POST',
+        body: { name: regionName.trim(), campusId: selectedCampus.id },
+      });
+      setShowRegionModal(false);
+      setRegionName('');
+      await refreshCampusDetail(selectedCampus.id);
+    } catch (e) {
+      alert('Failed to add region');
+    }
+  };
+
+  const openMinistryRoster = async (ministry: any) => {
+    setRosterMinistry(ministry);
+    setRosterLoading(true);
+    try {
+      const res = await apiRequest(`structure/ministries/${ministry.id}/roster`);
+      const data = parseApiResponse<{ roster: any[] }>(res);
+      setRosterRows(data?.roster || []);
+    } catch {
+      setRosterRows([]);
+    } finally {
+      setRosterLoading(false);
     }
   };
 
@@ -132,14 +189,13 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
     if (!confirm('Delete this ministry team?')) return;
     try {
       await apiRequest(`structure/ministries/${id}`, { method: 'DELETE' });
-      const res = await apiRequest(`structure/campuses/${selectedCampus.id}`);
-      setSelectedCampus(parseApiResponse(res));
+      await refreshCampusDetail(selectedCampus.id);
     } catch (e) {
       alert('Failed to delete ministry');
     }
   };
 
-  const openCampusDetail = (campus: any) => {
+  const openCampusDetail = async (campus: any) => {
     setSelectedCampus(campus);
     setCampusForm({
       name: campus.name,
@@ -147,9 +203,15 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
       address: campus.address || '',
       upiId: campus.upiId || '',
       bankInfo: campus.bankInfo || '',
-      leaderId: campus.leaderId || ''
+      leaderId: campus.leaderId || (isUuid(campus.leader) ? campus.leader : ''),
     });
+    setCampusMinistries(campus.ministries || []);
     setView('campus-detail');
+    try {
+      await refreshCampusDetail(campus.id);
+    } catch {
+      /* keep list payload */
+    }
   };
 
   // --- Sub-Components ---
@@ -199,7 +261,10 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
   const CampusDetail = () => {
     if (!selectedCampus) return null;
     const stats = selectedCampus._count || { ministries: 0, events: 0, regions: 0 };
-    const leader = members.find(m => m.id === selectedCampus.leaderId);
+    const leaderId = selectedCampus.leaderId || (isUuid(selectedCampus.leader) ? selectedCampus.leader : null);
+    const leader = leaderId ? members.find(m => m.id === leaderId) : null;
+    const leaderDisplay = leader?.name || selectedCampus.leaderLabel || (selectedCampus.leader && !isUuid(selectedCampus.leader) ? selectedCampus.leader : null);
+    const ministryList = campusMinistries.length > 0 ? campusMinistries : (selectedCampus.ministries || []);
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -244,10 +309,10 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
             <SectionCard title="Campus Leadership" subtitle="Administrative and spiritual oversight">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <AppAvatar src={leader?.profileImageUrl ? `${SERVER_ROOT}${leader.profileImageUrl}` : undefined} name={leader?.name || 'Unassigned'} className="w-16 h-16 rounded-2xl" />
+                  <AppAvatar src={leader?.profileImageUrl ? `${SERVER_ROOT}${leader.profileImageUrl}` : undefined} name={leaderDisplay || 'Unassigned'} className="w-16 h-16 rounded-2xl" />
                   <div>
-                    <p className="text-xl font-black text-slate-900">{leader?.name || 'Unassigned Leader'}</p>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{leader?.role || 'Campus Lead'}</p>
+                    <p className="text-xl font-black text-slate-900">{leaderDisplay || 'Unassigned Leader'}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{leader?.role || leader?.growthStage || 'Campus Lead'}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -263,15 +328,20 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
                 <Button variant="ghost" onClick={() => setShowMinistryModal(true)} className="text-indigo-600 font-black text-[10px] uppercase tracking-widest">New Team</Button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {(selectedCampus.ministries || []).map((ministry: any) => (
-                  <Card key={ministry.id} className="border-none shadow-sm rounded-2xl overflow-hidden group hover:ring-2 hover:ring-indigo-500/20 transition-all cursor-pointer">
+                {ministryList.map((ministry: any) => (
+                  <Card key={ministry.id} onClick={() => void openMinistryRoster(ministry)} className="border-none shadow-sm rounded-2xl overflow-hidden group hover:ring-2 hover:ring-indigo-500/20 transition-all cursor-pointer">
                     <CardContent className="p-6 flex flex-col items-center text-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                         <Users className="w-6 h-6" />
                       </div>
                       <div>
                         <p className="text-sm font-black text-slate-900 uppercase tracking-tight truncate w-full">{ministry.name}</p>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Operational</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                          {ministry.leaderName || 'Team roster'}
+                        </p>
+                        {typeof ministry.activeServingCount === 'number' && (
+                          <p className="text-[9px] font-black text-indigo-500 mt-0.5">{ministry.activeServingCount} serving</p>
+                        )}
                       </div>
                       <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteMinistry(ministry.id); }} className="w-8 h-8 rounded-lg text-slate-300 hover:text-rose-500">
                         <Trash2 className="w-4 h-4" />
@@ -306,7 +376,7 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
                        <Badge className="bg-indigo-100 text-indigo-700 border-none font-black text-[9px]">{region.zones?.length || 0} Zones</Badge>
                     </div>
                   ))}
-                  <Button variant="outline" className="w-full border-dashed border-slate-200 text-slate-400 hover:text-indigo-600 rounded-xl font-black text-[9px] uppercase tracking-widest">
+                  <Button variant="outline" onClick={() => setShowRegionModal(true)} className="w-full border-dashed border-slate-200 text-slate-400 hover:text-indigo-600 rounded-xl font-black text-[9px] uppercase tracking-widest">
                     <Plus className="w-3 h-3 mr-2" /> Add Region
                   </Button>
                </div>
@@ -327,7 +397,7 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
           </Button>
           <div>
             <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Edit Campus Configuration</h1>
-            <p className="text-sm text-slate-500 font-medium">Update campus details, leadership, and operational settings.</p>
+            <p className="text-sm text-slate-500 font-medium">Update campus details, leadership, and church settings.</p>
           </div>
         </div>
 
@@ -472,6 +542,56 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
           {view === 'add-campus' && <AddCampusView />}
           {view === 'manage-hierarchy' && <ManageHierarchy />}
         </>
+      )}
+
+      {rosterMinistry && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 space-y-6 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{rosterMinistry.name}</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Serving roster</p>
+              </div>
+              <button type="button" onClick={() => { setRosterMinistry(null); setRosterRows([]); }} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><X className="w-5 h-5 text-slate-500" /></button>
+            </div>
+            {rosterLoading ? (
+              <p className="text-sm font-bold text-slate-400 text-center py-8">Loading roster…</p>
+            ) : rosterRows.length === 0 ? (
+              <p className="text-sm font-bold text-slate-400 text-center py-8">No assignments linked to this team yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {rosterRows.map((row: any) => (
+                  <div key={row.id} className="flex items-center justify-between py-3 gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <AppAvatar name={row.member?.name || '?'} src={row.member?.profileImageUrl ? `${SERVER_ROOT}${row.member.profileImageUrl}` : undefined} className="w-10 h-10 rounded-xl shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{row.member?.name}</p>
+                        <p className="text-[10px] font-medium text-slate-500">{row.role} · {servingTierForRole(row.role)}</p>
+                      </div>
+                    </div>
+                    <Badge className={cn('shrink-0 border-none font-black text-[9px] uppercase', row.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500')}>{row.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showRegionModal && selectedCampus && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Add Region</h2>
+              <button type="button" onClick={() => setShowRegionModal(false)} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center"><X className="w-5 h-5 text-slate-500" /></button>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Region name</label>
+              <input className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-bold" value={regionName} onChange={e => setRegionName(e.target.value)} placeholder="e.g. North District" />
+            </div>
+            <Button onClick={() => void handleAddRegion()} disabled={!regionName.trim()} className="w-full bg-indigo-600 h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest">Save Region</Button>
+          </div>
+        </div>
       )}
 
       {/* Ministry Modal */}

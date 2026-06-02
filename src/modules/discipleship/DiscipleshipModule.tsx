@@ -297,8 +297,8 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 text-left">
       <ModuleHeader
-        title="Shepherd Workspace"
-        subtitle="Operational view for pastoral care and discipleship tasks."
+        title="Pastoral Care"
+        subtitle="Follow-ups, care cases, and discipleship tasks for your pastoral team."
         status="live"
         icon={Users}
         actions={

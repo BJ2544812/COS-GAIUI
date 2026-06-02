@@ -50,7 +50,7 @@ export function ProfileModule() {
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="bg-emerald-500 text-white border-none font-black text-[9px] uppercase tracking-widest px-3 py-1">Active Now</Badge>
               <span className="text-slate-400 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
-                <Shield className="w-4 h-4 text-indigo-500" /> {user?.role ?? 'Global Administrator'}
+                <Shield className="w-4 h-4 text-indigo-500" /> {user?.role ?? 'Church staff'}
               </span>
             </div>
           </div>
@@ -71,7 +71,7 @@ export function ProfileModule() {
         <div className="lg:col-span-1 space-y-8">
           <Card className="rounded-[3rem] border-none shadow-xl bg-white">
             <CardHeader className="p-10 pb-4">
-              <CardTitle className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Identity Details</CardTitle>
+              <CardTitle className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Your details</CardTitle>
             </CardHeader>
             <CardContent className="p-10 pt-0 space-y-8">
               <div className="space-y-6">
@@ -90,7 +90,7 @@ export function ProfileModule() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Access Role</p>
-                    <p className="text-sm font-bold text-slate-700">{user?.role ?? 'Super Admin'}</p>
+                    <p className="text-sm font-bold text-slate-700">{user?.role ?? 'Staff'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-5">
@@ -98,8 +98,8 @@ export function ProfileModule() {
                     <Activity className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Permissions Granted</p>
-                    <p className="text-sm font-bold text-indigo-600">{user?.permissions.length ?? 0} Global Modules</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Areas you can access</p>
+                    <p className="text-sm font-bold text-indigo-600">{user?.permissions.length ?? 0} modules</p>
                   </div>
                 </div>
               </div>
@@ -120,11 +120,11 @@ export function ProfileModule() {
               <Zap size={100} strokeWidth={1} />
             </div>
             <CardHeader className="p-10">
-              <CardTitle className="text-indigo-400 uppercase tracking-widest text-xs font-black">Security Status</CardTitle>
+              <CardTitle className="text-indigo-400 uppercase tracking-widest text-xs font-black">Account security</CardTitle>
             </CardHeader>
             <CardContent className="p-10 pt-0">
               <div className="text-5xl font-black mb-4">A+</div>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Your account uses advanced RBAC protection with multi-factor isolated session tokens.</p>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">Your sign-in is protected by role-based access — only the modules your church assigned to you.</p>
             </CardContent>
           </Card>
         </div>
@@ -144,8 +144,8 @@ export function ProfileModule() {
                 {[
                   { action: 'System Login', details: 'Successful authentication from Chrome (Win)', date: '2 mins ago', icon: Lock, color: 'bg-emerald-50 text-emerald-600' },
                   { action: 'Website Update', details: 'Published Home Page changes', date: '4 hours ago', icon: Activity, color: 'bg-blue-50 text-blue-600' },
-                  { action: 'Permission Audit', details: 'Verified role consistency for Staff', date: 'Yesterday', icon: Shield, color: 'bg-indigo-50 text-indigo-600' },
-                  { action: 'Database Seed', details: 'Standardized permissions applied', date: '1 day ago', icon: History, color: 'bg-amber-50 text-amber-600' },
+                  { action: 'Access review', details: 'Verified role settings for staff', date: 'Yesterday', icon: Shield, color: 'bg-indigo-50 text-indigo-600' },
+                  { action: 'Permissions updated', details: 'Church access settings refreshed', date: '1 day ago', icon: History, color: 'bg-amber-50 text-amber-600' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-6 p-8 hover:bg-slate-50/50 transition-all border-b border-slate-50 last:border-0 group cursor-pointer">
                     <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105", item.color)}>
@@ -169,8 +169,8 @@ export function ProfileModule() {
                   <Shield className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-black text-slate-900 uppercase tracking-tight">Security Audit</p>
-                  <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">Access Logs</p>
+                  <p className="font-black text-slate-900 uppercase tracking-tight">Sign-in activity</p>
+                  <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">Recent access</p>
                 </div>
              </Card>
              <Card className="rounded-[2.5rem] border-none shadow-lg hover:shadow-2xl transition-all cursor-pointer group bg-white p-8 flex items-center gap-6">
@@ -178,8 +178,8 @@ export function ProfileModule() {
                   <Edit3 className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-black text-slate-900 uppercase tracking-tight">API Access</p>
-                  <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">Developer Tokens</p>
+                  <p className="font-black text-slate-900 uppercase tracking-tight">Integrations</p>
+                  <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">For technical admins</p>
                 </div>
              </Card>
            </div>

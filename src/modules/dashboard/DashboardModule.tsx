@@ -17,23 +17,60 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
-import { StatCard } from '@/components/modules/ModuleHeader';
+import { FeedbackBanner, StatCard } from '@/components/modules/ModuleHeader';
 import { cn } from '@/lib/utils';
 import { ERPModule } from '@/types';
+import { OperationsCommandCenter } from '@/components/operations/OperationsCommandCenter';
+import { ExecutiveInsightPanel } from '@/components/intelligence/ExecutiveInsightPanel';
+import { PastoralInsightPanel } from '@/components/intelligence/PastoralInsightPanel';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
+import { usePermissions } from '@/context/AuthContext';
+import { dashboardLensLabel } from '@/lib/churchProductCopy';
+import { getRoleExperience, type DashboardLens, type RoleArchetype } from '@/lib/roleExperience';
+import { RoleFirstDayPanel } from '@/components/role/RoleFirstDayPanel';
 
-export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
-  const [view, setView] = React.useState<'personal' | 'executive'>('personal');
+const FIRST_DAY_ARCHETYPES: RoleArchetype[] = [
+  'church_admin',
+  'youth_pastor',
+  'accountant',
+  'volunteer_coordinator',
+  'small_group_leader',
+  'staff_desk',
+];
+
+export function DashboardModule({
+  onModuleChange,
+}: {
+  onModuleChange?: (m: ERPModule, tab?: string) => void;
+}) {
+  const { user } = usePermissions();
+  const roleExp = React.useMemo(
+    () => (user ? getRoleExperience(user) : null),
+    [user],
+  );
+
+  const [view, setView] = React.useState<'personal' | 'executive' | 'operations'>('operations');
+  const [roleLens, setRoleLens] = React.useState<DashboardLens>('executive');
+  const [roleViewApplied, setRoleViewApplied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!roleExp || roleViewApplied) return;
+    setView(roleExp.dashboardView);
+    setRoleLens(roleExp.dashboardLens);
+    setRoleViewApplied(true);
+  }, [roleExp, roleViewApplied]);
   const [tasks, setTasks] = React.useState<any[]>([]);
   const [notes, setNotes] = React.useState<string>('');
   const [events, setEvents] = React.useState<any[]>([]);
   const [analytics, setAnalytics] = React.useState<any>(null);
   const [financial, setFinancial] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadWarning, setLoadWarning] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const load = async () => {
+  const loadDashboard = React.useCallback(async () => {
       try {
         setLoading(true);
+        setLoadWarning(null);
         // Per-endpoint isolation: no global /tasks/me or /notes routes — avoid failing the whole dashboard.
         const [tasksRaw, eventsRaw, analyticsRaw, financialRaw] = await Promise.allSettled([
           apiRequest('discipleship/v2/tasks/my-tasks'),
@@ -62,14 +99,25 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
         } else {
           setFinancial(null);
         }
+        const failedPanels: string[] = [];
+        if (tasksRaw.status === 'rejected') failedPanels.push('tasks');
+        if (eventsRaw.status === 'rejected') failedPanels.push('events');
+        if (analyticsRaw.status === 'rejected') failedPanels.push('member analytics');
+        if (financialRaw.status === 'rejected') failedPanels.push('financial analytics');
+        if (failedPanels.length > 0) {
+          setLoadWarning(`Some dashboard panels are unavailable: ${failedPanels.join(', ')}. You can continue using other modules and retry.`);
+        }
       } catch (e) {
         console.error('Dashboard fetch error:', e);
+        setLoadWarning('Dashboard failed to load completely. Please retry.');
       } finally {
         setLoading(false);
       }
-    };
-    load();
-  }, []);
+    }, []);
+
+  React.useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
   if (loading) {
     return (
@@ -95,7 +143,14 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
                 </CardTitle>
                 <CardDescription className="text-slate-400 font-bold uppercase text-[9px] tracking-widest mt-1">Pending tasks for you</CardDescription>
               </div>
-              <Button size="icon" variant="ghost" className="rounded-xl bg-slate-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all">
+              <Button
+                size="icon"
+                variant="ghost"
+                type="button"
+                onClick={() => onModuleChange?.('discipleship')}
+                className="rounded-xl bg-slate-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
+                title="Open Pastoral Care"
+              >
                 <Plus size={20} />
               </Button>
             </CardHeader>
@@ -138,7 +193,7 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
             <CardContent className="p-8 pt-0 space-y-4">
               <div className="p-5 rounded-[2rem] bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer h-32 overflow-y-auto custom-scrollbar">
                 <p className="text-sm font-medium leading-relaxed italic text-slate-300">
-                  {notes || 'No notes stored in this build. Use Shepherd Workspace for pastoral tasks and care notes.'}
+                  {notes || 'No notes stored yet. Open Pastoral Care for care cases and follow-up notes.'}
                 </p>
               </div>
               <Button
@@ -147,7 +202,7 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
                 className="w-full h-14 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px]"
                 onClick={() => onModuleChange?.('discipleship')}
               >
-                Open Shepherd Workspace
+                Open Pastoral Care
               </Button>
             </CardContent>
           </Card>
@@ -245,9 +300,9 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
                 Jump to the modules you use most — same tools as the sidebar, fewer clicks.
               </p>
               <div className="flex flex-col gap-2 pt-2">
-                {(['members', 'events', 'giving', 'attendance'] as ERPModule[]).map((id) => (
+                {(roleExp?.dashboardShortcuts ?? ['members', 'events', 'giving', 'attendance'] as ERPModule[]).map((id) => (
                   <Button key={id} type="button" variant="outline" className="w-full justify-center border-white/30 bg-white/10 text-white hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest" onClick={() => onModuleChange?.(id)}>
-                    {id === 'members' ? 'Members' : id === 'events' ? 'Events' : id === 'giving' ? 'Giving' : 'Attendance'}
+                    {id === 'members' ? 'Members' : id === 'events' ? 'Events' : id === 'giving' ? 'Giving' : id === 'discipleship' ? 'Pastoral care' : id === 'finance' ? 'Finance' : id === 'sunday-mode' ? 'Sunday service' : id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ')}
                   </Button>
                 ))}
               </div>
@@ -265,6 +320,38 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
         : '—';
     return (
     <div className="space-y-10 animate-in fade-in slide-in-from-top-4 duration-700">
+      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-fit">
+        {(
+          [
+            ['executive', dashboardLensLabel('executive')],
+            ['finance', dashboardLensLabel('finance')],
+            ['pastoral', dashboardLensLabel('pastoral')],
+            ['operations', dashboardLensLabel('operations')],
+          ] as const
+        )
+          .filter(([id]) => {
+            const lenses = roleExp?.visibleLenses;
+            if (!lenses?.length) return roleExp?.archetype !== 'member_portal';
+            return lenses.includes(id);
+          })
+          .map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setRoleLens(id)}
+            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${roleLens === id ? 'bg-white text-indigo-600' : 'text-slate-500'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {roleLens === 'pastoral' ? (
+        <PastoralInsightPanel onModuleChange={onModuleChange} />
+      ) : (
+        <ExecutiveInsightPanel />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
          <StatCard label="Total members" value={analytics?.total ?? '—'} icon={Users} iconColor="text-indigo-600" iconBg="bg-indigo-50" />
          <StatCard label="Active (status)" value={analytics?.active ?? '—'} icon={Users} iconColor="text-emerald-600" iconBg="bg-emerald-50" />
@@ -275,15 +362,15 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
          <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
             <CardHeader className="p-10 border-b border-slate-50">
-               <CardTitle className="text-2xl font-black text-slate-900 tracking-tight uppercase">Operational summary</CardTitle>
+               <CardTitle className="text-2xl font-black text-slate-900 tracking-tight uppercase">At a glance</CardTitle>
                <CardDescription className="text-slate-500 font-medium text-sm mt-2">
-                 Figures come from the same analytics APIs as the Analytics module. There is no separate &quot;intelligence engine&quot; — if a number is missing, the API did not return data for your tenant or period.
+                 Quick counts from your church records. Open Reports for full detail.
                </CardDescription>
             </CardHeader>
             <CardContent className="p-10 space-y-4 text-sm text-slate-600 font-medium">
               <p>Upcoming events loaded on this dashboard: <span className="font-black text-slate-900">{events.length}</span></p>
               <Button variant="outline" className="rounded-xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('analytics')}>
-                Open full analytics
+                Open reports
               </Button>
             </CardContent>
          </Card>
@@ -307,22 +394,89 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
             </CardContent>
          </Card>
       </div>
+
+      {roleLens !== 'executive' && (
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+          <CardHeader className="p-10 border-b border-slate-50">
+            <CardTitle className="text-2xl font-black text-slate-900 tracking-tight uppercase">
+              {roleLens === 'finance' ? 'Finance desk' : roleLens === 'pastoral' ? 'Pastoral care' : 'Operations desk'}
+            </CardTitle>
+            <CardDescription className="text-xs uppercase tracking-widest font-bold text-slate-400">
+              Shortcuts for your weekly role
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {roleLens === 'finance' && (
+              <>
+                <Button className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('finance')}>Voucher registry</Button>
+                <Button variant="outline" className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('budgets')}>Fund and budgets</Button>
+                <Button variant="outline" className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('audit-logs')}>Approvals & history</Button>
+              </>
+            )}
+            {roleLens === 'pastoral' && (
+              <>
+                <Button className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('members')}>Member care</Button>
+                <Button variant="outline" className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('giving')}>Donor follow-up</Button>
+                <Button variant="outline" className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest" onClick={() => onModuleChange?.('events')}>Upcoming events</Button>
+              </>
+            )}
+            {roleLens === 'operations' && (
+              <>
+                {(roleExp?.dashboardShortcuts ?? ['events', 'volunteers', 'attendance'] as ERPModule[]).map((id, idx) => (
+                  <Button
+                    key={id}
+                    variant={idx === 0 ? 'default' : 'outline'}
+                    className="h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest"
+                    onClick={() => onModuleChange?.(id)}
+                  >
+                    {id === 'sunday-mode'
+                      ? 'Sunday service'
+                      : id === 'volunteers'
+                        ? 'Volunteer desk'
+                        : id === 'small-groups'
+                          ? 'Small groups'
+                          : id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ')}
+                  </Button>
+                ))}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
     );
   };
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+      {loadWarning ? (
+        <FeedbackBanner tone="warning">
+          <div className="flex items-center justify-between gap-4">
+            <span>{loadWarning}</span>
+            <Button size="sm" variant="outline" onClick={() => void loadDashboard()}>
+              Retry
+            </Button>
+          </div>
+        </FeedbackBanner>
+      ) : null}
+      {roleExp && FIRST_DAY_ARCHETYPES.includes(roleExp.archetype) ? (
+        <RoleFirstDayPanel archetype={roleExp.archetype} onModuleChange={onModuleChange} />
+      ) : null}
+      <OnboardingChecklist compact onModuleChange={(m) => onModuleChange?.(m)} />
+      {!roleExp?.focusedHome && view === 'operations' ? (
+        <OnboardingChecklist onModuleChange={(m) => onModuleChange?.(m)} />
+      ) : null}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-none">
-            {view === 'personal' ? 'Welcome back.' : 'Overview'}
+            {roleExp?.title ?? (view === 'personal' ? 'Welcome back.' : 'Overview')}
           </h1>
           <p className="text-slate-500 font-medium mt-3 text-lg">
-            {view === 'personal' ? 'Here is a snapshot of your day and responsibilities.' : 'Executive visibility into platform-wide operations.'}
+            {roleExp?.subtitle ?? (view === 'personal' ? 'Here is a snapshot of your day and responsibilities.' : 'A clear view of church life this week.')}
           </p>
         </div>
-        
+
+        {!roleExp?.focusedHome ? (
         <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[1.5rem]">
            <button
              onClick={() => setView('personal')}
@@ -332,7 +486,7 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
              )}
            >
              <User size={16} />
-             Personal
+             My day
            </button>
            <button
              onClick={() => setView('executive')}
@@ -342,12 +496,38 @@ export function DashboardModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
              )}
            >
              <LayoutDashboard size={16} />
-             Executive
+             Overview
+           </button>
+           <button
+             onClick={() => setView('operations')}
+             className={cn(
+               "flex items-center gap-3 px-6 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all",
+               view === 'operations' ? "bg-white text-indigo-600 shadow-xl shadow-indigo-100/50" : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+             )}
+           >
+             <Activity size={16} />
+             This week
            </button>
         </div>
+        ) : null}
       </div>
 
-      {view === 'personal' ? renderPersonalView() : renderExecutiveView()}
+      {(() => {
+        const displayView = roleExp?.focusedHome
+          ? roleExp.archetype === 'staff_desk'
+            ? 'personal'
+            : roleExp.archetype === 'accountant'
+              ? 'executive'
+              : 'operations'
+          : view;
+        if (displayView === 'operations') {
+          return <OperationsCommandCenter onModuleChange={(m) => onModuleChange?.(m)} />;
+        }
+        if (displayView === 'personal') {
+          return renderPersonalView();
+        }
+        return renderExecutiveView();
+      })()}
       
       {/* Global CSS for scrollbars */}
       <style>{`

@@ -1,23 +1,31 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart3, Users, Layers, CalendarCheck, ShieldCheck,
   Library, HeartHandshake, Building2, Star,
   FileBox, Globe, ChevronRight, Search, Bell,
   User, Settings, MessageCircle, Heart, CreditCard,
   Target, Home, Network, Route, Mic2, Music4,
-  Cpu, ScrollText,
-  X, CheckCircle2, TrendingUp, ChevronDown
+  Cpu, ScrollText, GraduationCap, Compass,
+  X, CheckCircle2, TrendingUp, ChevronDown,
+  Briefcase, Menu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule, ModuleStatus } from '@/types';
+import { navGroupLabel, navLabel } from '@/lib/churchProductCopy';
+import { getRoleExperience, shouldShowInSidebar, sortNavGroups } from '@/lib/roleExperience';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/context/AuthContext';
+import { QuickOpsBar } from '@/components/operations/QuickOpsBar';
+import { WalkthroughPanel } from '@/components/walkthrough/WalkthroughPanel';
 
 interface AppShellProps {
   children: React.ReactNode;
   activeModule: ERPModule;
-  onModuleChange: (module: ERPModule) => void;
+  adminTab?: string;
+  onModuleChange: (module: ERPModule, tab?: string) => void;
+  onNavigateBack?: () => void;
   onLogout?: () => void;
   currentUser?: any;
   sessionRestoring?: boolean;
@@ -33,17 +41,6 @@ type ModuleItem = {
 
 type GroupDef = { label: string; color: string; items: ModuleItem[] };
 
-const STATUS_DOT: Record<ModuleStatus, string> = {
-  live:            'bg-emerald-400',
-  operational:     'bg-teal-400',
-  partial:         'bg-amber-400',
-  prototype:       'bg-orange-400',
-  placeholder:     'bg-slate-400',
-  'backend-ready': 'bg-blue-400',
-  planned:         'bg-slate-300',
-  experimental:    'bg-purple-400',
-};
-
 const GROUPS: GroupDef[] = [
   {
     label: 'Identity', color: 'text-indigo-500',
@@ -51,36 +48,41 @@ const GROUPS: GroupDef[] = [
       { id: 'members',      label: 'Members',          icon: Users,          permission: 'manage_members',      status: 'live' },
       { id: 'families',     label: 'Families',         icon: Home,           permission: 'manage_members',      status: 'partial' },
       { id: 'volunteers',   label: 'Volunteers',       icon: HeartHandshake, permission: 'manage_members',      status: 'partial' },
-      { id: 'small-groups', label: 'Small Groups',     icon: Network,        permission: 'manage_members',      status: 'backend-ready' },
-      { id: 'pathways',     label: 'Pathways',         icon: Route,          permission: 'manage_members',      status: 'backend-ready' },
-      { id: 'discipleship', label: 'Shepherd Workspace', icon: Target,       permission: 'manage_members',      status: 'partial' },
+      { id: 'workforce',    label: 'Staff Directory',  icon: Briefcase,      permission: 'manage_members',      status: 'live' },
+      { id: 'hr',           label: 'HR & Staff',         icon: ShieldCheck,   permission: 'manage_members',      status: 'live' },
+      { id: 'small-groups', label: 'Small Groups',     icon: Network,        permission: 'manage_members',      status: 'live' },
+      { id: 'pathways',     label: 'Growth Pathways',  icon: Route,          permission: 'manage_members',      status: 'live' },
+      { id: 'discipleship', label: 'Pastoral Care',    icon: Target,       permission: 'manage_members',      status: 'live' },
     ],
   },
   {
     label: 'Operations', color: 'text-sky-500',
     items: [
       { id: 'events',      label: 'Events',            icon: Star,           permission: 'manage_events',       status: 'operational' },
+      { id: 'sunday-mode', label: 'Sunday Mode',       icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
       { id: 'attendance',  label: 'Attendance',        icon: CalendarCheck,  permission: 'manage_attendance',   status: 'operational' },
-      { id: 'worship',     label: 'Worship planning',  icon: Music4,         permission: 'manage_events',       status: 'partial' },
-      { id: 'outreach',    label: 'Outreach',          icon: Globe,          permission: 'manage_communication',status: 'partial' },
+      { id: 'worship',     label: 'Worship Planning',  icon: Music4,         permission: 'manage_events',       status: 'live' },
+      { id: 'outreach',    label: 'Visitors & Outreach', icon: Globe,        permission: 'manage_outreach',       status: 'live' },
       { id: 'structure',   label: 'Church Structure',  icon: Layers,         permission: 'manage_settings',     status: 'partial' },
     ],
   },
   {
     label: 'Finance', color: 'text-emerald-500',
     items: [
-      { id: 'giving',    label: 'Giving',       icon: Heart,         permission: 'manage_giving',   status: 'live' },
-      { id: 'finance',   label: 'Accounting',   icon: CreditCard,    permission: 'manage_finance',  status: 'live' },
+      { id: 'giving',    label: 'Giving', icon: Heart,      permission: 'manage_giving',   status: 'live' },
+      { id: 'finance',   label: 'Finance',   icon: CreditCard,    permission: 'manage_finance',  status: 'live' },
+      { id: 'budgets',   label: 'Budgets', icon: Target,     permission: 'manage_finance',  status: 'operational' },
+      { id: 'vendors',   label: 'Vendors & Payroll', icon: Library,   permission: 'manage_finance',  status: 'operational' },
       { id: 'assets',    label: 'Assets',       icon: Building2,     permission: 'manage_assets',   status: 'live' },
-      { id: 'documents', label: 'Documents',    icon: FileBox,       permission: 'manage_assets',   status: 'live' },
+      { id: 'documents', label: 'Church Documents', icon: FileBox, permission: 'manage_assets',   status: 'live' },
     ],
   },
   {
     label: 'Engagement', color: 'text-rose-500',
     items: [
       { id: 'sermons',       label: 'Sermons',       icon: Mic2,          permission: 'manage_events',       status: 'operational' },
-      { id: 'communication', label: 'Communication', icon: MessageCircle, permission: 'manage_communication',status: 'partial' },
-      { id: 'notifications', label: 'Notifications', icon: Bell,          permission: 'manage_communication',status: 'partial' },
+      { id: 'communication', label: 'Communications', icon: MessageCircle, permission: 'manage_communication',status: 'live' },
+      { id: 'notifications', label: 'Notifications', icon: Bell,          permission: 'manage_communication',status: 'live' },
     ],
   },
   {
@@ -90,41 +92,80 @@ const GROUPS: GroupDef[] = [
     ],
   },
   {
-    label: 'Insights', color: 'text-amber-500',
+    label: 'Insights & Audit', color: 'text-amber-500',
     items: [
-      { id: 'dashboard',        label: 'Dashboard',          icon: BarChart3,  permission: 'manage_analytics', status: 'partial' },
-      { id: 'analytics',        label: 'Analytics',          icon: TrendingUp, permission: 'manage_analytics', status: 'partial' },
-      { id: 'workflow-monitor', label: 'Event queue',        icon: Cpu,        permission: 'manage_settings',  status: 'operational' },
-      { id: 'audit-logs',       label: 'Audit Logs',         icon: ScrollText, permission: 'manage_settings',  status: 'backend-ready' },
+      { id: 'dashboard',        label: 'Home',               icon: BarChart3,  permission: 'manage_analytics', status: 'live' },
+      { id: 'analytics',        label: 'Reports',            icon: TrendingUp, permission: 'manage_analytics', status: 'live' },
+      { id: 'academy',          label: 'Academy',            icon: GraduationCap, permission: 'manage_analytics', status: 'live' },
+      { id: 'audit-logs',       label: 'Change History',     icon: ScrollText, permission: 'manage_settings',  status: 'live' },
+      { id: 'workflow-monitor', label: 'Activity Log',       icon: Cpu,        permission: 'manage_settings',  status: 'live' },
     ],
   },
   {
     label: 'Platform', color: 'text-slate-500',
     items: [
-      { id: 'settings',        label: 'System Settings',  icon: Settings,    permission: 'manage_settings', status: 'live' },
-      { id: 'permissions',     label: 'Roles & Permissions', icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
+      { id: 'settings',        label: 'Settings',         icon: Settings,    permission: 'manage_settings', status: 'live' },
+      { id: 'admin-center',    label: 'Church Admin',     icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
+      { id: 'permissions',     label: 'Roles & Access',   icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
     ],
   },
 ];
 
-export function AppShell({ children, activeModule, onModuleChange, onLogout, currentUser = null, sessionRestoring = false }: AppShellProps) {
+export function AppShell({
+  children,
+  activeModule,
+  adminTab,
+  onModuleChange,
+  onNavigateBack,
+  onLogout,
+  currentUser = null,
+  sessionRestoring = false,
+}: AppShellProps) {
   const { has, hasAny } = usePermissions();
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showCommandPalette, setShowCommandPalette] = React.useState(false);
   const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({});
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  const [licensePlan, setLicensePlan] = React.useState<string | null>(null);
+  const [maintenanceMsg, setMaintenanceMsg] = React.useState<string | null>(null);
+  const [showWalkthrough, setShowWalkthrough] = React.useState(false);
 
   React.useEffect(() => {
     if (activeModule) localStorage.setItem('church_erp_last_module', activeModule);
   }, [activeModule]);
 
   React.useEffect(() => {
+    if (!currentUser) return;
+    void apiRequest<unknown>('deploy/license', { method: 'GET' })
+      .then((j) => {
+        const d = parseApiResponse<{ plan?: string }>(j);
+        setLicensePlan(d.plan ?? null);
+      })
+      .catch(() => undefined);
+    void apiRequest<unknown>('deploy/maintenance', { method: 'GET' })
+      .then((j) => {
+        const d = parseApiResponse<{ enabled?: boolean; message?: string }>(j);
+        setMaintenanceMsg(d.enabled ? d.message ?? 'The church office is in maintenance mode. Please try again later.' : null);
+      })
+      .catch(() => undefined);
+  }, [currentUser]);
+
+  React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setShowCommandPalette(o => !o); }
+      if (e.key === 'l' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        onModuleChange('sunday-mode');
+      }
+      if (e.key === 'd' && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        onModuleChange('dashboard');
+      }
     };
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
-  }, []);
+  }, [onModuleChange]);
 
   React.useEffect(() => {
     if (!currentUser) return;
@@ -141,6 +182,11 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
   }, [currentUser]);
 
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
+  const activeLabel = React.useMemo(() => navLabel(activeModule), [activeModule]);
+
+  const activeGroup = React.useMemo(() => {
+    return GROUPS.find((g) => g.items.some((m) => m.id === activeModule))?.label ?? '';
+  }, [activeModule]);
 
   const handleMarkAsRead = async (id: string) => {
     try {
@@ -160,13 +206,47 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
 
   const canSeeItem = (item: ModuleItem) => {
     if (item.id === 'dashboard') return hasAny(['manage_analytics','manage_finance','manage_giving','manage_members','manage_attendance']);
+    if (item.id === 'academy') return has('manage_analytics');
+    if (item.id === 'hr') return has('manage_hr');
+    if (item.id === 'documents') return hasAny(['manage_assets', 'manage_documents']);
+    if (item.id === 'outreach') return hasAny(['manage_outreach', 'manage_communication']);
+    if (item.id === 'discipleship') return hasAny(['manage_discipleship', 'manage_members']);
     return has(item.permission);
   };
 
+  const roleExp = React.useMemo(() => {
+    if (!currentUser?.role) return null;
+    return getRoleExperience({
+      role: currentUser.role,
+      permissions: Array.isArray(currentUser.permissions) ? currentUser.permissions : [],
+    });
+  }, [currentUser]);
+
+  const orderedGroups = React.useMemo(
+    () => (roleExp?.navGroupOrder.length ? sortNavGroups(GROUPS, roleExp.navGroupOrder) : GROUPS),
+    [roleExp],
+  );
+
+  const closeMobileNav = () => setMobileNavOpen(false);
+
   return (
     <div className="flex min-h-screen w-full bg-slate-50/50">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="fixed inset-0 z-40 bg-slate-900/40 md:hidden"
+          onClick={closeMobileNav}
+        />
+      )}
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 flex flex-col bg-white border-r border-slate-200 sticky top-0 h-screen overflow-hidden">
+      <aside
+        className={cn(
+          'w-64 shrink-0 flex flex-col bg-white border-r border-slate-200 z-50',
+          'fixed md:sticky top-0 h-screen overflow-hidden transition-transform duration-200',
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        )}
+      >
         {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-slate-100 shrink-0">
           <button onClick={() => onModuleChange('dashboard')} className="flex items-center gap-2.5 group">
@@ -180,8 +260,10 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-          {GROUPS.map(group => {
-            const visibleItems = group.items.filter(canSeeItem);
+          {orderedGroups.map(group => {
+            const visibleItems = group.items.filter(
+              (item) => canSeeItem(item) && shouldShowInSidebar(roleExp, item.id as import('@/types').ERPModule),
+            );
             if (visibleItems.length === 0) return null;
             const isCollapsed = collapsedGroups[group.label];
             return (
@@ -190,7 +272,7 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
                   onClick={() => toggleGroup(group.label)}
                   className="w-full flex items-center justify-between px-3 py-1.5 group"
                 >
-                  <span className={cn('text-[9px] font-black uppercase tracking-[0.18em]', group.color)}>{group.label}</span>
+                  <span className={cn('text-[9px] font-black uppercase tracking-[0.18em]', group.color)}>{navGroupLabel(group.label)}</span>
                   <ChevronDown className={cn('w-3 h-3 text-slate-300 transition-transform duration-200', isCollapsed && '-rotate-90')} />
                 </button>
                 {!isCollapsed && (
@@ -211,8 +293,7 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
                           )}
                         >
                           <item.icon className={cn('w-4 h-4 shrink-0 transition-colors', isActive ? 'text-indigo-600' : 'text-slate-400 group-hover/item:text-slate-600')} />
-                          <span className="flex-1 truncate">{item.label}</span>
-                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[item.status])} title={item.status} />
+                          <span className="flex-1 truncate">{navLabel(item.id, item.label)}</span>
                           {isActive && <ChevronRight className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
                         </button>
                       );
@@ -234,45 +315,73 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
               <p className="text-xs font-bold text-slate-800 truncate">{currentUser?.username ?? 'User'}</p>
               <p className="text-[10px] text-slate-400 font-medium truncate">{currentUser?.role ?? ''}</p>
             </div>
+            <Link to="/portal" title="Member portal" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition-colors">
+              <Heart className="w-3.5 h-3.5" />
+            </Link>
             <button onClick={() => onModuleChange('profile')} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
               <User className="w-3.5 h-3.5" />
             </button>
-          </div>
-          {/* Status Legend */}
-          <div className="mt-3 px-2 space-y-1">
-            {(
-              [
-                ['live', 'Live'],
-                ['operational', 'Operational'],
-                ['partial', 'Partial'],
-                ['prototype', 'Prototype'],
-                ['placeholder', 'Placeholder'],
-                ['backend-ready', 'Backend ready'],
-                ['planned', 'Planned'],
-                ['experimental', 'Experimental'],
-              ] as [ModuleStatus, string][]
-            ).map(([s, l]) => (
-              <div key={s} className="flex items-center gap-2">
-                <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[s])} />
-                <span className="text-[9px] text-slate-400 font-medium">{l}</span>
-              </div>
-            ))}
           </div>
         </div>
       </aside>
 
       {/* ── Main ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 w-full md:pl-0">
         {/* Topbar */}
-        <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-6 shrink-0">
+        <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 shrink-0 gap-3">
+          <button
+            type="button"
+            aria-label="Open navigation"
+            className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          {onNavigateBack && (
+            <button
+              type="button"
+              onClick={onNavigateBack}
+              className="hidden sm:inline-flex text-xs font-bold text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-slate-50 shrink-0"
+            >
+              Back
+            </button>
+          )}
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400 font-medium">Kingdom OS</span>
+          <div className="flex items-center gap-2 text-sm min-w-0 flex-1">
+            <button type="button" onClick={() => onModuleChange('dashboard')} className="text-slate-400 font-medium hover:text-indigo-600">
+              Church Office
+            </button>
+            {activeGroup && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="text-slate-400 font-medium">{activeGroup}</span>
+              </>
+            )}
             <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-            <span className="font-bold text-slate-800 capitalize">{activeModule.replace(/-/g, ' ')}</span>
+            <span className="font-bold text-slate-800">{activeLabel}</span>
+            {adminTab && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-medium text-slate-600 capitalize">{adminTab.replace(/_/g, ' ')}</span>
+              </>
+            )}
+            {licensePlan && (
+              <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                {licensePlan}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowWalkthrough(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+            >
+              <Compass className="w-4 h-4" />
+              Guide
+            </button>
+
             {/* Search */}
             <button
               onClick={() => setShowCommandPalette(true)}
@@ -356,38 +465,106 @@ export function AppShell({ children, activeModule, onModuleChange, onLogout, cur
           </div>
         )}
 
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+        {maintenanceMsg && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm font-medium text-amber-900" role="status">
+            {maintenanceMsg} (Settings admins can still operate.)
+          </div>
+        )}
+
+        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 pb-24 md:pb-8 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>
 
+      <QuickOpsBar
+        activeModule={activeModule}
+        onModuleChange={onModuleChange}
+        hidden={roleExp ? !roleExp.showQuickOps : false}
+        modules={roleExp?.quickOps}
+      />
+
+      {showWalkthrough && <WalkthroughPanel onClose={() => setShowWalkthrough(false)} />}
+
       {showCommandPalette && (
-        <CommandPaletteOverlay onClose={() => setShowCommandPalette(false)} onModuleChange={onModuleChange} />
+        <CommandPaletteOverlay
+          onClose={() => setShowCommandPalette(false)}
+          onModuleChange={(m) => {
+            const label = GROUPS.flatMap((g) => g.items).find((i) => i.id === m)?.label ?? m;
+            import('@/lib/recentActivity').then(({ recordRecentModule }) => recordRecentModule(m, label));
+            onModuleChange(m);
+          }}
+          visibleModules={GROUPS.flatMap((g) => g.items).filter(canSeeItem)}
+        />
       )}
     </div>
   );
 }
 
-function CommandPaletteOverlay({ onClose, onModuleChange }: { onClose: () => void; onModuleChange: (m: ERPModule) => void }) {
+function CommandPaletteOverlay({
+  onClose,
+  onModuleChange,
+  visibleModules,
+}: {
+  onClose: () => void;
+  onModuleChange: (m: ERPModule) => void;
+  visibleModules: ModuleItem[];
+}) {
   const [query, setQuery] = React.useState('');
   const [members, setMembers] = React.useState<any[]>([]);
+  const [events, setEvents] = React.useState<any[]>([]);
+  const [tasks, setTasks] = React.useState<any[]>([]);
+  const [volunteers, setVolunteers] = React.useState<any[]>([]);
+  const [prayers, setPrayers] = React.useState<any[]>([]);
+  const [workflows, setWorkflows] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [recent, setRecent] = React.useState<import('@/lib/recentActivity').RecentEntry[]>([]);
 
   React.useEffect(() => {
-    if (query.length < 2) { setMembers([]); return; }
+    import('@/lib/recentActivity').then(({ getRecentModules }) => setRecent(getRecentModules()));
+  }, []);
+
+  React.useEffect(() => {
+    if (query.length < 2) {
+      setMembers([]);
+      setEvents([]);
+      setTasks([]);
+      setVolunteers([]);
+      setPrayers([]);
+      setWorkflows([]);
+      return;
+    }
     const t = setTimeout(async () => {
       setLoading(true);
       try {
+        const res = await apiRequest<unknown>(`platform/search?q=${encodeURIComponent(query)}`);
+        const data = parseApiResponse<{
+          members: any[];
+          events: any[];
+          tasks: any[];
+          volunteers?: any[];
+          prayers?: any[];
+          workflows?: any[];
+        }>(res);
+        setMembers(data.members ?? []);
+        setEvents(data.events ?? []);
+        setTasks(data.tasks ?? []);
+        setVolunteers(data.volunteers ?? []);
+        setPrayers(data.prayers ?? []);
+        setWorkflows(data.workflows ?? []);
+      } catch {
         const res = await apiRequest(`members?search=${encodeURIComponent(query)}`);
         setMembers(parseApiResponse(res) || []);
-      } finally { setLoading(false); }
+        setEvents([]);
+        setTasks([]);
+      } finally {
+        setLoading(false);
+      }
     }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
-  const allModules = GROUPS.flatMap(g => g.items);
   const filteredModules = query.length > 0
-    ? allModules.filter(m => m.label.toLowerCase().includes(query.toLowerCase()))
+    ? visibleModules.filter(m => m.label.toLowerCase().includes(query.toLowerCase()))
     : [];
 
   return (
@@ -397,8 +574,9 @@ function CommandPaletteOverlay({ onClose, onModuleChange }: { onClose: () => voi
           <Search className="w-4 h-4 text-indigo-500 shrink-0" />
           <input
             autoFocus type="text"
-            className="flex-1 h-14 bg-transparent outline-none text-base font-semibold text-slate-900 placeholder:text-slate-300"
-            placeholder="Search modules, members…"
+            className="flex-1 h-14 bg-transparent outline-none text-base font-semibold text-slate-900 placeholder:text-slate-300 focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+            aria-label="Global search"
+            placeholder="Search members, events, tasks, modules…"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
@@ -417,7 +595,43 @@ function CommandPaletteOverlay({ onClose, onModuleChange }: { onClose: () => voi
                     <m.icon className="w-4 h-4 text-slate-500 group-hover:text-indigo-600" />
                   </div>
                   <span className="text-sm font-bold text-slate-800 group-hover:text-indigo-700">{m.label}</span>
-                  <span className={cn('ml-auto w-1.5 h-1.5 rounded-full', STATUS_DOT[m.status])} />
+                </button>
+              ))}
+            </div>
+          )}
+          {events.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Events & services</p>
+              {events.slice(0, 4).map((ev) => (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    sessionStorage.setItem('ucos_open_event_id', ev.id);
+                    onModuleChange(ev.type === 'Service' ? 'services' : 'events');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-50 text-left text-sm font-bold text-slate-900 truncate"
+                >
+                  {ev.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {tasks.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Tasks</p>
+              {tasks.slice(0, 3).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onModuleChange('discipleship');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-50 text-left text-sm font-bold text-slate-800 truncate"
+                >
+                  {t.title}
                 </button>
               ))}
             </div>
@@ -439,18 +653,74 @@ function CommandPaletteOverlay({ onClose, onModuleChange }: { onClose: () => voi
               ))}
             </div>
           )}
+          {volunteers.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Volunteers</p>
+              {volunteers.slice(0, 3).map((v) => (
+                <button key={v.id} type="button" onClick={() => { onClose(); onModuleChange('volunteers'); }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 text-left text-sm font-bold truncate">
+                  {v.member?.name ?? v.role}
+                </button>
+              ))}
+            </div>
+          )}
+          {prayers.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Prayer</p>
+              {prayers.slice(0, 3).map((p) => (
+                <button key={p.id} type="button" onClick={() => { onClose(); onModuleChange('discipleship'); }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 text-left text-sm truncate">
+                  {(p.content as string)?.slice(0, 60)}
+                </button>
+              ))}
+            </div>
+          )}
+          {workflows.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Workflows</p>
+              {workflows.slice(0, 3).map((w) => (
+                <button key={w.id} type="button" onClick={() => { onClose(); onModuleChange('workflow-monitor'); }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 text-left text-sm font-bold truncate">
+                  {w.eventName} · {w.status}
+                </button>
+              ))}
+            </div>
+          )}
+          {query.length === 0 && recent.length > 0 && (
+            <div className="mb-2">
+              <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recent</p>
+              {recent.slice(0, 5).map((r) => (
+                <button key={`${r.module}-${r.at}`} type="button" onClick={() => { onClose(); onModuleChange(r.module); }}
+                  className="w-full px-3 py-2 rounded-xl hover:bg-slate-50 text-left text-sm font-bold text-slate-700">
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
           {query.length === 0 && (
             <div>
               <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">Quick Access</p>
-              {([['members','Members',Users],['attendance','Attendance',CalendarCheck],['giving','Giving',Heart],['finance','Accounting',CreditCard],['discipleship','Shepherd Workspace',Target]] as [ERPModule, string, any][]).map(([id, label, Icon]) => (
+              {(['members', 'attendance', 'sunday-mode', 'admin-center', 'giving', 'finance', 'discipleship', 'dashboard'] as ERPModule[])
+                .filter((id) => visibleModules.some((m) => m.id === id))
+                .map((id) => {
+                const Icon =
+                  id === 'members' ? Users
+                  : id === 'attendance' ? CalendarCheck
+                  : id === 'sunday-mode' ? CalendarCheck
+                  : id === 'admin-center' ? ShieldCheck
+                  : id === 'giving' ? Heart
+                  : id === 'finance' ? CreditCard
+                  : id === 'discipleship' ? Target
+                  : BarChart3;
+                return (
                 <button key={id} onClick={() => { onClose(); onModuleChange(id); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left group">
                   <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
                     <Icon className="w-4 h-4 text-slate-500 group-hover:text-indigo-600" />
                   </div>
-                  <span className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">{label}</span>
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">{navLabel(id)}</span>
                 </button>
-              ))}
+              );})}
             </div>
           )}
           {loading && <div className="p-4 text-center text-sm font-medium text-slate-400">Searching…</div>}

@@ -51,7 +51,7 @@ export function AnalyticsModule({ onModuleChange }: { onModuleChange?: (module: 
       const pick = (i: number) =>
         results[i].status === 'fulfilled' ? parseApiResponse(results[i].value) : null;
       if (results[0].status === 'rejected' && results[1].status === 'rejected') {
-        setLoadError('Could not load analytics. Check permissions and API availability.');
+        setLoadError('Could not load reports. Check your permissions or try again shortly.');
       }
       setMemberData(pick(0));
       setFinancialData(pick(1));
@@ -121,8 +121,8 @@ export function AnalyticsModule({ onModuleChange }: { onModuleChange?: (module: 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 text-left pb-16">
       <ModuleHeader
-        title="Analytics"
-        subtitle="Summaries from members, giving, attendance, and simple risk signals — no decorative intelligence."
+        title="Reports"
+        subtitle="Member, giving, and attendance summaries your leadership team can read at a glance."
         status="partial"
         icon={BarChart3}
       />
@@ -171,9 +171,9 @@ export function AnalyticsModule({ onModuleChange }: { onModuleChange?: (module: 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="border border-slate-100 shadow-sm rounded-[2rem] overflow-hidden">
               <CardHeader className="p-6 border-b border-slate-50">
-                <CardTitle className="text-base font-black text-slate-900">Operational signals</CardTitle>
+                <CardTitle className="text-base font-black text-slate-900">What to watch</CardTitle>
                 <CardDescription className="text-xs text-slate-500 font-medium">
-                  Derived from donations, attendance totals, and member status — not predictive AI.
+                  Simple comparisons from giving, attendance, and member records — no AI predictions.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-4 text-sm">

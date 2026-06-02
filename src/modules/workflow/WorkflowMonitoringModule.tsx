@@ -74,8 +74,8 @@ export function WorkflowMonitoringModule({ onModuleChange }: WorkflowMonitoringM
   return (
     <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
       <ModuleHeader
-        title="Workflow Monitor"
-        subtitle="Domain event processing status, queue health, and failure recovery."
+        title="Activity log"
+        subtitle="Background tasks for your church — see what ran, what is waiting, and retry if something failed."
         status="live"
         icon={Zap}
         actions={
@@ -139,7 +139,7 @@ export function WorkflowMonitoringModule({ onModuleChange }: WorkflowMonitoringM
                   Recent Execution Stream
                 </CardTitle>
                 <CardDescription className="text-slate-400 font-bold uppercase text-[9px] tracking-widest mt-1">
-                  Live domain event log ({events.length} active)
+                  Recent background tasks ({events.length} shown)
                 </CardDescription>
               </div>
             </CardHeader>

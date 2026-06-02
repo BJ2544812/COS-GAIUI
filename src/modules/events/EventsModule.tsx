@@ -24,6 +24,9 @@ import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
 import { ServicesModule } from '../services/ServicesModule';
+import { EventWorkspace } from '@/components/events/EventWorkspace';
+import { formatCurrencyAmount } from '@/lib/formatCurrency';
+import { EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
 import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
 import type { ERPModule } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
@@ -518,7 +521,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
               <Card className="rounded-[2.5rem] border-none shadow-sm p-8 text-left space-y-4">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Approvals</h4>
                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                   Multi-step approval routing is not connected to the API in this build. Use your normal governance process outside the app until workflows are wired.
+                   Multi-step approval routing is not connected in this build. Use your church&apos;s usual approval process until workflows are wired.
                  </p>
               </Card>
            </div>
@@ -528,211 +531,42 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
   }
 
   if (view === 'details' && selectedEvent) {
-    const venue = eventDetail?.location || eventDetail?.campus?.name || '—';
-    const barPct = Math.min(100, Math.round((selectedEvent.attendees / 120) * 100));
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500 text-left">
+      <div className="space-y-6 min-w-0 animate-in fade-in slide-in-from-right-8 duration-500 text-left">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <Button variant="ghost" onClick={() => { setView('list'); setEventDetail(null); }} className="gap-2">
             <ArrowLeft className="w-4 h-4" /> Back to Events
           </Button>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onModuleChange?.('media-library')}>
-              <Share2 className="w-4 h-4 mr-2" /> Media
+            <Button type="button" variant="outline" size="sm" onClick={openSetup} disabled={!eventDetail}>
+              <Settings className="w-4 h-4 mr-2" /> Setup
             </Button>
-            <Button
-              type="button"
-              className="bg-[var(--brand-primary)]"
-              size="sm"
-              onClick={openSetup}
-              disabled={detailLoading || !eventDetail}
-            >
-              <Settings className="w-4 h-4 mr-2" /> Event setup
+            <Button type="button" variant="outline" size="sm" onClick={downloadAttendanceReport} disabled={!eventAttendees.length}>
+              <Download className="w-4 h-4 mr-2" /> Attendance CSV
             </Button>
           </div>
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-slate-900">{selectedEvent.title}</h2>
+          <p className="text-sm text-slate-500 font-medium">
+            {selectedEvent.date} · {selectedEvent.type} · {selectedEvent.status}
+          </p>
         </div>
         {detailError && <p className="text-sm text-rose-600 font-medium">{detailError}</p>}
-        {detailLoading && <p className="text-sm text-slate-500 font-medium">Loading event operations…</p>}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="rounded-[2.5rem] border-slate-100 shadow-sm overflow-hidden bg-white">
-              <div className="relative h-64 bg-gradient-to-br from-slate-800 via-indigo-900 to-slate-900">
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-8 space-y-2">
-                  <Badge className="bg-[var(--chart-primary)] text-white border-none mb-2 px-3 py-1 text-[10px] font-black tracking-widest">
-                    {selectedEvent.type}
-                  </Badge>
-                  <h2 className="text-4xl font-black text-white tracking-tight">{selectedEvent.title}</h2>
-                  <div className="flex flex-wrap items-center gap-5 text-slate-300 font-bold text-xs uppercase tracking-widest">
-                    <span className="flex items-center gap-2">
-                      <Calendar size={14} className="text-[var(--brand-secondary)]" /> {selectedEvent.date}
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <MapPin size={14} className="text-[var(--brand-secondary)]" /> {venue}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <CardContent className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-50">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none">Attendance</p>
-                  <h3 className="text-3xl font-black text-slate-900 leading-none">{selectedEvent.attendees}</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">checked in (all sessions)</p>
-                  <div className="mt-3 w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[var(--chart-primary)] rounded-full transition-all duration-1000"
-                      style={{ width: `${barPct}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none">Staff notes</p>
-                  <p className="text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
-                    {eventDetail?.internalNotes?.trim() || 'No follow-up notes yet. Use Event setup to add staff-only notes.'}
-                  </p>
-                  {eventDetail?.recurringRule ? (
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">
-                      Recurrence: {eventDetail.recurringRule}
-                    </p>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[2.5rem] border-slate-100 shadow-sm overflow-hidden bg-white">
-              <CardHeader className="p-8 border-b border-slate-50 bg-slate-50/10 flex flex-row items-center justify-between flex-wrap gap-3">
-                <div>
-                  <CardTitle className="text-lg font-black tracking-tight">Check-ins and guests</CardTitle>
-                  <CardDescription className="text-xs font-medium text-slate-500">
-                    Rows from attendance sessions linked to this event (members and visitors).
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px]" onClick={downloadAttendanceReport}>
-                    <Download className="w-4 h-4 mr-1" /> CSV
-                  </Button>
-                  <Button type="button" size="sm" className="font-black uppercase text-[10px] bg-[var(--brand-primary)]" onClick={createCheckInSession}>
-                    <Ticket className="w-4 h-4 mr-1" /> New check-in session
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-slate-50">
-                  {eventAttendees.length === 0 ? (
-                    <div className="px-8 py-12 text-center text-slate-500 text-sm font-medium">
-                      No check-ins recorded for this event yet. Open a check-in session from Attendance, or create one with the button above.
-                    </div>
-                  ) : (
-                    eventAttendees.map((row) => {
-                      const display = row.member?.name || row.visitorName || 'Guest';
-                      const initial = display.trim().charAt(0) || '?';
-                      return (
-                        <div
-                          key={row.id}
-                          className="px-8 py-5 flex items-center justify-between hover:bg-slate-50 transition-all border-l-4 border-l-transparent hover:border-l-[color:var(--brand-primary)]"
-                        >
-                          <div className="flex items-center gap-5 min-w-0">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 shrink-0">
-                              {initial}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-black text-slate-800 text-base tracking-tight truncate">{display}</p>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">
-                                {row.session?.name ?? 'Session'} · {new Date(row.checkInTime).toLocaleString()} · {row.member ? 'Member' : 'Visitor'}
-                              </p>
-                              {row.notes ? (
-                                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{row.notes}</p>
-                              ) : null}
-                            </div>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'shrink-0 p-1 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg border-none',
-                              row.status === 'PRESENT'
-                                ? 'bg-emerald-50 text-emerald-600'
-                                : row.status === 'LATE'
-                                  ? 'bg-amber-50 text-amber-600'
-                                  : 'bg-slate-100 text-slate-500',
-                            )}
-                          >
-                            {row.status}
-                          </Badge>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className="rounded-[2.5rem] border-slate-100 shadow-sm overflow-hidden bg-slate-900 text-white p-8 space-y-4 text-left">
-              <CardTitle className="text-sm font-black uppercase tracking-widest text-white/90">Operations</CardTitle>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                Tie this event to attendance check-in, volunteers, and media without leaving your workflow.
-              </p>
-              <Button
-                type="button"
-                className="w-full bg-[var(--brand-primary)] hover:opacity-90 rounded-2xl h-12 uppercase tracking-widest text-[10px] font-black text-white"
-                onClick={createCheckInSession}
-                disabled={!eventDetail}
-              >
-                Open attendance <ArrowRight className="w-4 h-4 ml-2 inline" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-white/20 text-white bg-white/5 rounded-2xl h-12 uppercase tracking-widest text-[10px] font-black"
-                onClick={() => onModuleChange?.('workforce')}
-              >
-                <Users className="w-4 h-4 mr-2 inline" /> Volunteer roster (Workforce)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-white/20 text-white bg-white/5 rounded-2xl h-12 uppercase tracking-widest text-[10px] font-black"
-                onClick={() => onModuleChange?.('sermons')}
-              >
-                <Mic2 className="w-4 h-4 mr-2 inline" /> Sermons
-              </Button>
-            </Card>
-
-            <Card className="rounded-[2.5rem] border-none shadow-sm overflow-hidden bg-white text-left">
-              <CardHeader className="p-8 pb-4 border-b border-slate-50 bg-slate-50/10">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Attendance sessions</CardTitle>
-                <CardDescription className="text-xs">Open a session in the Attendance module to run check-in.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-3">
-                {(eventDetail?.attendanceSessions?.length ?? 0) === 0 ? (
-                  <p className="text-sm text-slate-500 font-medium">No sessions linked yet.</p>
-                ) : (
-                  eventDetail!.attendanceSessions!.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-800 text-sm truncate">{s.name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {s._count?.attendances ?? 0} checked in · {s.status}
-                        </p>
-                      </div>
-                      <Button type="button" size="sm" variant="secondary" className="shrink-0 text-[10px] font-black uppercase" onClick={() => openAttendanceSession(s.id)}>
-                        Open
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        {detailLoading && <p className="text-sm text-slate-500 font-medium">Loading event workspace…</p>}
+        {!detailLoading && eventDetail && (
+          <EventWorkspace
+            eventId={eventDetail.id}
+            onModuleChange={onModuleChange}
+            currency={settings.financial.currency}
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 text-left">
+    <div className="space-y-8 min-w-0 animate-in fade-in duration-700 text-left">
        {successMessage && (
         <div
           className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
@@ -744,7 +578,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
 
        <ModuleHeader
          title="Events & Worship"
-         subtitle="Full-lifecycle orchestration: from creative planning to final audit and impact reporting."
+         subtitle="Plan gatherings, assign teams, track attendance, and close out with a simple summary."
          status="live"
          icon={Star}
          actions={
@@ -840,7 +674,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Event operations</p>
         <p className="mt-3 text-sm text-slate-600 font-medium leading-relaxed max-w-3xl">
           Logistics matrices, funnel dashboards, and milestone timelines shown here previously were illustrative only.
-          Operational tools for this module are the event cards above (detail, setup, attendance sessions, and exports).
+          Use the event cards above for details, setup, attendance sessions, and exports.
         </p>
       </div>
       </>

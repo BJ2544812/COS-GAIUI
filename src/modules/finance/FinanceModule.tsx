@@ -1,688 +1,1260 @@
 import * as React from 'react';
-import { 
-  CircleDollarSign, 
-  Receipt, 
-  BookOpen, 
-  ArrowRightLeft, 
-  FileText, 
-  ShieldCheck, 
-  Plus,
-  ArrowUpRight,
-  ArrowDownRight,
-  Search,
-  ArrowLeft,
-  ChevronRight,
-  TrendingDown,
-  Download,
-  AlertCircle,
-  FileCheck,
-  ClipboardList,
+import {
   AlertTriangle,
-  Printer
+  ArrowRightLeft,
+  Banknote,
+  BookOpen,
+  BriefcaseBusiness,
+  CalendarClock,
+  CircleDollarSign,
+  ClipboardList,
+  Eye,
+  FileClock,
+  Download,
+  FileSearch,
+  Filter,
+  Printer,
+  HandCoins,
+  Landmark,
+  Loader2,
+  Receipt,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Wallet,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
+import { ApiError, apiDownloadBlob, apiRequest, formatApiError, openBlobInNewTab, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
 import { ERPModule } from '@/types';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ActionButton, EmptyState, FeedbackBanner, ModuleHeader, ResponsiveTableWrap, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { GatewaySettlementPanel } from '@/components/finance/GatewaySettlementPanel';
+import { BankReconciliationPanel } from '@/components/finance/BankReconciliationPanel';
+import { consumeFinanceTabIntent, type FinanceWorkspaceTab } from '@/lib/financeNavigation';
+import { VoucherCreateDialog } from '@/components/finance/VoucherCreateDialog';
 
-function coalesceBalance(v: unknown): number {
-  if (v == null) return 0;
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string' && v.trim()) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  }
-  if (typeof v === 'object' && v !== null && 'toString' in v) {
-    const n = Number((v as { toString: () => string }).toString());
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
-}
+type StatusTab = 'all' | 'draft' | 'approved' | 'posted' | 'reversed' | 'failed';
+type FinanceTab = FinanceWorkspaceTab;
 
 interface FinanceModuleProps {
   onModuleChange?: (module: ERPModule) => void;
   user?: any;
+  /** Deep-link tab from `/admin?module=finance&tab=…` */
+  initialTab?: FinanceTab;
 }
 
-export function FinanceModule({ onModuleChange, user }: FinanceModuleProps) {
+function n(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim()) {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+  if (typeof v === 'object' && v !== null && 'toString' in v) {
+    const x = Number((v as { toString: () => string }).toString());
+    return Number.isFinite(x) ? x : 0;
+  }
+  return 0;
+}
+
+function d(v: unknown): Date | null {
+  if (!v) return null;
+  const out = new Date(String(v));
+  return Number.isNaN(out.getTime()) ? null : out;
+}
+
+export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModuleProps) {
   const { settings } = useSettings();
-  const perms = (user?.permissions as string[] | undefined) ?? [];
-  const canViewFinance = perms.includes('manage_finance');
-  const canPostVouchers = perms.includes('manage_finance');
-  const cur = settings.financial.currency;
+  const currency = settings.financial.currency;
+  const permissions = (user?.permissions as string[] | undefined) ?? [];
+  const canManageFinance = permissions.includes('manage_finance');
 
-  const [activeTab, setActiveTab] = React.useState<'dashboard' | 'ledger' | 'settings'>('dashboard');
-  const [view, setView] = React.useState<'ledger' | 'details' | 'create-voucher' | 'audit'>('ledger');
-  const [selectedAccount, setSelectedAccount] = React.useState<any | null>(null);
-  const [accounts, setAccounts] = React.useState<any[]>([]);
-  const [auditData, setAuditData] = React.useState<any | null>(null);
+  const [tab, setTab] = React.useState<FinanceTab>(() => initialTab ?? 'dashboard');
+  const [showCreateVoucher, setShowCreateVoucher] = React.useState(false);
+
+  React.useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
+  React.useEffect(() => {
+    const intent = consumeFinanceTabIntent();
+    if (intent) setTab(intent);
+  }, []);
+  const [statusFilter, setStatusFilter] = React.useState<StatusTab>('all');
+  const [search, setSearch] = React.useState('');
+  const [sourceFilter, setSourceFilter] = React.useState('all');
+  const [accountFilter, setAccountFilter] = React.useState('all');
+  const [fundFilter, setFundFilter] = React.useState('all');
+
   const [loading, setLoading] = React.useState(true);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [ledgerBanner, setLedgerBanner] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [banner, setBanner] = React.useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+
+  const [accounts, setAccounts] = React.useState<any[]>([]);
+  const [vouchers, setVouchers] = React.useState<any[]>([]);
+  const [funds, setFunds] = React.useState<any[]>([]);
+  const [fundStatementRows, setFundStatementRows] = React.useState<any[]>([]);
+  const [budgetVsActual, setBudgetVsActual] = React.useState<any | null>(null);
+  const [approvalQueue, setApprovalQueue] = React.useState<any[]>([]);
+  const [payables, setPayables] = React.useState<any[]>([]);
+  const [payrollRuns, setPayrollRuns] = React.useState<any[]>([]);
+  const [trialBalance, setTrialBalance] = React.useState<any | null>(null);
+  const [auditWorkpapers, setAuditWorkpapers] = React.useState<any | null>(null);
+  const [donationReconciliation, setDonationReconciliation] = React.useState<any | null>(null);
+
+  const [selectedVoucher, setSelectedVoucher] = React.useState<any | null>(null);
+  const [selectedVoucherLogs, setSelectedVoucherLogs] = React.useState<any[]>([]);
+  const [selectedVoucherChecks, setSelectedVoucherChecks] = React.useState<any | null>(null);
+  const [voucherBusy, setVoucherBusy] = React.useState<string | null>(null);
+
+  const fmt = React.useCallback(
+    (value: number) => formatCurrencyAmount(value, currency, { maximumFractionDigits: 0 }),
+    [currency],
+  );
 
   React.useEffect(() => {
-    if (!ledgerBanner) return;
-    const t = window.setTimeout(() => setLedgerBanner(null), 5000);
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 4000);
     return () => window.clearTimeout(t);
-  }, [ledgerBanner]);
+  }, [banner]);
 
-  const [recentVouchers, setRecentVouchers] = React.useState<any[]>([]);
-
-  const fetchAccounts = React.useCallback(async () => {
+  const fetchEverything = React.useCallback(async () => {
+    if (!canManageFinance) return;
     try {
       setLoading(true);
-      setLoadError(null);
-      const json = await apiRequest<unknown>('finance/accounts', { method: 'GET' });
-      setAccounts(parseApiResponse<unknown[]>(json));
+      setError(null);
+
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const monthEnd = new Date();
+      monthEnd.setMonth(monthEnd.getMonth() + 1, 0);
+      monthEnd.setHours(23, 59, 59, 999);
+
+      const [
+        accountsJson,
+        vouchersJson,
+        trialBalanceJson,
+        fundsJson,
+        budgetJson,
+        approvalJson,
+        payablesJson,
+        payrollJson,
+        workpapersJson,
+        donationReconJson,
+      ] = await Promise.all([
+        apiRequest<unknown>('finance/accounts'),
+        apiRequest<unknown>('finance/vouchers?all=1'),
+        apiRequest<unknown>('finance/trial-balance'),
+        apiRequest<unknown>('finance/funds'),
+        apiRequest<unknown>('finance/budgets/vs-actual'),
+        apiRequest<unknown>('finance/approvals/queue'),
+        apiRequest<unknown>('finance/payables/bills'),
+        apiRequest<unknown>('finance/payroll/runs'),
+        apiRequest<unknown>('finance/audit/workpapers?fy=current'),
+        apiRequest<unknown>(
+          `giving/donations/reconciliation?from=${encodeURIComponent(monthStart.toISOString())}&to=${encodeURIComponent(monthEnd.toISOString())}`,
+        ),
+      ]);
+
+      const loadedAccounts = parseApiResponse<any[]>(accountsJson) || [];
+      const loadedVouchers = parseApiResponse<any[]>(vouchersJson) || [];
+      const loadedFunds = parseApiResponse<any[]>(fundsJson) || [];
+      const loadedApprovals = parseApiResponse<any[]>(approvalJson) || [];
+      const loadedPayables = parseApiResponse<any[]>(payablesJson) || [];
+      const loadedPayrollRuns = parseApiResponse<any[]>(payrollJson) || [];
+
+      setAccounts(loadedAccounts);
+      setVouchers(loadedVouchers);
+      setFunds(loadedFunds);
+      setBudgetVsActual(parseApiResponse<any>(budgetJson));
+      setApprovalQueue(loadedApprovals);
+      setPayables(loadedPayables);
+      setPayrollRuns(loadedPayrollRuns);
+      setTrialBalance(parseApiResponse<any>(trialBalanceJson));
+      setAuditWorkpapers(parseApiResponse<any>(workpapersJson));
+      setDonationReconciliation(parseApiResponse<any>(donationReconJson));
+
+      const statements = await Promise.all(
+        loadedFunds.map(async (f) => {
+          try {
+            const out = await apiRequest<unknown>(`finance/funds/${f.id}/statement`);
+            return { fund: f, statement: parseApiResponse<any>(out) };
+          } catch {
+            return { fund: f, statement: null };
+          }
+        }),
+      );
+      setFundStatementRows(statements);
     } catch (err) {
-      console.error('Failed to fetch accounts:', err);
-      setLoadError(formatApiError(err));
-      setAccounts([]);
+      setError(formatApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const fetchRecentVouchers = React.useCallback(async () => {
-    try {
-      const json = await apiRequest<unknown>('finance/vouchers?all=1');
-      const list = parseApiResponse<any[]>(json);
-      const sorted = [...(list || [])].sort((a, b) => {
-        const tb = new Date(b.date ?? b.postedAt ?? b.createdAt ?? 0).getTime();
-        const ta = new Date(a.date ?? a.postedAt ?? a.createdAt ?? 0).getTime();
-        return tb - ta;
-      });
-      setRecentVouchers(sorted.slice(0, 8));
-    } catch {
-      setRecentVouchers([]);
-    }
-  }, []);
-
-  const fetchAuditWorkpapers = async () => {
-    try {
-      setLoading(true);
-      setView('audit');
-      const json = await apiRequest<unknown>('finance/audit/workpapers?fy=current', { method: 'GET' });
-      const data = parseApiResponse<any>(json);
-      setAuditData(data);
-    } catch (err) {
-      setLoadError(formatApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [canManageFinance]);
 
   React.useEffect(() => {
-    if (canViewFinance || canPostVouchers) {
-      fetchAccounts();
+    void fetchEverything();
+  }, [fetchEverything]);
+
+  const refreshVoucherDetails = React.useCallback(async (voucherId: string) => {
+    const [voucherJson, logsJson, checksJson] = await Promise.all([
+      apiRequest<unknown>(`finance/vouchers/${voucherId}`),
+      apiRequest<unknown>(`finance/audit/logs?entityType=Voucher&entityId=${encodeURIComponent(voucherId)}&limit=100`),
+      apiRequest<unknown>(`finance/vouchers/${voucherId}/attachment-checksums`).catch(() => null),
+    ]);
+    setSelectedVoucher(parseApiResponse<any>(voucherJson));
+    setSelectedVoucherLogs(parseApiResponse<any[]>(logsJson) || []);
+    setSelectedVoucherChecks(checksJson ? parseApiResponse<any>(checksJson) : null);
+  }, []);
+
+  const performVoucherAction = React.useCallback(
+    async (voucher: any, action: 'approve' | 'post' | 'reverse') => {
+      try {
+        setVoucherBusy(voucher.id);
+        if (action === 'approve') {
+          await apiRequest(`finance/vouchers/${voucher.id}/approve`, { method: 'POST' });
+          setBanner({ tone: 'success', message: `Voucher ${voucher.voucherNo || voucher.id} approved.` });
+        } else if (action === 'post') {
+          if (!window.confirm(`Post voucher ${voucher.voucherNo || voucher.id}? Posted vouchers are immutable and must be reversed for corrections.`)) {
+            return;
+          }
+          await apiRequest(`finance/vouchers/${voucher.id}/post`, { method: 'POST' });
+          setBanner({ tone: 'success', message: `Voucher ${voucher.voucherNo || voucher.id} posted.` });
+        } else {
+          if (!window.confirm(`Create reversal for voucher ${voucher.voucherNo || voucher.id}? This creates a new correcting voucher and keeps the full change history.`)) {
+            return;
+          }
+          await apiRequest(`finance/vouchers/${voucher.id}/reversal`, {
+            method: 'POST',
+            body: JSON.stringify({ reason: 'UI reversal action' }),
+          });
+          setBanner({ tone: 'success', message: `Reversal draft created for voucher ${voucher.voucherNo || voucher.id}.` });
+        }
+        await fetchEverything();
+        await refreshVoucherDetails(voucher.id);
+      } catch (err) {
+        setBanner({ tone: 'error', message: formatApiError(err) });
+      } finally {
+        setVoucherBusy(null);
+      }
+    },
+    [fetchEverything, refreshVoucherDetails],
+  );
+
+  const accountsByType = React.useMemo(() => {
+    const out: Record<string, any[]> = { Asset: [], Liability: [], Revenue: [], Expense: [], Equity: [] };
+    for (const acc of accounts) {
+      const t = String(acc.type || 'Other');
+      if (!out[t]) out[t] = [];
+      out[t].push(acc);
     }
-  }, [fetchAccounts, canViewFinance, canPostVouchers]);
+    return out;
+  }, [accounts]);
 
-  React.useEffect(() => {
-    if (!(canViewFinance || canPostVouchers)) return;
-    if (activeTab === 'dashboard' || activeTab === 'ledger') {
-      void fetchRecentVouchers();
+  const totals = React.useMemo(() => {
+    const sumType = (type: string) => accounts.filter((a) => a.type === type).reduce((s, a) => s + n(a.balance), 0);
+    const assets = sumType('Asset');
+    const liabilities = sumType('Liability');
+    const revenue = sumType('Revenue');
+    const expense = sumType('Expense');
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    let monthlyIncome = 0;
+    let monthlyExpense = 0;
+    for (const v of vouchers) {
+      if (String(v.status || '').toLowerCase() !== 'posted') continue;
+      const vd = d(v.date);
+      if (!vd || vd < monthStart || vd > monthEnd) continue;
+      for (const j of v.journalEntries || []) {
+        if (j.account?.type === 'Revenue') monthlyIncome += n(j.credit) - n(j.debit);
+        if (j.account?.type === 'Expense') monthlyExpense += n(j.debit) - n(j.credit);
+      }
     }
-  }, [activeTab, canViewFinance, canPostVouchers, fetchRecentVouchers]);
 
-  const formatCurrency = (val: number) => formatCurrencyAmount(val, cur, { maximumFractionDigits: 0 });
+    const bankBalance = accounts
+      .filter((a) => a.type === 'Asset' && /(bank|current account|savings)/i.test(String(a.name || '')))
+      .reduce((s, a) => s + n(a.balance), 0);
+    const cashOnHand = accounts
+      .filter((a) => a.type === 'Asset' && /(cash|petty)/i.test(String(a.name || '')))
+      .reduce((s, a) => s + n(a.balance), 0);
+    const restrictedFundBalance = fundStatementRows
+      .filter((row) => String(row.fund?.type || '').toLowerCase() === 'restricted')
+      .reduce((s, row) => s + n(row.statement?.closingBalance), 0);
+    const outstandingPayables = payables.reduce((s, b) => s + n(b.outstanding), 0);
+    const payrollDue = payrollRuns
+      .filter((r) => String(r.status || '').toLowerCase() !== 'closed')
+      .reduce((s, r) => s + n(r.totalNet), 0);
+    const budgetUtilization = n(budgetVsActual?.totals?.budget) > 0
+      ? (n(budgetVsActual?.totals?.actual) / n(budgetVsActual?.totals?.budget)) * 100
+      : 0;
 
-  if (view === 'audit') {
+    return {
+      assets,
+      liabilities,
+      revenue,
+      expense,
+      monthlyIncome,
+      monthlyExpense,
+      bankBalance,
+      cashOnHand,
+      restrictedFundBalance,
+      outstandingPayables,
+      payrollDue,
+      budgetUtilization,
+      trialDiff: n(trialBalance?.totals?.difference),
+    };
+  }, [accounts, vouchers, fundStatementRows, payables, payrollRuns, budgetVsActual, trialBalance]);
+
+  const voucherBuckets = React.useMemo(() => {
+    const bucket = { draft: 0, approved: 0, posted: 0, reversed: 0, failed: 0 };
+    for (const v of vouchers) {
+      const s = String(v.status || '').toLowerCase();
+      if (s === 'draft') bucket.draft += 1;
+      else if (s === 'approved') bucket.approved += 1;
+      else if (s === 'posted') bucket.posted += 1;
+      else if (s === 'reversed') bucket.reversed += 1;
+      else bucket.failed += 1;
+    }
+    return bucket;
+  }, [vouchers]);
+
+  const filteredVouchers = React.useMemo(() => {
+    return vouchers.filter((v) => {
+      const status = String(v.status || '').toLowerCase();
+      if (statusFilter !== 'all' && status !== statusFilter) return false;
+      if (sourceFilter !== 'all' && String(v.sourceType || '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
+      if (fundFilter !== 'all') {
+        const hasFund = (v.journalEntries || []).some((j: any) => j.fundId === fundFilter);
+        if (!hasFund) return false;
+      }
+      if (accountFilter !== 'all') {
+        const hasAccount = (v.journalEntries || []).some((j: any) => j.accountId === accountFilter);
+        if (!hasAccount) return false;
+      }
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const hay = [
+          v.voucherNo,
+          v.description,
+          v.type,
+          v.status,
+          v.sourceType,
+          v.sourceId,
+        ]
+          .map((x) => String(x || '').toLowerCase())
+          .join(' ');
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vouchers, statusFilter, sourceFilter, fundFilter, accountFilter, search]);
+
+  const topExpenseAccounts = React.useMemo(() => {
+    const map = new Map<string, { name: string; value: number }>();
+    for (const v of vouchers) {
+      if (String(v.status || '').toLowerCase() !== 'posted') continue;
+      for (const j of v.journalEntries || []) {
+        if (j.account?.type !== 'Expense') continue;
+        const key = String(j.account?.id || j.accountId);
+        const prev = map.get(key) || { name: j.account?.name || 'Expense', value: 0 };
+        prev.value += n(j.debit) - n(j.credit);
+        map.set(key, prev);
+      }
+    }
+    return [...map.values()].sort((a, b) => b.value - a.value).slice(0, 5);
+  }, [vouchers]);
+
+  if (!canManageFinance) {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 text-left pb-20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setView('ledger')} className="rounded-full">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Audit Workpapers</h1>
-              <p className="text-sm text-slate-500 font-medium tracking-tight">Standardized statutory reporting for {settings.financial.financialYearStart} cycle.</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-             <Button variant="outline" className="h-11 rounded-xl px-6 border-slate-200 font-black uppercase text-[10px] tracking-widest"><Download className="w-4 h-4 mr-2" /> Download PDF</Button>
-             <Button variant="outline" className="h-11 rounded-xl px-6 border-slate-200 font-black uppercase text-[10px] tracking-widest"><Printer className="w-4 h-4 mr-2" /> Print</Button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="p-20 text-center text-slate-400 animate-pulse font-black uppercase text-[11px] tracking-widest">Generating Workpapers...</div>
-        ) : auditData ? (
-          <div className="grid grid-cols-1 gap-8">
-             <Card className="rounded-[2.5rem] border-none shadow-xl bg-white p-10 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <div className="space-y-4">
-                      <h3 className="text-sm font-black uppercase tracking-widest text-indigo-600">Exception Analysis</h3>
-                      <div className="space-y-3">
-                         {auditData.exceptions.length === 0 ? (
-                           <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 text-sm font-bold">
-                              <FileCheck className="w-5 h-5" /> All vouchers validated successfully.
-                           </div>
-                         ) : (
-                           auditData.exceptions.map((ex: any, i: number) => (
-                             <div key={i} className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
-                                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                                <div>
-                                   <p className="text-[10px] font-black uppercase tracking-widest text-rose-600">{ex.type} • {ex.voucherNo}</p>
-                                   <p className="text-sm font-bold text-slate-700">{ex.message}</p>
-                                </div>
-                             </div>
-                           ))
-                         )}
-                      </div>
-                   </div>
-
-                   <div className="space-y-4">
-                      <h3 className="text-sm font-black uppercase tracking-widest text-indigo-600">Summary Figures</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="p-6 bg-slate-50 rounded-3xl space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Trial Balance Delta</p>
-                            <p className="text-2xl font-black text-slate-900">{formatCurrency(auditData.trialBalance.totals.difference)}</p>
-                         </div>
-                         <div className="p-6 bg-slate-50 rounded-3xl space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Audit Trails</p>
-                            <p className="text-2xl font-black text-slate-900">{auditData.voucherRegister.length}</p>
-                         </div>
-                      </div>
-                   </div>
-                </div>
-
-                <div className="space-y-6 pt-6 border-t border-slate-100">
-                   <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Receipts & Payments Summary</h3>
-                   <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                         <thead>
-                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                               <th className="pb-4">Account Head</th>
-                               <th className="pb-4 text-right">Debit</th>
-                               <th className="pb-4 text-right">Credit</th>
-                            </tr>
-                         </thead>
-                         <tbody className="divide-y divide-slate-50">
-                            {auditData.receiptsAndPayments.map((item: any) => (
-                              <tr key={item.id} className="text-sm font-bold">
-                                 <td className="py-4 text-slate-700">{item.name}</td>
-                                 <td className="py-4 text-right text-slate-900">{formatCurrency(item.debit)}</td>
-                                 <td className="py-4 text-right text-slate-900">{formatCurrency(item.credit)}</td>
-                              </tr>
-                            ))}
-                         </tbody>
-                      </table>
-                   </div>
-                </div>
-             </Card>
-          </div>
-        ) : (
-          <div className="p-20 text-center text-rose-500 font-bold">Failed to load audit data.</div>
-        )}
+      <div className="space-y-6">
+        <ModuleHeader
+          title="Finance"
+          subtitle="You do not currently have permission to access accounting operations."
+          icon={ShieldCheck}
+        />
       </div>
     );
   }
-
-  if (view === 'create-voucher') {
-    return (
-      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 text-left">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setView('ledger')} className="rounded-full">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Voucher Entry</h1>
-            <p className="text-sm text-slate-500 font-medium tracking-tight">Compliance-ready documentation for all expenditure and receipts.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <Card className="lg:col-span-2 rounded-[2.5rem] border-none shadow-2xl p-10 space-y-8 bg-white border border-slate-50">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setLedgerBanner('Voucher saved to the ledger.');
-                  setView('ledger');
-                }}
-                className="space-y-6"
-              >
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Voucher Type</label>
-                       <select className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
-                          <option>Payment Voucher (PV)</option>
-                          <option>Receipt Voucher (RV)</option>
-                          <option>Journal Voucher (JV)</option>
-                       </select>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Posting Date</label>
-                       <input type="date" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner" defaultValue={new Date().toISOString().split('T')[0]} />
-                    </div>
-                 </div>
-
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Account Head</label>
-                    <select className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
-                       {accounts.map(acc => (
-                         <option key={acc.id} value={acc.id}>{acc.name} ({acc.code})</option>
-                       ))}
-                    </select>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Amount ({cur})</label>
-                       <input type="number" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner" placeholder="0.00" />
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">TDS / GST Selection</label>
-                       <select className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 appearance-none shadow-inner">
-                          <option>N/A (Exempt)</option>
-                          <option>GST 18% (Standard)</option>
-                          <option>TDS 194J (10%)</option>
-                       </select>
-                    </div>
-                 </div>
-
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Narration / Internal Note</label>
-                    <textarea className="w-full h-32 bg-slate-50 border-none rounded-2xl p-6 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-600 shadow-inner resize-none" placeholder="Explain the purpose of this transaction for audit purposes..."></textarea>
-                 </div>
-
-                 <div className="pt-4 flex gap-4">
-                    <Button type="submit" className="flex-1 h-16 rounded-[2rem] bg-slate-950 text-white hover:bg-slate-900 text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20">Generate Voucher</Button>
-                    <Button type="button" variant="ghost" className="px-8 h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em]" onClick={() => setView('ledger')}>Discard</Button>
-                 </div>
-              </form>
-           </Card>
-
-           <div className="space-y-6">
-              <Card className="rounded-[2.5rem] text-white p-8 space-y-6 overflow-hidden relative shadow-2xl bg-indigo-600">
-                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-                 <h3 className="font-black text-lg tracking-tight relative z-10 uppercase">Audit Compliance</h3>
-                 <p className="text-xs text-white/80 leading-relaxed font-bold relative z-10">Vouchers generated here are logged with immutable audit trails for statutory compliance.</p>
-                 <div className="flex items-center gap-3 py-4 border-y border-white/10 relative z-10">
-                    <div className="w-10 h-5 bg-white/30 rounded-full relative p-1">
-                       <div className="w-3 h-3 bg-white rounded-full ml-auto"></div>
-                    </div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-white/80">Double-Entry Validation</span>
-                 </div>
-              </Card>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  const sumByType = (type: string) =>
-    accounts.filter((a) => a.type === type).reduce((s, a) => s + coalesceBalance(a.balance), 0);
-  const totalAssets = sumByType('Asset');
-  const totalLiabilities = sumByType('Liability');
-  const totalRevenue = sumByType('Revenue');
-  const totalExpense = sumByType('Expense');
-  const coaNet = accounts.reduce((s, a) => s + coalesceBalance(a.balance), 0);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 text-left">
-       {ledgerBanner && (
-        <div
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
-          role="status"
-        >
-          {ledgerBanner}
-        </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {banner && (
+        <FeedbackBanner tone={banner.tone}>{banner.message}</FeedbackBanner>
       )}
+      {error && (
+        <FeedbackBanner tone="error">{error}</FeedbackBanner>
+      )}
+
       <ModuleHeader
-        title="Accounting"
-        subtitle="Ledger, vouchers, and fund-linked giving — tied to your chart of accounts."
-        status="live"
+        title="Finance"
+        subtitle="Church books — vouchers, receipts, settlements, reports, and approvals."
         icon={BookOpen}
         actions={
-          activeTab === 'ledger' && (
-            <>
-              <ActionButton label="Auditors Desk" icon={ShieldCheck} variant="secondary" onClick={fetchAuditWorkpapers} />
-              <ActionButton label="New Voucher" icon={Plus} variant="primary" onClick={() => setView('create-voucher')} />
-            </>
-          )
+          <>
+            <ActionButton label="Refresh" icon={RefreshCw} variant="secondary" onClick={() => void fetchEverything()} />
+            <ActionButton label="New voucher" icon={Receipt} variant="primary" onClick={() => setShowCreateVoucher(true)} />
+            <ActionButton label="Open vouchers" icon={Receipt} variant="secondary" onClick={() => setTab('vouchers')} />
+          </>
         }
       />
-      {loadError && <p className="text-sm text-rose-600 font-medium max-w-lg mb-4">{loadError}</p>}
 
-      <div className="flex bg-slate-100 p-1 rounded-xl w-fit mb-6 overflow-x-auto custom-scrollbar">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-            activeTab === 'dashboard' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Operations Center
-        </button>
-        <button
-          onClick={() => setActiveTab('ledger')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all",
-            activeTab === 'ledger' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Ledger & Vouchers
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all",
-            activeTab === 'settings' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Accounting Settings
-        </button>
+      <VoucherCreateDialog
+        open={showCreateVoucher}
+        onOpenChange={setShowCreateVoucher}
+        accounts={accounts}
+        currency={currency}
+        onCreated={(id) => {
+          setBanner({ tone: 'success', message: 'Draft voucher saved. Review in the registry.' });
+          setTab('vouchers');
+          void fetchEverything().then(() => refreshVoucherDetails(id));
+        }}
+      />
+
+      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-full max-w-full overflow-x-auto">
+        {[
+          ['dashboard', 'Dashboard'],
+          ['vouchers', 'Vouchers'],
+          ['receipts', 'Receipts'],
+          ['settlements', 'Settlements'],
+          ['reconciliation', 'Reconciliation'],
+          ['reports', 'Reports'],
+          ['approvals', 'Approvals'],
+          ['documents', 'Document Registry'],
+          ['years', 'Financial Years'],
+          ['accounts', 'Accounts'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id as FinanceTab)}
+            className={cn(
+              'rounded-lg px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-colors',
+              tab === id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {activeTab === 'dashboard' ? (
-        <div className="space-y-8 animate-in fade-in duration-500 text-left pb-12">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 font-medium text-left" role="status">
-            <span className="font-black">Ledger honesty:</span> KPIs are sums of account balances from the chart of accounts
-            (assets {formatCurrency(totalAssets)}, liabilities {formatCurrency(totalLiabilities)}, revenue{' '}
-            {formatCurrency(totalRevenue)}, expenses {formatCurrency(totalExpense)}). They are not branch rollups or
-            predictive budgets.
+      {loading ? (
+        <div className="space-y-6 animate-pulse">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-28 rounded-2xl bg-slate-100" />)}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                label: 'Assets (COA)',
-                val: formatCurrency(totalAssets),
-                tag: 'Live',
-                up: true,
-                icon: CircleDollarSign,
-                color: 'text-emerald-500',
-                bg: 'bg-emerald-50',
-              },
-              {
-                label: 'Liabilities',
-                val: formatCurrency(totalLiabilities),
-                tag: 'Live',
-                up: true,
-                icon: FileCheck,
-                color: 'text-indigo-500',
-                bg: 'bg-indigo-50',
-              },
-              {
-                label: 'Revenue (balance)',
-                val: formatCurrency(totalRevenue),
-                tag: 'COA',
-                up: true,
-                icon: ArrowUpRight,
-                color: 'text-teal-500',
-                bg: 'bg-teal-50',
-              },
-              {
-                label: 'Expenses (balance)',
-                val: formatCurrency(totalExpense),
-                tag: 'COA',
-                up: true,
-                icon: TrendingDown,
-                color: 'text-amber-500',
-                bg: 'bg-amber-50',
-              },
-            ].map((stat, i) => (
-              <Card key={i} className="border-none shadow-xl py-6 px-6 group bg-white rounded-[2rem] hover:-translate-y-1 transition-transform">
-                <CardContent className="p-0 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', stat.bg, stat.color)}>
-                      <stat.icon size={20} />
-                    </div>
-                    <Badge
-                      variant="default"
-                      className="text-[9px] font-black uppercase tracking-widest border-none px-2 py-0.5 bg-slate-100 text-slate-600"
-                    >
-                      {stat.tag}
-                    </Badge>
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{stat.val}</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">{stat.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <Card className="lg:col-span-2 border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
-              <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl font-black uppercase tracking-tight text-slate-900">
-                    Financial rollups
-                  </CardTitle>
-                  <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">
-                    Campus / branch charts are not wired — use ledger and exports for audits.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 flex items-center justify-center min-h-[220px]">
-                <div className="text-center space-y-3 max-w-md">
-                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-300">
-                    <ArrowRightLeft size={32} />
-                  </div>
-                  <p className="text-slate-500 text-sm font-medium">
-                    No multi-campus revenue chart in this build. Account totals above reflect your live chart of accounts.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-8">
-              <Card className="border-none shadow-xl rounded-[2.5rem] bg-white">
-                <CardHeader className="p-8 pb-4">
-                  <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-900">Budget alerts</CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 pt-0">
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                    Budget tracking is not connected to live vouchers here. Use the Budgets module when enabled, or
-                    monitor balances in the ledger.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-none shadow-xl rounded-[2.5rem] bg-slate-950 text-white">
-                <CardHeader className="p-8 pb-4">
-                  <CardTitle className="text-lg font-black uppercase tracking-tight">Fund mix</CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 pt-0">
-                  <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                    Giving fund percentages are not derived on this screen. Use Giving reports or ledger detail by
-                    revenue account.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden">
-            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-xl font-black uppercase tracking-tight text-slate-900">Recent vouchers</CardTitle>
-                <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">
-                  Latest rows from GET /finance/vouchers
-                </CardDescription>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => setActiveTab('ledger')}
-                className="text-[10px] font-black uppercase tracking-widest text-indigo-600"
-              >
-                View ledger
-              </Button>
-            </CardHeader>
-            <CardContent className="p-8 space-y-3">
-              {recentVouchers.length === 0 ? (
-                <p className="text-sm text-slate-500 font-medium">No vouchers returned yet.</p>
-              ) : (
-                recentVouchers.map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl gap-4 flex-wrap"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-slate-400 shrink-0">
-                        <Receipt size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm text-slate-900 truncate">
-                          {v.description || v.type || 'Voucher'}
-                        </p>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          {(v.status as string) || '—'} ·{' '}
-                          {v.date || v.postedAt || v.createdAt
-                            ? new Date(v.date ?? v.postedAt ?? v.createdAt).toLocaleDateString()
-                            : '—'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-black text-emerald-600">
-                        {formatCurrency(Number(v.amount ?? v.totalAmount ?? 0) || 0)}
-                      </p>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        {(v.type as string) || 'Voucher'}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      ) : activeTab === 'settings' ? (
-        <div className="max-w-4xl space-y-8 animate-in fade-in duration-500 text-left pb-12">
-           <Card className="rounded-[2.5rem] border-none shadow-sm p-10 bg-white">
-              <CardHeader className="p-0 pb-6 border-b border-slate-50 mb-6">
-                 <CardTitle className="text-xl font-black uppercase tracking-tight">Chart of Accounts Management</CardTitle>
-                 <CardDescription className="font-medium text-slate-500">Configure ledger structures globally. Changes sync to all modules.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                 <Button variant="outline" className="h-12 rounded-xl text-xs font-bold uppercase tracking-widest"><Plus className="w-4 h-4 mr-2" /> Create Root Account</Button>
-                 <p className="text-sm font-bold text-slate-400 mt-4 italic">COA tree managed via System Setup API.</p>
-              </CardContent>
-           </Card>
-
-           <Card className="rounded-[2.5rem] border-none shadow-sm p-10 bg-white">
-              <CardHeader className="p-0 pb-6 border-b border-slate-50 mb-6">
-                 <CardTitle className="text-xl font-black uppercase tracking-tight">Fund rules &amp; dimensions</CardTitle>
-                 <CardDescription className="font-medium text-slate-500">
-                   Per-fund ledger mapping, posting rules, and campus cost centers are not configured in this screen yet. Donations already post using each fund&apos;s revenue account from the chart of accounts.
-                 </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0 space-y-3 text-sm font-medium text-slate-600">
-                 <p>Use the <span className="font-bold text-slate-800">Giving</span> module for campaigns and the <span className="font-bold text-slate-800">Ledger</span> tab here for live balances and vouchers.</p>
-              </CardContent>
-           </Card>
-        </div>
-      ) : activeTab === 'ledger' ? (
-        <div className="space-y-8 animate-in fade-in duration-500 text-left pb-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-             {[
-               { label: 'COA net (sum balances)', val: formatCurrency(coaNet), change: 'Live' },
-               { label: 'Assets', val: formatCurrency(totalAssets), change: 'Live' },
-               { label: 'Operational FY', val: settings.financial.financialYearStart, change: 'Settings' },
-               { label: 'Vouchers (loaded)', val: String(recentVouchers.length), change: 'API' },
-             ].map((stat, i) => (
-               <Card key={i} className="border-none shadow-xl py-8 px-8 group bg-white rounded-[2rem]">
-                  <CardContent className="p-0 space-y-3">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover:text-indigo-600 transition-colors leading-none">{stat.label}</p>
-                     <div className="flex items-baseline justify-between gap-2">
-                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase">{stat.val}</h3>
-                        <Badge variant="default" className="text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 border-none px-2 py-0.5">{stat.change}</Badge>
-                     </div>
-                  </CardContent>
-               </Card>
-             ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-             <Card className="lg:col-span-2 border-none shadow-xl rounded-[3rem] bg-white overflow-hidden">
-                <CardHeader className="p-10 border-b border-slate-50 flex flex-row items-center justify-between bg-white">
-                   <div className="space-y-1">
-                     <CardTitle className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">Chart of Accounts</CardTitle>
-                     <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Fund distribution & ledger status</CardDescription>
-                   </div>
-                   <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl">View Full Ledger</button>
-                </CardHeader>
-                <CardContent className="p-0">
-                   {loading ? (
-                     <div className="p-20 text-center text-slate-400 animate-pulse font-black uppercase text-[11px] tracking-widest">Loading financial data...</div>
-                   ) : (
-                     <div className="divide-y divide-slate-50">
-                        {accounts.map((acc) => (
-                          <div 
-                            key={acc.id} 
-                            className="flex items-center justify-between px-10 py-8 hover:bg-slate-50 transition-all group cursor-pointer border-l-4 border-l-transparent hover:border-l-indigo-600"
-                          >
-                             <div className="flex items-center gap-6">
-                                <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center font-mono text-base font-black text-slate-300 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner border border-slate-100">{acc.code}</div>
-                                <div>
-                                   <p className="text-lg font-black text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight uppercase">{acc.name}</p>
-                                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{acc.type} Balance</p>
-                                </div>
-                             </div>
-                             <div className="text-right">
-                                <p className="text-xl font-black text-slate-900 tracking-tighter leading-none">{formatCurrency(coalesceBalance(acc.balance))}</p>
-                                <div className="flex justify-end mt-3">
-                                   <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                      <div className={cn(
-                                        "h-full rounded-full",
-                                        ['Revenue', 'Asset'].includes(acc.type) ? "bg-indigo-600 w-[70%]" : "bg-rose-500 w-[30%]"
-                                      )}></div>
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                        ))}
-                     </div>
-                   )}
-                </CardContent>
-             </Card>
-
-             <div className="space-y-8">
-                <Card className="rounded-[2.5rem] border-none shadow-xl bg-slate-900 text-white p-10 space-y-8 relative overflow-hidden group">
-                   <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform"><ShieldCheck size={120} /></div>
-                   <div className="space-y-1 relative z-10">
-                      <CardTitle className="text-xl font-black tracking-tight uppercase">Compliance Report</CardTitle>
-                      <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Audit readiness status</CardDescription>
-                   </div>
-                   <div className="relative z-10 space-y-6">
-                      <div className="space-y-4">
-                         {[
-                           { label: 'Tax Compliance', status: 'Secured', val: 100, color: 'bg-emerald-500' },
-                           { label: 'Audit Trail', status: 'Active', val: 98, color: 'bg-indigo-50' },
-                           { label: 'Record Safety', status: 'Verified', val: 100, color: 'bg-indigo-500' },
-                         ].map((item, i) => (
-                           <div key={i} className="space-y-2">
-                              <div className="flex justify-between text-[9px] font-black uppercase tracking-widest">
-                                 <span className="text-slate-400">{item.label}</span>
-                                 <span className="text-white">{item.status}</span>
-                              </div>
-                              <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                 <div className={cn("h-full", item.color)} style={{ width: `${item.val}%` }}></div>
-                              </div>
-                           </div>
-                         ))}
-                      </div>
-                      <button 
-                        onClick={fetchAuditWorkpapers}
-                        className="w-full mt-4 py-4 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all text-white"
-                      >
-                        Generate Audit Pack
-                      </button>
-                   </div>
-                </Card>
-             </div>
+          <div className="h-64 rounded-2xl bg-slate-100" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="h-48 rounded-2xl bg-slate-100" />
+            <div className="h-48 rounded-2xl bg-slate-100" />
           </div>
         </div>
       ) : null}
+
+      {!loading && tab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <StatCard label="Current Bank Balance" value={fmt(totals.bankBalance)} icon={Landmark} />
+            <StatCard label="Cash On Hand" value={fmt(totals.cashOnHand)} icon={Wallet} />
+            <StatCard label="Restricted Fund Balance" value={fmt(totals.restrictedFundBalance)} icon={HandCoins} />
+            <StatCard label="Monthly Income" value={fmt(totals.monthlyIncome)} icon={CircleDollarSign} />
+            <StatCard label="Monthly Expenses" value={fmt(totals.monthlyExpense)} icon={Banknote} />
+            <StatCard label="Pending Approvals" value={approvalQueue.length} icon={ClipboardList} />
+            <StatCard label="Outstanding Payables" value={fmt(totals.outstandingPayables)} icon={BriefcaseBusiness} />
+            <StatCard label="Payroll Due" value={fmt(totals.payrollDue)} icon={CalendarClock} />
+            <StatCard label="Budget Utilization" value={`${totals.budgetUtilization.toFixed(1)}%`} icon={ArrowRightLeft} />
+            <StatCard label="Trial Balance Delta" value={fmt(totals.trialDiff)} icon={ShieldCheck} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Financial Health"
+              subtitle="Income/expense, budget pressure, account mix"
+              className="xl:col-span-2"
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Income vs Expense (month)</p>
+                  <p className="mt-2 text-sm font-bold text-emerald-700">Income: {fmt(totals.monthlyIncome)}</p>
+                  <p className="text-sm font-bold text-rose-700">Expense: {fmt(totals.monthlyExpense)}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Budget vs Actual</p>
+                  <p className="mt-2 text-sm font-bold text-slate-800">Budget: {fmt(n(budgetVsActual?.totals?.budget))}</p>
+                  <p className="text-sm font-bold text-slate-800">Actual: {fmt(n(budgetVsActual?.totals?.actual))}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4 md:col-span-2">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">Top Expense Heads</p>
+                  {topExpenseAccounts.length === 0 ? (
+                    <p className="text-sm text-slate-500">No expense activity yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {topExpenseAccounts.map((r) => (
+                        <div key={r.name} className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-slate-700">{r.name}</span>
+                          <span className="font-bold text-slate-900">{fmt(r.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Finance reminders" subtitle="Items that may need your attention this week">
+              <div className="space-y-2">
+                {[
+                  {
+                    label: 'Trial balance mismatch',
+                    active: Math.abs(totals.trialDiff) > 0.01,
+                    detail: `Current delta ${fmt(totals.trialDiff)}`,
+                  },
+                  {
+                    label: 'Pending approvals',
+                    active: approvalQueue.length > 0,
+                    detail: `${approvalQueue.length} items waiting`,
+                  },
+                  {
+                    label: 'Outstanding vendor payments',
+                    active: totals.outstandingPayables > 0,
+                    detail: `${fmt(totals.outstandingPayables)} outstanding`,
+                  },
+                  {
+                    label: 'Payroll pending closure',
+                    active: payrollRuns.some((r) => String(r.status || '').toLowerCase() !== 'closed'),
+                    detail: `${payrollRuns.filter((r) => String(r.status || '').toLowerCase() !== 'closed').length} runs open`,
+                  },
+                  {
+                    label: 'Voucher exceptions',
+                    active: (auditWorkpapers?.exceptions || []).length > 0,
+                    detail: `${(auditWorkpapers?.exceptions || []).length} items to review`,
+                  },
+                  {
+                    label: 'Gifts missing a voucher',
+                    active: (donationReconciliation?.summary?.withoutVoucher || 0) > 0,
+                    detail: `${donationReconciliation?.summary?.withoutVoucher || 0} to review`,
+                  },
+                ].map((a) => (
+                  <div
+                    key={a.label}
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-sm',
+                      a.active ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="font-bold">{a.label}</span>
+                    </div>
+                    <p className="mt-1 text-xs">{a.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <SectionCard title="Fund Allocation" subtitle="Restricted / unrestricted / designated balances">
+              <div className="space-y-2">
+                {fundStatementRows.length === 0 ? (
+                  <p className="text-sm text-slate-500">No funds found.</p>
+                ) : (
+                  fundStatementRows.slice(0, 8).map((row) => (
+                    <div key={row.fund.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-slate-800">{row.fund.name}</p>
+                        <p className="text-[11px] uppercase tracking-widest text-slate-400">{row.fund.type}</p>
+                      </div>
+                      <span className="font-black text-slate-900">{fmt(n(row.statement?.closingBalance))}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+            <SectionCard title="Recent Financial Activity" subtitle="Latest vouchers across all statuses">
+              <div className="space-y-2">
+                {vouchers.slice(0, 8).map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setTab('vouchers');
+                      void refreshVoucherDetails(v.id);
+                    }}
+                    className="w-full rounded-lg bg-slate-50 px-3 py-2 text-left hover:bg-slate-100"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-sm font-bold text-slate-800">{v.description || v.voucherNo || v.type}</p>
+                      <span className="text-sm font-black text-slate-900">{fmt(n(v.amount))}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] uppercase tracking-widest text-slate-400">
+                      {String(v.status || '').toUpperCase()} · {d(v.date)?.toLocaleDateString() || '—'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+        </div>
+      )}
+
+      {!loading && tab === 'vouchers' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {[
+              ['all', vouchers.length],
+              ['draft', voucherBuckets.draft],
+              ['approved', voucherBuckets.approved],
+              ['posted', voucherBuckets.posted],
+              ['reversed', voucherBuckets.reversed],
+            ].map(([key, value]) => (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key as StatusTab)}
+                className={cn(
+                  'rounded-xl border px-4 py-3 text-left',
+                  statusFilter === key ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white',
+                )}
+              >
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{key}</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{value}</p>
+              </button>
+            ))}
+          </div>
+
+          <SectionCard title="Voucher Registry" subtitle="All church vouchers — search, print, approve, and post" noPadding>
+            <div className="border-b border-slate-100 p-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm"
+                    placeholder="Search voucher no/description/source"
+                  />
+                </div>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="all">All sources</option>
+                  {Array.from(new Set(vouchers.map((v) => String(v.sourceType || '').toLowerCase()).filter(Boolean))).map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select
+                  value={accountFilter}
+                  onChange={(e) => setAccountFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="all">All accounts</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.code} · {a.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={fundFilter}
+                  onChange={(e) => setFundFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="all">All funds</option>
+                  {funds.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+                <div className="flex items-center justify-end">
+                  <ActionButton label="Reset Filters" icon={Filter} variant="ghost" onClick={() => {
+                    setSearch('');
+                    setSourceFilter('all');
+                    setAccountFilter('all');
+                    setFundFilter('all');
+                    setStatusFilter('all');
+                  }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="max-h-[520px] overflow-auto min-w-0">
+              {filteredVouchers.length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="No vouchers match these filters"
+                  description="Adjust status or source filters to locate vouchers."
+                />
+              ) : (
+                <ResponsiveTableWrap className="border-0">
+                <table className="w-full min-w-[960px] text-left">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <th className="px-4 py-3">Voucher</th>
+                      <th className="px-4 py-3">Source</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredVouchers.map((v) => (
+                      <tr key={v.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-bold text-slate-800">{v.voucherNo || v.id.slice(0, 8)}</p>
+                          <p className="max-w-[280px] truncate text-xs text-slate-500">{v.description || '—'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{v.sourceType || v.source || 'manual'}</td>
+                        <td className="px-4 py-3 text-sm font-black text-slate-900">{fmt(n(v.amount))}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{d(v.date)?.toLocaleDateString() || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
+                            {String(v.status || 'unknown')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void refreshVoucherDetails(v.id)}
+                              className="h-8 text-xs"
+                            >
+                              <Eye className="mr-1 h-3.5 w-3.5" />
+                              View
+                            </Button>
+                            {String(v.status || '').toLowerCase() === 'draft' && (
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs"
+                                disabled={voucherBusy === v.id}
+                                onClick={() => void performVoucherAction(v, 'approve')}
+                              >
+                                {voucherBusy === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Approve'}
+                              </Button>
+                            )}
+                            {String(v.status || '').toLowerCase() === 'approved' && (
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs"
+                                disabled={voucherBusy === v.id}
+                                onClick={() => void performVoucherAction(v, 'post')}
+                              >
+                                {voucherBusy === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Post'}
+                              </Button>
+                            )}
+                            {String(v.status || '').toLowerCase() === 'posted' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                disabled={voucherBusy === v.id}
+                                onClick={() => void performVoucherAction(v, 'reverse')}
+                              >
+                                {voucherBusy === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reverse'}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                </ResponsiveTableWrap>
+              )}
+            </div>
+          </SectionCard>
+
+          {selectedVoucher && (
+            <SectionCard title="Voucher Detail" subtitle="Source, line items, attachments, and approval history">
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <div className="space-y-3 xl:col-span-2">
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Core Info</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                      <p><span className="font-semibold text-slate-500">Voucher:</span> {selectedVoucher.voucherNo || selectedVoucher.id}</p>
+                      <p><span className="font-semibold text-slate-500">Type:</span> {selectedVoucher.type}</p>
+                      <p><span className="font-semibold text-slate-500">Status:</span> {selectedVoucher.status}</p>
+                      <p><span className="font-semibold text-slate-500">Date:</span> {d(selectedVoucher.date)?.toLocaleDateString() || '—'}</p>
+                      <p><span className="font-semibold text-slate-500">Source:</span> {selectedVoucher.sourceType || selectedVoucher.source || 'manual'}</p>
+                      <p><span className="font-semibold text-slate-500">Source ID:</span> {selectedVoucher.sourceId || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-100">
+                    <div className="border-b border-slate-100 px-4 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Debit / Credit Preview</div>
+                    <div className="divide-y divide-slate-50">
+                      {(selectedVoucher.journalEntries || []).map((j: any) => (
+                        <div key={j.id} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
+                          <div className="col-span-5 font-medium text-slate-700">{j.account?.code} · {j.account?.name}</div>
+                          <div className="col-span-2 text-right font-bold text-emerald-700">{fmt(n(j.debit))}</div>
+                          <div className="col-span-2 text-right font-bold text-rose-700">{fmt(n(j.credit))}</div>
+                          <div className="col-span-3 text-xs text-slate-500">{j.narration || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Attachments</p>
+                    <p className="mt-2 text-sm text-slate-700">{(selectedVoucher.attachments || []).length} attachment(s)</p>
+                    {selectedVoucherChecks && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Checksums verified: {selectedVoucherChecks.verified}/{selectedVoucherChecks.total}
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Approvals & change history</p>
+                    <div className="mt-2 max-h-56 space-y-2 overflow-auto">
+                      {selectedVoucherLogs.length === 0 ? (
+                        <p className="text-sm text-slate-500">No history entries yet.</p>
+                      ) : (
+                        selectedVoucherLogs.map((log) => (
+                          <div key={log.id} className="rounded-lg border border-slate-200 bg-white p-2">
+                            <p className="text-xs font-bold text-slate-700">{log.action}</p>
+                            <p className="text-[10px] uppercase tracking-widest text-slate-400">
+                              {d(log.createdAt)?.toLocaleString() || '—'}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Reversal Linkage</p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      {selectedVoucher.reversalVoucher?.voucherNo || selectedVoucher.reversalVoucher?.id || 'No reversal linked'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+          )}
+        </div>
+      )}
+
+      {!loading && tab === 'receipts' && (
+        <DocumentCenterPanel currency={currency} fmt={fmt} defaultKind="receipt" title="Donation receipts" />
+      )}
+
+      {!loading && tab === 'settlements' && (
+        <GatewaySettlementPanel />
+      )}
+
+      {!loading && tab === 'reconciliation' && (
+        <BankReconciliationPanel
+          accounts={accounts}
+          fmt={fmt}
+          donationReconciliation={donationReconciliation}
+          onOpenSettlements={() => setTab('settlements')}
+          onOpenVouchers={() => setTab('vouchers')}
+        />
+      )}
+
+      {!loading && tab === 'reports' && (
+        <div className="space-y-6">
+          <SectionCard title="Trial balance" subtitle="Current period">
+            {trialBalance ? (
+              <div className="text-sm space-y-2">
+                <p>Total debits: <strong>{fmt(n(trialBalance.totals?.debit))}</strong></p>
+                <p>Total credits: <strong>{fmt(n(trialBalance.totals?.credit))}</strong></p>
+                <p className={Math.abs(n(trialBalance.totals?.difference)) > 0.01 ? 'text-rose-700 font-semibold' : 'text-emerald-700'}>
+                  Difference: {fmt(n(trialBalance.totals?.difference))}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No trial balance data.</p>
+            )}
+          </SectionCard>
+          <SectionCard title="Accountant exports" subtitle="Books and registers for your CA or treasurer">
+            <Button variant="outline" onClick={() => onModuleChange?.('audit-logs')}>
+              <FileSearch className="mr-2 h-4 w-4" /> Open change history & reports
+            </Button>
+          </SectionCard>
+          <FinanceRecordsHealthPanel />
+        </div>
+      )}
+
+      {!loading && tab === 'approvals' && (
+        <SectionCard title="Pending approvals" subtitle="Items waiting for your decision">
+          {(approvalQueue || []).length === 0 ? (
+            <p className="text-sm text-slate-500">Nothing waiting for approval.</p>
+          ) : (
+            <div className="space-y-2">
+              {approvalQueue.map((a) => (
+                <div key={a.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4 flex flex-wrap justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">{a.entityType}</p>
+                    <p className="text-xs text-slate-500">{a.moduleKey || 'finance'} · Level {a.currentLevel}/{a.minRequiredLevel}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setTab('vouchers')}>Review vouchers</Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      {!loading && tab === 'documents' && (
+        <DocumentCenterPanel currency={currency} fmt={fmt} />
+      )}
+
+      {!loading && tab === 'years' && (
+        <div className="space-y-6">
+          <SectionCard title="Financial year" subtitle="How your church calendar is set up">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="rounded-lg bg-slate-50 p-4">
+                <p className="text-xs font-semibold text-slate-500">Year starts</p>
+                <p className="text-lg font-bold text-slate-900">{settings.financial.financialYearStart}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-4">
+                <p className="text-xs font-semibold text-slate-500">Currency</p>
+                <p className="text-lg font-bold text-slate-900">{settings.financial.currency}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold text-slate-500">Period lock (no posting before)</p>
+                <p className="text-lg font-bold text-slate-900">{settings.financial.lockedUntilDate || 'Not locked'}</p>
+              </div>
+            </div>
+          </SectionCard>
+          <Button variant="outline" onClick={() => onModuleChange?.('settings')}>Open system settings</Button>
+        </div>
+      )}
+
+      {!loading && tab === 'accounts' && (
+        <div className="space-y-6">
+          <SectionCard title="Chart of Accounts" subtitle="Hierarchical by account type with live balances">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {Object.entries(accountsByType).map(([type, rows]) => (
+                <div key={type} className="rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{type}</p>
+                  </div>
+                  <div className="max-h-72 overflow-auto divide-y divide-slate-100">
+                    {(rows as any[]).length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-slate-500">No accounts</p>
+                    ) : (
+                      (rows as any[]).map((acc) => (
+                        <button
+                          key={acc.id}
+                          onClick={() => setAccountFilter(acc.id)}
+                          className="w-full px-4 py-3 text-left hover:bg-white"
+                        >
+                          <p className="text-sm font-bold text-slate-800">{acc.code} · {acc.name}</p>
+                          <p className="text-xs text-slate-500">Balance {fmt(n(acc.balance))}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+          <p className="text-sm text-slate-600">
+            Select an account to filter the voucher registry. Year start and period lock are under{' '}
+            <button type="button" className="font-semibold text-indigo-600 underline" onClick={() => setTab('years')}>Financial Years</button>.
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }
+
+type RegistryDoc = {
+  id: string;
+  kind: 'voucher' | 'receipt';
+  number: string;
+  type: string;
+  date: string;
+  amount: number;
+  status: string;
+  narration?: string | null;
+  donorName?: string | null;
+  fundName?: string | null;
+  pdfAvailable: boolean;
+};
+
+function FinanceRecordsHealthPanel() {
+  const [report, setReport] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiRequest('giving/data-quality');
+        setReport(parseApiResponse(res));
+      } catch {
+        setReport(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return null;
+  if (!report?.warnings?.length) {
+    return (
+      <SectionCard title="Records check" subtitle="Data quality">
+        <p className="text-sm text-emerald-700">No issues flagged right now.</p>
+      </SectionCard>
+    );
+  }
+  return (
+    <SectionCard title="Records needing attention" subtitle="Duplicates and unmatched gifts">
+      <ul className="space-y-2 text-sm text-slate-700">
+        {report.warnings.map((w: { code: string; message: string }) => (
+          <li key={w.code} className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">{w.message}</li>
+        ))}
+      </ul>
+    </SectionCard>
+  );
+}
+
+function DocumentCenterPanel({
+  currency,
+  fmt,
+  defaultKind = 'all',
+  title = 'Document registry',
+}: {
+  currency: string;
+  fmt: (v: number) => string;
+  defaultKind?: 'all' | 'voucher' | 'receipt';
+  title?: string;
+}) {
+  const [docSearch, setDocSearch] = React.useState('');
+  const [docKind, setDocKind] = React.useState<'all' | 'voucher' | 'receipt'>(defaultKind);
+  const [voucherType, setVoucherType] = React.useState('');
+  const [docStatus, setDocStatus] = React.useState('');
+  const [dateFrom, setDateFrom] = React.useState('');
+  const [dateTo, setDateTo] = React.useState('');
+  const [docPage, setDocPage] = React.useState(0);
+  const [items, setItems] = React.useState<RegistryDoc[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [docError, setDocError] = React.useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const DOC_PAGE_SIZE = 30;
+
+  const loadRegistry = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setDocError(null);
+      const qs = new URLSearchParams({
+        limit: String(DOC_PAGE_SIZE),
+        offset: String(docPage * DOC_PAGE_SIZE),
+      });
+      if (docSearch.trim()) qs.set('search', docSearch.trim());
+      if (dateFrom) qs.set('from', dateFrom);
+      if (dateTo) qs.set('to', dateTo);
+
+      if (docKind === 'receipt') {
+        const res = await apiRequest(`finance/receipts?${qs}`);
+        const rows = parseApiResponse<any[]>(res);
+        setItems(
+          (rows || []).map((r) => ({
+            id: r.id,
+            kind: 'receipt' as const,
+            number: r.receiptNo || r.id?.slice(0, 8) || '—',
+            type: 'Donation Receipt',
+            date: r.issueDate ? String(r.issueDate) : '',
+            amount: Number(r.amount?.toString?.() ?? r.amount ?? 0),
+            status: 'issued',
+            narration: r.donation?.reference ?? null,
+            donorName: r.donorName ?? null,
+            fundName: r.fund?.name ?? null,
+            pdfAvailable: true,
+          })),
+        );
+        return;
+      }
+
+      qs.set('docType', docKind);
+      if (voucherType) qs.set('voucherType', voucherType);
+      if (docStatus) qs.set('status', docStatus);
+      try {
+        const res = await apiRequest(`finance/documents/registry?${qs}`);
+        const data = parseApiResponse<{ items: RegistryDoc[] }>(res);
+        setItems(data.items || []);
+      } catch (registryErr) {
+        if (
+          docKind === 'all' &&
+          registryErr instanceof ApiError &&
+          registryErr.status === 404 &&
+          /route not found/i.test(registryErr.message)
+        ) {
+          const receiptRes = await apiRequest(`finance/receipts?${qs}`);
+          const rows = parseApiResponse<any[]>(receiptRes);
+          setItems(
+            (rows || []).map((r) => ({
+              id: r.id,
+              kind: 'receipt' as const,
+              number: r.receiptNo || '—',
+              type: 'Donation Receipt',
+              date: r.issueDate ? String(r.issueDate) : '',
+              amount: Number(r.amount?.toString?.() ?? r.amount ?? 0),
+              status: 'issued',
+              narration: r.donation?.reference ?? null,
+              donorName: r.donorName ?? null,
+              fundName: r.fund?.name ?? null,
+              pdfAvailable: true,
+            })),
+          );
+          return;
+        }
+        throw registryErr;
+      }
+    } catch (e) {
+      setDocError(formatApiError(e));
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [docPage, docKind, docSearch, voucherType, docStatus, dateFrom, dateTo]);
+
+  React.useEffect(() => { void loadRegistry(); }, [loadRegistry]);
+  React.useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  const pdfPath = (row: RegistryDoc) =>
+    row.kind === 'voucher' ? `finance/vouchers/${row.id}/pdf` : `finance/receipts/${row.id}/pdf`;
+
+  const handlePreview = async (row: RegistryDoc) => {
+    try {
+      setBusyId(row.id);
+      const blob = await apiDownloadBlob(pdfPath(row));
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch (e) { setDocError(formatApiError(e)); } finally { setBusyId(null); }
+  };
+  const handleDownload = async (row: RegistryDoc) => {
+    try {
+      setBusyId(row.id);
+      triggerBrowserDownload(await apiDownloadBlob(pdfPath(row)), `${row.number.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`);
+    } catch (e) { setDocError(formatApiError(e)); } finally { setBusyId(null); }
+  };
+  const handlePrint = async (row: RegistryDoc) => {
+    try {
+      setBusyId(row.id);
+      openBlobInNewTab(await apiDownloadBlob(pdfPath(row)));
+    } catch (e) { setDocError(formatApiError(e)); } finally { setBusyId(null); }
+  };
+  const handleBatchDownload = async () => {
+    for (const row of items.slice(0, 15)) {
+      try {
+        triggerBrowserDownload(await apiDownloadBlob(pdfPath(row)), `${row.number.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`);
+        await new Promise((r) => setTimeout(r, 400));
+      } catch { /* continue */ }
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {docError && <FeedbackBanner tone="error">{docError}</FeedbackBanner>}
+      <SectionCard title={title} subtitle="Search, preview, print, and download official PDFs">
+        <div className="flex flex-wrap gap-3 items-end mb-4">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={docSearch}
+              onChange={(e) => setDocSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setDocPage(0); void loadRegistry(); } }}
+              placeholder="Search number, narration, donor..."
+              className="w-full pl-9 pr-3 h-9 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+          <select value={docKind} onChange={(e) => { setDocKind(e.target.value as typeof docKind); setDocPage(0); }} className="h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 bg-white">
+            <option value="all">All Documents</option>
+            <option value="voucher">Vouchers</option>
+            <option value="receipt">Receipts</option>
+          </select>
+          <select value={voucherType} onChange={(e) => { setVoucherType(e.target.value); setDocPage(0); }} className="h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 bg-white">
+            <option value="">All Voucher Types</option>
+            <option value="receipt">Receipt</option>
+            <option value="payment">Payment</option>
+            <option value="journal">Journal</option>
+            <option value="contra">Contra</option>
+          </select>
+          <select value={docStatus} onChange={(e) => { setDocStatus(e.target.value); setDocPage(0); }} className="h-9 px-3 text-xs font-bold rounded-lg border border-slate-200 bg-white">
+            <option value="">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="posted">Posted</option>
+            <option value="issued">Issued</option>
+          </select>
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDocPage(0); }} className="h-9 px-3 text-xs rounded-lg border border-slate-200" />
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDocPage(0); }} className="h-9 px-3 text-xs rounded-lg border border-slate-200" />
+          <Button variant="outline" size="sm" onClick={() => { setDocPage(0); void loadRegistry(); }}>Apply</Button>
+          <Button variant="outline" size="sm" onClick={() => { setDocSearch(''); setDocKind('all'); setVoucherType(''); setDocStatus(''); setDateFrom(''); setDateTo(''); setDocPage(0); }}>Reset</Button>
+          <Button variant="secondary" size="sm" onClick={() => void handleBatchDownload()} disabled={!items.length}><Download className="w-3.5 h-3.5 mr-1" /> Batch PDF</Button>
+        </div>
+        {previewUrl && (
+          <div className="mb-4 rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-white">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">PDF Preview</span>
+              <Button variant="ghost" size="sm" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }}>Close</Button>
+            </div>
+            <iframe title="Document preview" src={previewUrl} className="w-full h-[480px] bg-white" />
+          </div>
+        )}
+        {loading ? (
+          <div className="py-16 text-center text-sm text-slate-400 animate-pulse">Loading document registry…</div>
+        ) : items.length === 0 ? (
+          <EmptyState title="No documents found" description="Adjust filters or post vouchers to populate the registry." icon={FileSearch} />
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-lg border border-slate-100">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Number</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Kind</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Type</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Date</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Party</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-slate-500">Amount</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">Status</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {items.map((row) => {
+                    const dt = d(row.date);
+                    return (
+                      <tr key={`${row.kind}-${row.id}`} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-2.5 font-mono text-xs font-bold text-indigo-700">{row.number}</td>
+                        <td className="px-4 py-2.5 text-xs capitalize">{row.kind}</td>
+                        <td className="px-4 py-2.5 text-xs">{row.type}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-500">{dt ? dt.toLocaleDateString('en-IN') : '—'}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-700 max-w-[180px] truncate">{row.donorName || row.narration || row.fundName || '—'}</td>
+                        <td className="px-4 py-2.5 text-xs font-bold text-right">{fmt(row.amount)}</td>
+                        <td className="px-4 py-2.5"><span className={cn('inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase', row.status === 'posted' && 'bg-emerald-100 text-emerald-700', row.status === 'issued' && 'bg-emerald-100 text-emerald-700', row.status === 'draft' && 'bg-amber-100 text-amber-700')}>{row.status}</span></td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" disabled={busyId === row.id} onClick={() => void handlePreview(row)}><Eye className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" disabled={busyId === row.id} onClick={() => void handleDownload(row)}><Download className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" disabled={busyId === row.id} onClick={() => void handlePrint(row)}><Printer className="w-4 h-4" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between pt-3">
+              <p className="text-xs text-slate-500">{items.length} on this page</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={docPage === 0} onClick={() => setDocPage(docPage - 1)}>Prev</Button>
+                <Button variant="outline" size="sm" disabled={items.length < DOC_PAGE_SIZE} onClick={() => setDocPage(docPage + 1)}>Next</Button>
+              </div>
+            </div>
+          </>
+        )}
+      </SectionCard>
+    </div>
+  );
+
+}
+
+

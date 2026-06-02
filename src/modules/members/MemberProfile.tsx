@@ -2,8 +2,10 @@ import * as React from 'react';
 import {
   User, Users, Heart, Calendar, Mail, Phone, Edit3, ChevronLeft, Award, Plus, FileText, UploadCloud, Trash2, Camera,
   CreditCard, Activity, Clock, BookOpen, ShieldCheck, DollarSign, MessageSquare, CalendarPlus, CheckCircle2,
-  AlertCircle, Briefcase, FileSignature, Wallet, Check, ChevronRight, Hash, Star, UserCheck
+  AlertCircle, Briefcase, FileSignature, Wallet, Check, ChevronRight, Hash, Star, UserCheck, MapPin, ExternalLink
 } from 'lucide-react';
+import { formatAddressLine, googleMapsUrl } from '@/lib/memberAddress';
+import { GROWTH_PIPELINE, growthStageLabel, pipelineIndex, type GrowthStageKey } from '@/lib/memberGrowthStages';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,11 +24,15 @@ import {
   generateMemberIdentityDocument,
   type IdentityDocTemplate,
 } from './memberApi';
-import { apiRequest } from '@/lib/apiClient';
+import { apiRequest, parseApiResponse } from '@/lib/apiClient';
+import { COMMON_SERVING_ROLES, ENTITY_TYPES, SERVING_STATUS_OPTIONS, servingTierForRole } from '@/lib/servingRoles';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { ImageCropper } from '@/components/ui/image-cropper';
 import { Textarea } from '@/components/ui/textarea';
+import { useSettings } from '@/context/SettingsContext';
+import { MinistryJourneyTimeline } from '@/components/intelligence/MinistryJourneyTimeline';
+import { ResponsiveTableWrap } from '@/components/modules/ModuleHeader';
 
 function dateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -57,8 +63,29 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
   
   const [editForm, setEditForm] = React.useState({
     name: '', email: '', phone: '', status: 'Active', growthStage: 'Visitor', role: '', membershipDate: '', dob: '',
-    gender: '', aadhaar: '', pan: '', familyId: ''
+    gender: '', aadhaar: '', pan: '', familyId: '',
+    workforceClass: '', employmentType: '', department: '', reportingManagerId: '',
+    addressLine1: '', addressLine2: '', city: '', stateRegion: '', postalCode: '', country: 'India',
+    latitude: '', longitude: '',
   });
+  const [growthStageSaving, setGrowthStageSaving] = React.useState(false);
+  const [responsibilityOpen, setResponsibilityOpen] = React.useState(false);
+  const [responsibilityForm, setResponsibilityForm] = React.useState({
+    role: '',
+    entityType: 'Ministry',
+    entityId: '',
+    status: 'Active',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: '',
+    notes: '',
+  });
+  const [structureMinistries, setStructureMinistries] = React.useState<{ id: string; name: string }[]>([]);
+  const [structureSmallGroups, setStructureSmallGroups] = React.useState<{ id: string; name: string }[]>([]);
+  const [responsibilitySaving, setResponsibilitySaving] = React.useState(false);
+  const [acceptanceOpen, setAcceptanceOpen] = React.useState(false);
+  const [acceptanceDocId, setAcceptanceDocId] = React.useState<string | null>(null);
+  const [acceptanceForm, setAcceptanceForm] = React.useState({ signerName: '', signatureDataUrl: '' });
+  const [acceptanceSaving, setAcceptanceSaving] = React.useState(false);
 
   const [allFamilies, setAllFamilies] = React.useState<any[]>([]);
   const [validationErrors, setValidationErrors] = React.useState<Record<string, string>>({});
@@ -68,6 +95,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
 
   // Photo uploads
   const photoInputRef = React.useRef<HTMLInputElement>(null);
+  const familyPhotoInputRef = React.useRef<HTMLInputElement>(null);
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [photoError, setPhotoError] = React.useState(false);
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
@@ -86,7 +114,23 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
   const [documentForm, setDocumentForm] = React.useState({ type: 'Aadhaar', number: '', notes: '' });
   const [documentFile, setDocumentFile] = React.useState<File | null>(null);
   const [documentSaving, setDocumentSaving] = React.useState(false);
+  const { settings } = useSettings();
   const [identityGenerating, setIdentityGenerating] = React.useState<IdentityDocTemplate | null>(null);
+  const [generateModalOpen, setGenerateModalOpen] = React.useState(false);
+  const [generateTemplate, setGenerateTemplate] = React.useState<IdentityDocTemplate | null>(null);
+  const [generateForm, setGenerateForm] = React.useState({
+    candidateDob: '',
+    fatherName: '',
+    motherName: '',
+    baptismDate: '',
+    baptismPlace: '',
+    officiantName: '',
+    witnessName: '',
+    date: new Date().toISOString().slice(0, 10),
+    visitorEmail: '',
+    visitorPhone: '',
+    prayerRequest: '',
+  });
 
   const [familyLinkOpen, setFamilyLinkOpen] = React.useState(false);
   const [familyLinkForm, setFamilyLinkForm] = React.useState({ familyId: '', familyName: '' });
@@ -141,7 +185,19 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
       gender: member.gender ?? '',
       aadhaar: member.aadhaar ?? '',
       pan: member.pan ?? '',
-      familyId: member.familyId ?? ''
+      familyId: member.familyId ?? '',
+      workforceClass: (member as any).workforceClass ?? '',
+      employmentType: (member as any).employmentType ?? '',
+      department: (member as any).department ?? '',
+      reportingManagerId: (member as any).reportingManagerId ?? '',
+      addressLine1: member.addressLine1 ?? '',
+      addressLine2: member.addressLine2 ?? '',
+      city: member.city ?? '',
+      stateRegion: member.stateRegion ?? '',
+      postalCode: member.postalCode ?? '',
+      country: member.country ?? 'India',
+      latitude: member.latitude != null ? String(member.latitude) : '',
+      longitude: member.longitude != null ? String(member.longitude) : '',
     });
 
     if (allFamilies.length === 0) {
@@ -181,6 +237,14 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
         membershipDate: editForm.membershipDate || null,
         aadhaar: editForm.aadhaar || null,
         pan: editForm.pan?.toUpperCase() || null,
+        addressLine1: editForm.addressLine1 || null,
+        addressLine2: editForm.addressLine2 || null,
+        city: editForm.city || null,
+        stateRegion: editForm.stateRegion || null,
+        postalCode: editForm.postalCode || null,
+        country: editForm.country || 'India',
+        latitude: editForm.latitude ? Number(editForm.latitude) : null,
+        longitude: editForm.longitude ? Number(editForm.longitude) : null,
       });
 
       setMember(prev => prev ? { ...prev, ...updated } : updated);
@@ -277,30 +341,143 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
     }
   };
 
-  const generateIdentityDoc = async (template: IdentityDocTemplate) => {
+  const openGenerateModal = (template: IdentityDocTemplate) => {
     if (!member) return;
+    setGenerateTemplate(template);
+    setGenerateForm({
+      candidateDob: member.dob ? member.dob.slice(0, 10) : '',
+      fatherName: '',
+      motherName: '',
+      baptismDate: new Date().toISOString().slice(0, 10),
+      baptismPlace: '',
+      officiantName: settings?.documents?.authorizedSignatoryName || '',
+      witnessName: '',
+      date: new Date().toISOString().slice(0, 10),
+      visitorEmail: member.email || '',
+      visitorPhone: member.phone || '',
+      prayerRequest: '',
+    });
+    setGenerateModalOpen(true);
+  };
+
+  const submitGenerateDoc = async () => {
+    if (!member || !generateTemplate) return;
     try {
-      setIdentityGenerating(template);
-      await generateMemberIdentityDocument(member.id, template);
+      setIdentityGenerating(generateTemplate);
+      setGenerateModalOpen(false);
+      await generateMemberIdentityDocument(member.id, generateTemplate, generateForm);
       void loadData();
     } catch (e: any) {
       console.error(e);
     } finally {
       setIdentityGenerating(null);
+      setGenerateTemplate(null);
     }
   };
 
-  const recordDocAcceptance = async (docId: string) => {
-    if (!member) return;
-    const signerName = window.prompt('Signer name (as recorded on file)')?.trim();
+  const openDocAcceptance = (docId: string) => {
+    setAcceptanceDocId(docId);
+    setAcceptanceForm({ signerName: member?.name ?? '', signatureDataUrl: '' });
+    setAcceptanceOpen(true);
+  };
+
+  const submitDocAcceptance = async () => {
+    if (!member || !acceptanceDocId) return;
+    const signerName = acceptanceForm.signerName.trim();
     if (!signerName) return;
-    const sig = window.prompt('Optional: paste a data-URL signature image (leave blank if not captured yet)')?.trim();
     try {
-      await updateMemberDocument(member.id, docId, {
+      setAcceptanceSaving(true);
+      await updateMemberDocument(member.id, acceptanceDocId, {
         acceptedAt: new Date().toISOString(),
         signerName,
-        signatureDataUrl: sig || null,
+        signatureDataUrl: acceptanceForm.signatureDataUrl.trim() || null,
       });
+      setAcceptanceOpen(false);
+      setAcceptanceDocId(null);
+      void loadData();
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setAcceptanceSaving(false);
+    }
+  };
+
+  const saveGrowthStage = async (stage: GrowthStageKey) => {
+    if (!member || member.growthStage === stage) return;
+    try {
+      setGrowthStageSaving(true);
+      const updated = await updateMember(member.id, { growthStage: stage });
+      setMember((prev) => (prev ? { ...prev, ...updated } : updated));
+      setUpdateSuccess(`Growth stage updated to ${growthStageLabel(stage)}.`);
+      await onMemberUpdated?.();
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setGrowthStageSaving(false);
+    }
+  };
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const [minRes, sgRes] = await Promise.all([
+          apiRequest('structure/ministries'),
+          apiRequest('structure/small-groups'),
+        ]);
+        setStructureMinistries(parseApiResponse<{ id: string; name: string }[]>(minRes) || []);
+        setStructureSmallGroups(parseApiResponse<{ id: string; name: string }[]>(sgRes) || []);
+      } catch {
+        /* optional */
+      }
+    })();
+  }, []);
+
+  const resolveResponsibilityLabel = (r: { entityType: string; entityId?: string | null }) => {
+    if (r.entityType === 'Ministry' && r.entityId) {
+      return structureMinistries.find((m) => m.id === r.entityId)?.name ?? 'Ministry';
+    }
+    if (r.entityType === 'SmallGroup' && r.entityId) {
+      return structureSmallGroups.find((g) => g.id === r.entityId)?.name ?? 'Small Group';
+    }
+    return r.entityType;
+  };
+
+  const saveResponsibility = async () => {
+    if (!member || !responsibilityForm.role.trim()) return;
+    try {
+      setResponsibilitySaving(true);
+      await createMemberResponsibility(member.id, {
+        role: responsibilityForm.role.trim(),
+        entityType: responsibilityForm.entityType,
+        entityId: responsibilityForm.entityId || undefined,
+        status: responsibilityForm.status,
+        startDate: responsibilityForm.startDate ? new Date(responsibilityForm.startDate).toISOString() : undefined,
+        endDate: responsibilityForm.endDate ? new Date(responsibilityForm.endDate).toISOString() : undefined,
+        notes: responsibilityForm.notes || undefined,
+      });
+      setResponsibilityOpen(false);
+      setResponsibilityForm({
+        role: '',
+        entityType: 'Ministry',
+        entityId: '',
+        status: 'Active',
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: '',
+        notes: '',
+      });
+      void loadData();
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setResponsibilitySaving(false);
+    }
+  };
+
+  const removeResponsibility = async (resId: string) => {
+    if (!member) return;
+    if (!confirm('Remove this assignment?')) return;
+    try {
+      await deleteMemberResponsibility(member.id, resId);
       void loadData();
     } catch (e: any) {
       console.error(e);
@@ -359,12 +536,12 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
         <div className="flex items-center justify-center min-h-screen bg-slate-50/50">
            <div className="flex flex-col items-center gap-4 text-slate-400">
               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-              <p className="text-sm font-bold uppercase tracking-widest">Loading Command Center...</p>
+              <p className="text-sm font-bold uppercase tracking-widest">Loading profile…</p>
            </div>
         </div>
       ) : (loadError || !member) ? (
         <div className="max-w-7xl mx-auto p-6 animate-in fade-in">
-          <Button variant="ghost" className="gap-2 text-slate-500 font-bold mb-4" onClick={onBack}>
+          <Button variant="ghost" className="gap-2 text-slate-500 font-bold mb-4" onClick={onBack} aria-label="Back">
             <ChevronLeft size={16} /> Back to Directory
           </Button>
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
@@ -376,7 +553,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
           
           <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-[0_4px_30px_-10px_rgba(0,0,0,0.05)] px-4 sm:px-8 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all">
              <div className="flex items-center gap-5">
-                <Button variant="ghost" size="icon" className="rounded-full shrink-0 bg-slate-50 hover:bg-slate-100" onClick={onBack}>
+                <Button variant="ghost" size="icon" className="rounded-full shrink-0 bg-slate-50 hover:bg-slate-100" onClick={onBack} aria-label="Back">
                    <ChevronLeft size={20} className="text-slate-600" />
                 </Button>
                 
@@ -480,7 +657,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                       </div>
                       <CardContent className="p-5">
                          {(member.careNotes || []).length === 0 ? (
-                            <p className="text-sm text-slate-400 font-medium italic">No private operational notes recorded.</p>
+                            <p className="text-sm text-slate-400 font-medium italic">No private staff notes recorded.</p>
                          ) : (
                             <div className="space-y-4">
                                {(member.careNotes || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 1).map((note: any) => (
@@ -505,7 +682,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                         { id: 'attendance', label: 'Attendance' },
                         { id: 'family', label: 'Family' },
                         { id: 'giving', label: 'Giving' },
-                        { id: 'documents', label: 'Compliance' },
+                        { id: 'documents', label: 'Records' },
                         { id: 'timeline', label: 'Timeline' },
                       ].map(t => (
                         <button key={t.id} onClick={() => setActiveTab(t.id as TabType)} className={cn("pb-4 text-sm font-black uppercase tracking-widest transition-all border-b-2", activeTab === t.id ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-400 hover:text-slate-600")}>
@@ -544,9 +721,33 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                  </CardContent>
                               </Card>
 
+                              <Card className="rounded-2xl shadow-sm border-slate-200 bg-white md:col-span-2">
+                                 <CardHeader className="pb-4 border-b border-slate-100">
+                                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2"><MapPin size={16}/> Address &amp; Location</CardTitle>
+                                 </CardHeader>
+                                 <CardContent className="p-5 space-y-3">
+                                    {(() => {
+                                      const line = formatAddressLine(member);
+                                      const mapUrl = googleMapsUrl(member);
+                                      return line ? (
+                                        <>
+                                          <p className="font-bold text-slate-900">{line}</p>
+                                          {mapUrl && (
+                                            <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800">
+                                              <ExternalLink size={14} /> Open in Google Maps
+                                            </a>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <p className="text-sm text-slate-500 font-medium">No address on file. Add via Edit Profile for pastoral visitation.</p>
+                                      );
+                                    })()}
+                                 </CardContent>
+                              </Card>
+
                               <Card className="rounded-2xl shadow-sm border-slate-200 bg-white">
                                  <CardHeader className="pb-4 border-b border-slate-100 flex-row items-center justify-between">
-                                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2"><ShieldCheck size={16}/> Identity Compliance</CardTitle>
+                                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2"><ShieldCheck size={16}/> Verification records</CardTitle>
                                  </CardHeader>
                                  <CardContent className="p-5 space-y-4">
                                     <div>
@@ -641,24 +842,18 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                               <CardContent className="p-8">
                                  <div className="flex items-center justify-between relative max-w-2xl mx-auto">
                                     <div className="absolute left-0 right-0 h-1 bg-slate-100 top-1/2 -translate-y-1/2" />
-                                    {[
-                                      { label: 'Visitor', icon: Clock },
-                                      { label: 'Member', icon: UserCheck },
-                                      { label: 'Leader', icon: Star },
-                                      { label: 'Staff', icon: Briefcase },
-                                    ].map((stage, i, arr) => {
-                                      const stages = ['Visitor', 'Member', 'Leader', 'Staff'];
-                                      const currentIdx = stages.indexOf(member.growthStage || 'Visitor');
+                                    {GROWTH_PIPELINE.map((stage, i) => {
+                                      const currentIdx = pipelineIndex(member.growthStage);
                                       const isCompleted = i < currentIdx;
                                       const isActive = i === currentIdx;
                                       
                                       return (
-                                        <div key={stage.label} className="relative z-10 flex flex-col items-center gap-3">
+                                        <button key={stage.key} type="button" disabled={growthStageSaving} onClick={() => void saveGrowthStage(stage.key)} className="relative z-10 flex flex-col items-center gap-2 min-w-[70px]">
                                            <div className={cn(
                                              "w-12 h-12 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all",
                                              isCompleted ? "bg-emerald-500 text-white" : isActive ? "bg-indigo-600 text-white scale-110" : "bg-white text-slate-300"
                                            )}>
-                                              {isCompleted ? <Check size={20} /> : <stage.icon size={20} />}
+                                              {isCompleted ? <Check size={16} /> : <span className="text-[10px] font-black">{i + 1}</span>}
                                            </div>
                                            <span className={cn(
                                              "text-[10px] font-black uppercase tracking-widest",
@@ -666,11 +861,29 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                            )}>
                                              {stage.label}
                                            </span>
-                                        </div>
+                                        </button>
                                       );
                                     })}
                                  </div>
+                                 <p className="text-center text-xs font-bold text-slate-500 mt-4">
+                                   Current stage: {growthStageLabel(member.growthStage)}
+                                   {' · '}
+                                   <select
+                                     className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black uppercase"
+                                     value={member.growthStage === 'Staff' ? 'CoreTeam' : (member.growthStage || 'Visitor')}
+                                     disabled={growthStageSaving}
+                                     onChange={(e) => void saveGrowthStage(e.target.value as GrowthStageKey)}
+                                   >
+                                     {GROWTH_PIPELINE.map((s) => (
+                                       <option key={s.key} value={s.key}>{s.label}</option>
+                                     ))}
+                                   </select>
+                                 </p>
                               </CardContent>
+                           </Card>
+
+                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden p-6">
+                              <MinistryJourneyTimeline memberId={memberId} />
                            </Card>
 
                            <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
@@ -713,9 +926,14 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                            </Card>
 
                            <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
-                              <CardHeader className="border-b border-slate-100 pb-4">
+                              <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
+                                 <div>
                                  <CardTitle className="text-base font-bold text-slate-900">Roles & Responsibilities</CardTitle>
                                  <CardDescription className="text-xs font-medium">Current assignments in church departments.</CardDescription>
+                                 </div>
+                                 <Button onClick={() => setResponsibilityOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black h-9 rounded-xl px-4 gap-2">
+                                    <Plus size={16} /> Assign Role
+                                 </Button>
                               </CardHeader>
                               <CardContent className="p-0">
                                  {(!member.responsibilities || member.responsibilities.length === 0) ? (
@@ -733,10 +951,13 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                                 </div>
                                                 <div>
                                                    <p className="text-sm font-bold text-slate-900">{r.role}</p>
-                                                   <p className="text-xs font-medium text-slate-500">{r.status} • {r.entityType}</p>
+                                                   <p className="text-xs font-medium text-slate-500">{r.status} • {resolveResponsibilityLabel(r)} · {servingTierForRole(r.role)}</p>
                                                 </div>
                                              </div>
-                                             <Badge className="bg-slate-100 text-slate-600 border-none uppercase tracking-widest text-[10px] font-black">{r.status}</Badge>
+                                             <div className="flex items-center gap-2">
+                                               <Badge className="bg-slate-100 text-slate-600 border-none uppercase tracking-widest text-[10px] font-black">{r.status}</Badge>
+                                               <Button variant="ghost" size="icon" className="text-rose-400" onClick={() => void removeResponsibility(r.id)}><Trash2 size={16} /></Button>
+                                             </div>
                                           </div>
                                        ))}
                                     </div>
@@ -761,7 +982,8 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                        <p className="text-sm font-medium">This member has not been checked into any sessions yet.</p>
                                     </div>
                                  ) : (
-                                    <table className="w-full text-sm text-left">
+                                    <ResponsiveTableWrap className="border-0 rounded-none">
+                                    <table className="w-full min-w-[640px] text-sm text-left">
                                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100 text-xs uppercase tracking-widest font-black">
                                           <tr>
                                              <th className="px-6 py-4">Session / Event</th>
@@ -800,6 +1022,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                           ))}
                                        </tbody>
                                     </table>
+                                    </ResponsiveTableWrap>
                                  )}
                               </CardContent>
                            </Card>
@@ -811,9 +1034,11 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                            <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
                               <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
                                  <div className="flex items-center gap-4">
+                                    <input type="file" ref={familyPhotoInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" onChange={(e) => onPhotoSelect(e, 'family')} />
                                     <div className="relative group" onClick={() => {
                                        if (!member.familyId) return;
-                                       photoInputRef.current?.click();
+                                       setCropType('family');
+                                       familyPhotoInputRef.current?.click();
                                     }}>
                                        <div className={cn("w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-md transition-all", member.familyId && "cursor-pointer group-hover:scale-105")}>
                                           <AppAvatar src={member.family?.imageUrl ? `${SERVER_ROOT}${member.family.imageUrl}` : undefined} name={member.family?.name || '?'} className="w-full h-full rounded-none" />
@@ -847,7 +1072,8 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                        <p className="text-sm font-medium">This member is not linked to any other family accounts.</p>
                                     </div>
                                  ) : (
-                                    <table className="w-full text-sm text-left">
+                                    <ResponsiveTableWrap className="border-0 rounded-none">
+                                    <table className="w-full min-w-[480px] text-sm text-left">
                                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100 text-xs uppercase tracking-widest font-black">
                                           <tr>
                                              <th className="px-6 py-4">Name</th>
@@ -876,6 +1102,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                           ))}
                                        </tbody>
                                     </table>
+                                    </ResponsiveTableWrap>
                                  )}
                               </CardContent>
                            </Card>
@@ -925,7 +1152,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                               <CardHeader className="border-b border-slate-100 pb-4 flex flex-row flex-wrap items-center justify-between gap-3">
                                  <div>
                                     <CardTitle className="text-base font-bold text-slate-900">Identity Documents</CardTitle>
-                                    <CardDescription className="text-xs font-medium">Stored verification and compliance files.</CardDescription>
+                                    <CardDescription className="text-xs font-medium">ID, baptism, and other verification files on file.</CardDescription>
                                  </div>
                                  <div className="flex flex-wrap items-center justify-end gap-2">
                                     <Button
@@ -933,7 +1160,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                       size="sm"
                                       className="h-9 rounded-xl font-bold text-[10px] uppercase tracking-widest"
                                       disabled={!!identityGenerating}
-                                      onClick={() => void generateIdentityDoc('visitor_declaration')}
+                                      onClick={() => openGenerateModal('visitor_declaration')}
                                     >
                                       {identityGenerating === 'visitor_declaration' ? '…' : 'Visitor decl.'}
                                     </Button>
@@ -942,7 +1169,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                       size="sm"
                                       className="h-9 rounded-xl font-bold text-[10px] uppercase tracking-widest"
                                       disabled={!!identityGenerating}
-                                      onClick={() => void generateIdentityDoc('member_declaration')}
+                                      onClick={() => openGenerateModal('member_declaration')}
                                     >
                                       {identityGenerating === 'member_declaration' ? '…' : 'Member decl.'}
                                     </Button>
@@ -951,7 +1178,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                       size="sm"
                                       className="h-9 rounded-xl font-bold text-[10px] uppercase tracking-widest"
                                       disabled={!!identityGenerating}
-                                      onClick={() => void generateIdentityDoc('baptism_certificate')}
+                                      onClick={() => openGenerateModal('baptism_certificate')}
                                     >
                                       {identityGenerating === 'baptism_certificate' ? '…' : 'Baptism cert.'}
                                     </Button>
@@ -965,7 +1192,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                     <div className="p-16 text-center text-slate-400">
                                        <FileText size={48} className="mx-auto mb-4 opacity-10" />
                                        <p className="font-bold text-slate-900">No documents</p>
-                                       <p className="text-sm font-medium">Compliance documents have not been uploaded.</p>
+                                       <p className="text-sm font-medium">Verification documents have not been uploaded.</p>
                                     </div>
                                  ) : (
                                     <div className="divide-y divide-slate-100">
@@ -991,7 +1218,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                                                   <Button variant="ghost" size="sm" className="text-indigo-600 font-bold" onClick={() => window.open(`${SERVER_ROOT}${d.fileUrl}`, '_blank')}>View / Print</Button>
                                                 )}
                                                 {(d.type === 'DeclarationForm' || String(d.type).startsWith('Generated')) && !d.acceptedAt && (
-                                                  <Button variant="ghost" size="sm" className="text-emerald-700 font-bold" onClick={() => void recordDocAcceptance(d.id)}>
+                                                  <Button variant="ghost" size="sm" className="text-emerald-700 font-bold" onClick={() => openDocAcceptance(d.id)}>
                                                      Record acceptance
                                                   </Button>
                                                 )}
@@ -1108,7 +1335,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
                   <ShieldCheck size={14} className="text-emerald-500" />
-                  <h4 className="text-[10px] uppercase tracking-widest font-black text-slate-500">Identity / Compliance</h4>
+                  <h4 className="text-[10px] uppercase tracking-widest font-black text-slate-500">Verification</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -1141,9 +1368,9 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Growth Stage</label>
                     <select className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20" value={editForm.growthStage} onChange={e => setEditForm(f => ({ ...f, growthStage: e.target.value }))}>
-                      <option value="Visitor">Visitor</option>
-                      <option value="Member">Member</option>
-                      <option value="Leader">Leader</option>
+                      {GROWTH_PIPELINE.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1155,6 +1382,61 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Joined Date</label>
                     <Input type="date" value={editForm.membershipDate} onChange={e => setEditForm(f => ({ ...f, membershipDate: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Workforce class</label>
+                    <select className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold" value={editForm.workforceClass} onChange={e => setEditForm(f => ({ ...f, workforceClass: e.target.value }))}>
+                      <option value="">—</option>
+                      <option value="staff">Staff</option>
+                      <option value="volunteer">Volunteer</option>
+                      <option value="pastor">Pastor</option>
+                      <option value="contractor">Contractor</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Employment type</label>
+                    <Input value={editForm.employmentType} onChange={e => setEditForm(f => ({ ...f, employmentType: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" placeholder="Full-time" />
+                  </div>
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Department</label>
+                    <Input value={editForm.department} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" placeholder="Worship, Finance, Youth…" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <MapPin size={14} className="text-rose-500" />
+                  <h4 className="text-[10px] uppercase tracking-widest font-black text-slate-500">Address</h4>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Address Line 1</label>
+                  <Input value={editForm.addressLine1} onChange={e => setEditForm(f => ({ ...f, addressLine1: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">City</label>
+                    <Input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">State</label>
+                    <Input value={editForm.stateRegion} onChange={e => setEditForm(f => ({ ...f, stateRegion: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">PIN</label>
+                    <Input value={editForm.postalCode} onChange={e => setEditForm(f => ({ ...f, postalCode: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Latitude</label>
+                    <Input value={editForm.latitude} onChange={e => setEditForm(f => ({ ...f, latitude: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" placeholder="Optional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Longitude</label>
+                    <Input value={editForm.longitude} onChange={e => setEditForm(f => ({ ...f, longitude: e.target.value }))} className="shadow-sm border-slate-200 h-11 bg-white font-medium" placeholder="Optional" />
                   </div>
                 </div>
               </div>
@@ -1301,6 +1583,219 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
              <Button onClick={() => void handleLinkFamily()} disabled={familyLinking} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black">
                 {familyLinking ? 'Linking...' : 'Link Family'}
              </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={responsibilityOpen} onOpenChange={setResponsibilityOpen}>
+        <DialogContent className="rounded-2xl p-0 border-none shadow-2xl overflow-hidden max-w-md">
+          <DialogHeader className="p-6 border-b border-slate-100 bg-white">
+            <DialogTitle className="text-xl font-black text-slate-900">Assign Role / Responsibility</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Role title</label>
+              <select className="w-full h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold mb-2" value={responsibilityForm.role} onChange={e => setResponsibilityForm(f => ({ ...f, role: e.target.value }))}>
+                <option value="">Select role…</option>
+                {COMMON_SERVING_ROLES.map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
+              <Input value={responsibilityForm.role} onChange={e => setResponsibilityForm(f => ({ ...f, role: e.target.value }))} className="h-11 font-bold" placeholder="Or type custom role" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Serving area</label>
+                <select className="w-full h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold" value={responsibilityForm.entityType} onChange={e => setResponsibilityForm(f => ({ ...f, entityType: e.target.value, entityId: '' }))}>
+                  {ENTITY_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Status</label>
+                <select className="w-full h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold" value={responsibilityForm.status} onChange={e => setResponsibilityForm(f => ({ ...f, status: e.target.value }))}>
+                  {SERVING_STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(responsibilityForm.entityType === 'Ministry' || responsibilityForm.entityType === 'SmallGroup') && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Link to team</label>
+                <select className="w-full h-11 rounded-lg border border-slate-200 px-3 text-sm font-bold" value={responsibilityForm.entityId} onChange={e => setResponsibilityForm(f => ({ ...f, entityId: e.target.value }))}>
+                  <option value="">General (not linked)</option>
+                  {(responsibilityForm.entityType === 'Ministry' ? structureMinistries : structureSmallGroups).map((ent) => (
+                    <option key={ent.id} value={ent.id}>{ent.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Start date</label>
+                <Input type="date" value={responsibilityForm.startDate} onChange={e => setResponsibilityForm(f => ({ ...f, startDate: e.target.value }))} className="h-11 font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">End date (optional)</label>
+                <Input type="date" value={responsibilityForm.endDate} onChange={e => setResponsibilityForm(f => ({ ...f, endDate: e.target.value }))} className="h-11 font-bold" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Notes</label>
+              <Textarea value={responsibilityForm.notes} onChange={e => setResponsibilityForm(f => ({ ...f, notes: e.target.value }))} className="bg-slate-50" />
+            </div>
+          </div>
+          <DialogFooter className="p-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setResponsibilityOpen(false)}>Cancel</Button>
+            <Button onClick={() => void saveResponsibility()} disabled={responsibilitySaving || !responsibilityForm.role.trim()} className="bg-indigo-600 text-white font-black">
+              {responsibilitySaving ? 'Saving…' : 'Save assignment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={acceptanceOpen} onOpenChange={setAcceptanceOpen}>
+        <DialogContent className="rounded-2xl p-0 border-none shadow-2xl overflow-hidden max-w-md">
+          <DialogHeader className="p-6 border-b border-slate-100 bg-white">
+            <DialogTitle className="text-xl font-black text-slate-900">Record declaration acceptance</DialogTitle>
+            <DialogDescription className="text-xs font-medium">Pastoral review — records who signed this document.</DialogDescription>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Signer name</label>
+              <Input value={acceptanceForm.signerName} onChange={e => setAcceptanceForm(f => ({ ...f, signerName: e.target.value }))} className="h-11 font-bold" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Signature data URL (optional)</label>
+              <Textarea value={acceptanceForm.signatureDataUrl} onChange={e => setAcceptanceForm(f => ({ ...f, signatureDataUrl: e.target.value }))} className="bg-slate-50 text-xs" placeholder="Optional captured signature" />
+            </div>
+          </div>
+          <DialogFooter className="p-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setAcceptanceOpen(false)}>Cancel</Button>
+            <Button onClick={() => void submitDocAcceptance()} disabled={acceptanceSaving || !acceptanceForm.signerName.trim()} className="bg-emerald-600 text-white font-black">
+              {acceptanceSaving ? 'Saving…' : 'Record acceptance'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={generateModalOpen} onOpenChange={setGenerateModalOpen}>
+        <DialogContent className="rounded-2xl p-0 border-none shadow-2xl overflow-hidden max-w-xl">
+          <DialogHeader className="p-6 border-b border-slate-100 bg-white">
+            <DialogTitle className="text-xl font-black text-slate-900">
+              {generateTemplate === 'visitor_declaration' ? 'Visitor Connection Declaration Form' :
+               generateTemplate === 'member_declaration' ? 'Faith Alignment & Membership Covenant' :
+               'Sacred Certificate of Holy Baptism'}
+            </DialogTitle>
+            <DialogDescription className="text-xs font-medium">
+              Confirm member details and register fields before generating the document.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            {generateTemplate === 'baptism_certificate' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Candidate DOB</label>
+                    <Input type="date" value={generateForm.candidateDob} onChange={e => setGenerateForm(f => ({ ...f, candidateDob: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Baptism Date</label>
+                    <Input type="date" value={generateForm.baptismDate} onChange={e => setGenerateForm(f => ({ ...f, baptismDate: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Father / Guardian Name</label>
+                    <Input value={generateForm.fatherName} onChange={e => setGenerateForm(f => ({ ...f, fatherName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Mother's Name</label>
+                    <Input value={generateForm.motherName} onChange={e => setGenerateForm(f => ({ ...f, motherName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Sanctuary / Baptism Location</label>
+                  <Input value={generateForm.baptismPlace} onChange={e => setGenerateForm(f => ({ ...f, baptismPlace: e.target.value }))} className="h-11 font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Officiating Minister</label>
+                    <Input value={generateForm.officiantName} onChange={e => setGenerateForm(f => ({ ...f, officiantName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Attesting Witness</label>
+                    <Input value={generateForm.witnessName} onChange={e => setGenerateForm(f => ({ ...f, witnessName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {generateTemplate === 'member_declaration' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Candidate DOB</label>
+                    <Input type="date" value={generateForm.candidateDob} onChange={e => setGenerateForm(f => ({ ...f, candidateDob: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Registry Enrolment Date</label>
+                    <Input type="date" value={generateForm.date} onChange={e => setGenerateForm(f => ({ ...f, date: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Authorized Signatory Pastor</label>
+                    <Input value={generateForm.officiantName} onChange={e => setGenerateForm(f => ({ ...f, officiantName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Attesting Board Trustee</label>
+                    <Input value={generateForm.witnessName} onChange={e => setGenerateForm(f => ({ ...f, witnessName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {generateTemplate === 'visitor_declaration' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Date of Visit</label>
+                    <Input type="date" value={generateForm.date} onChange={e => setGenerateForm(f => ({ ...f, date: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Connector / Hospitality Lead</label>
+                    <Input value={generateForm.witnessName} onChange={e => setGenerateForm(f => ({ ...f, witnessName: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Visitor Email</label>
+                    <Input value={generateForm.visitorEmail} onChange={e => setGenerateForm(f => ({ ...f, visitorEmail: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Visitor Contact Number</label>
+                    <Input value={generateForm.visitorPhone} onChange={e => setGenerateForm(f => ({ ...f, visitorPhone: e.target.value }))} className="h-11 font-bold" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Hospitality Host / Authorized Minister</label>
+                  <Input value={generateForm.officiantName} onChange={e => setGenerateForm(f => ({ ...f, officiantName: e.target.value }))} className="h-11 font-bold" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest font-black text-slate-500">Prayer Intentions & Pastoral Requests</label>
+                  <Textarea value={generateForm.prayerRequest} onChange={e => setGenerateForm(f => ({ ...f, prayerRequest: e.target.value }))} className="bg-slate-50 font-medium text-slate-700 italic" />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setGenerateModalOpen(false)}>Cancel</Button>
+            <Button onClick={() => void submitGenerateDoc()} disabled={!!identityGenerating} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black">
+              {identityGenerating ? 'Generating…' : 'Generate & File Record'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
