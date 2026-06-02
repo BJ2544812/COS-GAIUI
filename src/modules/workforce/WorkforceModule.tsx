@@ -9,15 +9,54 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard, SectionCard, EmptyState } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, SectionCard, EmptyState, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
 import { useAuth, usePermissions } from '@/context/AuthContext';
+import { buildMemberProfilePath } from '@/lib/adminNavigation';
+
+export type HrWorkspaceTab =
+  | 'dashboard'
+  | 'directory'
+  | 'hierarchy'
+  | 'leaves'
+  | 'payroll'
+  | 'reimbursements'
+  | 'pipeline'
+  | 'performance'
+  | 'self_service';
+
+const HR_WORKSPACE_TABS: HrWorkspaceTab[] = [
+  'dashboard',
+  'directory',
+  'hierarchy',
+  'leaves',
+  'payroll',
+  'reimbursements',
+  'pipeline',
+  'performance',
+  'self_service',
+];
+
+const UCOS_HR_ACTIVE_TAB = 'ucos_hr_active_tab';
+
+function resolveHrTab(initialTab?: HrWorkspaceTab): HrWorkspaceTab {
+  if (initialTab && HR_WORKSPACE_TABS.includes(initialTab)) return initialTab;
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(UCOS_HR_ACTIVE_TAB);
+    if (stored && HR_WORKSPACE_TABS.includes(stored as HrWorkspaceTab)) {
+      sessionStorage.removeItem(UCOS_HR_ACTIVE_TAB);
+      return stored as HrWorkspaceTab;
+    }
+  }
+  return 'dashboard';
+}
 
 interface WorkforceModuleProps {
   onModuleChange?: (module: ERPModule) => void;
+  initialTab?: HrWorkspaceTab;
 }
 
 // ----------------------------------------------------------------------
@@ -185,18 +224,7 @@ interface OnboardingTask {
   };
 }
 
-type TabType =
-  | 'dashboard'
-  | 'directory'
-  | 'hierarchy'
-  | 'leaves'
-  | 'payroll'
-  | 'reimbursements'
-  | 'pipeline'
-  | 'performance'
-  | 'self_service';
-
-export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
+export function WorkforceModule({ onModuleChange, initialTab }: WorkforceModuleProps) {
   const { user } = useAuth();
   const { has } = usePermissions();
 
@@ -226,7 +254,13 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
 
   const canViewCompensation = isFinanceManager || user?.permissions?.includes('manage_hr');
 
-  const [activeTab, setActiveTab] = React.useState<TabType>('dashboard');
+  const [activeTab, setActiveTab] = React.useState<HrWorkspaceTab>(() => resolveHrTab(initialTab));
+
+  React.useEffect(() => {
+    if (initialTab && HR_WORKSPACE_TABS.includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [hrCommandStats, setHrCommandStats] = React.useState<{
     pendingLeave: number;
     pendingReimbursements: number;
@@ -302,6 +336,65 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
   // Members list (all workspace members for select inputs)
   const [workspaceMembers, setWorkspaceMembers] = React.useState<any[]>([]);
 
+  const loadEmploymentProfiles = React.useCallback(async () => {
+    const profsRes = await apiRequest('hr/employment-profiles?page=1&pageSize=25');
+    setProfiles(parseApiResponse<EmploymentProfile[]>(profsRes) || []);
+  }, []);
+
+  const loadLeaveRequests = React.useCallback(async () => {
+    const leavesRes = await apiRequest('hr/leave-requests?page=1&pageSize=25');
+    setLeaveRequests(parseApiResponse<LeaveRequest[]>(leavesRes) || []);
+  }, []);
+
+  const loadLeaveBalances = React.useCallback(async () => {
+    const balRes = await apiRequest('hr/leave-balances?page=1&pageSize=25');
+    setLeaveBalances(parseApiResponse<LeaveBalance[]>(balRes) || []);
+  }, []);
+
+  const loadDocuments = React.useCallback(async () => {
+    const docsRes = await apiRequest('hr/documents?page=1&pageSize=25');
+    setDocuments(parseApiResponse<StaffDocument[]>(docsRes) || []);
+  }, []);
+
+  const loadOnboarding = React.useCallback(async () => {
+    const onboardRes = await apiRequest('hr/onboarding?page=1&pageSize=25');
+    setOnboarding(parseApiResponse<OnboardingTask[]>(onboardRes) || []);
+  }, []);
+
+  const loadPipeline = React.useCallback(async () => {
+    if (!isHrAdmin) {
+      setPipeline([]);
+      return;
+    }
+    const pipelineRes = await apiRequest('hr/recruitment?page=1&pageSize=25');
+    setPipeline(parseApiResponse<RecruitmentPipeline[]>(pipelineRes) || []);
+  }, [isHrAdmin]);
+
+  const loadReviews = React.useCallback(async () => {
+    if (!isHrAdmin) {
+      setReviews([]);
+      return;
+    }
+    const reviewRes = await apiRequest('hr/performance?page=1&pageSize=25');
+    setReviews(parseApiResponse<PerformanceReview[]>(reviewRes) || []);
+  }, [isHrAdmin]);
+
+  const loadTraining = React.useCallback(async () => {
+    const trainRes = await apiRequest('hr/training?page=1&pageSize=25');
+    setTraining(parseApiResponse<TrainingRecord[]>(trainRes) || []);
+  }, []);
+
+  const loadReimbursements = React.useCallback(async () => {
+    const reimbRes = await apiRequest('hr/reimbursements?page=1&pageSize=25');
+    setReimbursements(parseApiResponse<ReimbursementRequest[]>(reimbRes) || []);
+  }, []);
+
+  const loadPayrollStructures = React.useCallback(async () => {
+    if (!isFinanceManager) return;
+    const payRes = await apiRequest('hr/payroll-structures?page=1&pageSize=25');
+    setPayrollStructures(parseApiResponse<PayrollStructure[]>(payRes) || []);
+  }, [isFinanceManager]);
+
   // ----------------------------------------------------------------------
   // Data Fetching
   // ----------------------------------------------------------------------
@@ -337,54 +430,21 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
         });
       }
 
-      // 2. Fetch profiles
-      const profsRes = await apiRequest('hr/employment-profiles');
-      const profs = parseApiResponse<EmploymentProfile[]>(profsRes) || [];
-      setProfiles(profs);
-
-      // 3. Fetch leave requests
-      const leavesRes = await apiRequest('hr/leave-requests');
-      setLeaveRequests(parseApiResponse<LeaveRequest[]>(leavesRes) || []);
-
-      // 4. Fetch leave balances
-      const balRes = await apiRequest('hr/leave-balances');
-      setLeaveBalances(parseApiResponse<LeaveBalance[]>(balRes) || []);
-
-      // 5. Fetch documents
-      const docsRes = await apiRequest('hr/documents');
-      setDocuments(parseApiResponse<StaffDocument[]>(docsRes) || []);
-
-      // 6. Fetch onboarding & pipeline
-      const onboardRes = await apiRequest('hr/onboarding');
-      setOnboarding(parseApiResponse<OnboardingTask[]>(onboardRes) || []);
-
-      if (isHrAdmin) {
-        const pipelineRes = await apiRequest('hr/recruitment');
-        setPipeline(parseApiResponse<RecruitmentPipeline[]>(pipelineRes) || []);
-
-        const reviewRes = await apiRequest('hr/performance');
-        setReviews(parseApiResponse<PerformanceReview[]>(reviewRes) || []);
-      } else {
-        setPipeline([]);
-        setReviews([]);
-      }
-
-      // 7. Fetch training
-      const trainRes = await apiRequest('hr/training');
-      setTraining(parseApiResponse<TrainingRecord[]>(trainRes) || []);
-
-      // 8. Fetch reimbursements
-      const reimbRes = await apiRequest('hr/reimbursements');
-      setReimbursements(parseApiResponse<ReimbursementRequest[]>(reimbRes) || []);
-
-      // 9. Fetch payroll structures (highly secure!)
-      if (isFinanceManager) {
-        const payRes = await apiRequest('hr/payroll-structures');
-        setPayrollStructures(parseApiResponse<PayrollStructure[]>(payRes) || []);
-      }
+      await Promise.all([
+        loadEmploymentProfiles(),
+        loadLeaveRequests(),
+        loadLeaveBalances(),
+        loadDocuments(),
+        loadOnboarding(),
+        loadPipeline(),
+        loadReviews(),
+        loadTraining(),
+        loadReimbursements(),
+        loadPayrollStructures(),
+      ]);
 
       // 10. Fetch general members list for selects
-      const membersRes = await apiRequest('members?limit=300');
+      const membersRes = await apiRequest('members');
       const mList = parseApiResponse<any[]>(membersRes) || [];
       setWorkspaceMembers(mList);
 
@@ -394,7 +454,18 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
     } finally {
       setLoading(false);
     }
-  }, [isHrAdmin, isFinanceManager]);
+  }, [
+    loadDocuments,
+    loadEmploymentProfiles,
+    loadLeaveBalances,
+    loadLeaveRequests,
+    loadOnboarding,
+    loadPayrollStructures,
+    loadPipeline,
+    loadReimbursements,
+    loadReviews,
+    loadTraining,
+  ]);
 
   React.useEffect(() => {
     loadAllHRData();
@@ -415,7 +486,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowAddProfileModal(false);
       setProfileForm({ memberId: '', jobTitle: '', startDate: '', status: 'Active', emergencyContact: '', notes: '' });
-      await loadAllHRData();
+      await loadEmploymentProfiles();
     } catch (e: any) {
       alert(e?.message || 'Error creating profile');
     } finally {
@@ -459,7 +530,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       setShowAddLeaveModal(false);
       setLeaveForm({ memberId: '', leaveType: 'Annual', startDate: '', endDate: '', reason: '', notes: '' });
       setConflictWarning(null);
-      await loadAllHRData();
+      await loadLeaveRequests();
     } catch (e: any) {
       alert(e?.message || 'Error submitting leave request');
     } finally {
@@ -479,7 +550,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
           forceApprove: approve ? forceApprove : undefined,
         }
       });
-      await loadAllHRData();
+      await loadLeaveRequests();
     } catch (e: any) {
       if (approve && e?.status === 409 && !forceApprove) {
         const ok = window.confirm(
@@ -504,7 +575,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowPayrollModal(false);
       setPayrollForm({ memberId: '', baseSalary: '', allowances: '0', deductions: '0', salaryExpenseAccountId: '4010', payrollPayableAccountId: '2020', isActive: true });
-      await loadAllHRData();
+      await loadPayrollStructures();
     } catch (e: any) {
       alert(e?.message || 'Error setting up compensation model');
     } finally {
@@ -523,7 +594,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowReimburseModal(false);
       setReimburseForm({ amount: '', category: 'Ministry', description: '', receiptUrl: '' });
-      await loadAllHRData();
+      await loadReimbursements();
     } catch (e: any) {
       alert(e?.message || 'Error filing expense claim');
     } finally {
@@ -542,7 +613,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
           pettyCashAccountId: '1010' // Default cash
         }
       });
-      await loadAllHRData();
+      await loadReimbursements();
     } catch (e: any) {
       alert(e?.message || 'Error posting payment voucher');
     } finally {
@@ -561,7 +632,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowOnboardModal(false);
       setOnboardForm({ memberId: '', taskName: '', dueDate: '', notes: '' });
-      await loadAllHRData();
+      await loadOnboarding();
     } catch (e: any) {
       alert(e?.message || 'Error creating orientation task');
     } finally {
@@ -577,7 +648,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
         method: 'PATCH',
         body: { isCompleted: !currentStatus }
       });
-      await loadAllHRData();
+      await loadOnboarding();
     } catch (e: any) {
       alert(e?.message || 'Error completing onboarding checklist item');
     } finally {
@@ -596,7 +667,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowCandidateModal(false);
       setCandidateForm({ candidateName: '', email: '', phone: '', appliedRole: '', notes: '' });
-      await loadAllHRData();
+      await loadPipeline();
     } catch (e: any) {
       alert(e?.message || 'Error registering candidate');
     } finally {
@@ -612,7 +683,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
         method: 'PATCH',
         body: { stage }
       });
-      await loadAllHRData();
+      await loadPipeline();
     } catch (e: any) {
       alert(e?.message || 'Error updating recruitment status');
     } finally {
@@ -634,7 +705,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowReviewModal(false);
       setReviewForm({ revieweeId: '', rating: '5', feedback: '', goals: '' });
-      await loadAllHRData();
+      await loadReviews();
     } catch (e: any) {
       alert(e?.message || 'Error saving feedback');
     } finally {
@@ -653,7 +724,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
       });
       setShowTrainingModal(false);
       setTrainForm({ memberId: '', courseName: '', provider: '', completionDate: '', certificationNo: '', status: 'Completed', notes: '' });
-      await loadAllHRData();
+      await loadTraining();
     } catch (e: any) {
       alert(e?.message || 'Error recording certification');
     } finally {
@@ -726,47 +797,23 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
   }
 
   return (
-    <div className="space-y-8 min-w-0 animate-in fade-in duration-500">
-      
-      {/* --- Staff desk header --- */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-900/90 via-slate-900/95 to-slate-900/95 text-white p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-md">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/25 via-transparent to-transparent pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <Badge className="bg-indigo-500/20 text-indigo-300 border-none font-black text-[9px] uppercase tracking-widest px-3 py-1">
-              Staff desk
-            </Badge>
-            <h1 className="text-3xl font-black tracking-tight">HR & Staff</h1>
-            <p className="text-slate-400 text-sm font-medium max-w-xl">
-              Staff directory, leave and coverage checks, payroll and reimbursements (finance), onboarding, and self-service — built for church teams.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 shrink-0">
+    <PageLayout>
+      <ModuleHeader
+        title="HR & Staff"
+        subtitle="Staff directory, leave, payroll, reimbursements, and onboarding — built for church teams."
+        icon={Briefcase}
+        actions={
+          <>
             {isHrAdmin && (
-              <Button
-                onClick={() => setShowPolicyModal(true)}
-                className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] uppercase tracking-widest gap-2 border border-slate-700"
-              >
-                <Settings size={14} /> Policies
-              </Button>
+              <ActionButton label="Policies" icon={Settings} variant="ghost" onClick={() => setShowPolicyModal(true)} />
             )}
-            <Button
-              onClick={() => setShowAddLeaveModal(true)}
-              className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] uppercase tracking-widest gap-2 shadow-sm shadow-indigo-600/30"
-            >
-              <Calendar size={14} /> Request Leave
-            </Button>
+            <ActionButton label="Request leave" icon={Calendar} variant="secondary" onClick={() => setShowAddLeaveModal(true)} />
             {isHrAdmin && (
-              <Button
-                onClick={() => setShowAddProfileModal(true)}
-                className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest gap-2 shadow-sm shadow-emerald-600/30"
-              >
-                <Plus size={14} /> Onboard Staff
-              </Button>
+              <ActionButton label="Onboard staff" icon={Plus} variant="primary" onClick={() => setShowAddProfileModal(true)} />
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* --- PREMIUM METRICS BAR --- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -788,7 +835,7 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
           onClick={() => { setActiveTab('directory'); setSelectedProfile(null); }}
           className={cn('px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap', activeTab === 'directory' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-900')}
         >
-          Staff Profiles
+          Staff directory
         </button>
         <button
           onClick={() => { setActiveTab('hierarchy'); setSelectedProfile(null); }}
@@ -1044,7 +1091,11 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
               {profiles.map(profile => (
                 <button
                   key={profile.id}
-                  onClick={() => setSelectedProfile(profile)}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.location.assign(buildMemberProfilePath(profile.member.id));
+                    }
+                  }}
                   className="text-left bg-white border border-slate-100 hover:border-indigo-200 rounded-2xl shadow-sm hover:shadow-md transition-all p-5 group flex flex-col justify-between"
                 >
                   <div className="flex items-start gap-4">
@@ -2435,6 +2486,6 @@ export function WorkforceModule({ onModuleChange }: WorkforceModuleProps) {
         </div>
       )}
 
-    </div>
+    </PageLayout>
   );
 }
