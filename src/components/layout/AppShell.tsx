@@ -48,7 +48,6 @@ const GROUPS: GroupDef[] = [
       { id: 'members',      label: 'Members',          icon: Users,          permission: 'manage_members',      status: 'live' },
       { id: 'families',     label: 'Families',         icon: Home,           permission: 'manage_members',      status: 'partial' },
       { id: 'volunteers',   label: 'Volunteers',       icon: HeartHandshake, permission: 'manage_members',      status: 'partial' },
-      { id: 'workforce',    label: 'Staff Directory',  icon: Briefcase,      permission: 'manage_members',      status: 'live' },
       { id: 'hr',           label: 'HR & Staff',         icon: ShieldCheck,   permission: 'manage_members',      status: 'live' },
       { id: 'small-groups', label: 'Small Groups',     icon: Network,        permission: 'manage_members',      status: 'live' },
       { id: 'pathways',     label: 'Growth Pathways',  icon: Route,          permission: 'manage_members',      status: 'live' },
@@ -58,10 +57,10 @@ const GROUPS: GroupDef[] = [
   {
     label: 'Operations', color: 'text-sky-500',
     items: [
-      { id: 'events',      label: 'Events',            icon: Star,           permission: 'manage_events',       status: 'operational' },
-      { id: 'sunday-mode', label: 'Sunday Mode',       icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
-      { id: 'attendance',  label: 'Attendance',        icon: CalendarCheck,  permission: 'manage_attendance',   status: 'operational' },
-      { id: 'worship',     label: 'Worship Planning',  icon: Music4,         permission: 'manage_events',       status: 'live' },
+      { id: 'sunday-services', label: 'Sunday & Services', icon: Music4,         permission: 'manage_events',       status: 'live' },
+      { id: 'sunday-mode',     label: 'Sunday Service',    icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
+      { id: 'events',          label: 'Events',            icon: Star,           permission: 'manage_events',       status: 'operational' },
+      { id: 'attendance',      label: 'Attendance',        icon: CalendarCheck,  permission: 'manage_attendance',   status: 'operational' },
       { id: 'outreach',    label: 'Visitors & Outreach', icon: Globe,        permission: 'manage_outreach',       status: 'live' },
       { id: 'structure',   label: 'Church Structure',  icon: Layers,         permission: 'manage_settings',     status: 'partial' },
     ],
@@ -207,7 +206,7 @@ export function AppShell({
   const canSeeItem = (item: ModuleItem) => {
     if (item.id === 'dashboard') return hasAny(['manage_analytics','manage_finance','manage_giving','manage_members','manage_attendance']);
     if (item.id === 'academy') return has('manage_analytics');
-    if (item.id === 'hr') return has('manage_hr');
+    if (item.id === 'hr') return hasAny(['manage_hr', 'manage_members']);
     if (item.id === 'documents') return hasAny(['manage_assets', 'manage_documents']);
     if (item.id === 'outreach') return hasAny(['manage_outreach', 'manage_communication']);
     if (item.id === 'discipleship') return hasAny(['manage_discipleship', 'manage_members']);
@@ -377,9 +376,10 @@ export function AppShell({
               type="button"
               onClick={() => setShowWalkthrough(true)}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              title="Explore Ultimate Church OS by role"
             >
               <Compass className="w-4 h-4" />
-              Guide
+              Explore Ultimate Church OS
             </button>
 
             {/* Search */}

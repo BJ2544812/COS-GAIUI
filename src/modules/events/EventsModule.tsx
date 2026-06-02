@@ -23,16 +23,14 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
-import { ServicesModule } from '../services/ServicesModule';
 import { EventWorkspace } from '@/components/events/EventWorkspace';
+import { openSundayServices, UCOS_OPEN_EVENT_ID } from '@/lib/sundayServicesNavigation';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, PageLayout, FeedbackBanner } from '@/components/modules/ModuleHeader';
 import type { ERPModule } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
 
-const UCOS_OPEN_EVENT_ID = 'ucos_open_event_id';
-const UCOS_EVENTS_ACTIVE_TAB = 'ucos_events_active_tab';
 
 type EventDetailDto = {
   id: string;
@@ -75,12 +73,6 @@ type EventCard = {
 
 export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
   const { settings } = useSettings();
-  const [activeTab, setActiveTab] = React.useState<'events' | 'services'>(() => {
-    if (typeof window === 'undefined') return 'events';
-    const t = sessionStorage.getItem(UCOS_EVENTS_ACTIVE_TAB);
-    sessionStorage.removeItem(UCOS_EVENTS_ACTIVE_TAB);
-    return t === 'services' ? 'services' : 'events';
-  });
   const [view, setView] = React.useState<'list' | 'details' | 'create' | 'setup'>('list');
   const [selectedEvent, setSelectedEvent] = React.useState<EventCard | null>(null);
   const [eventDetail, setEventDetail] = React.useState<EventDetailDto | null>(null);
@@ -93,7 +85,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [createName, setCreateName] = React.useState('');
-  const [createType, setCreateType] = React.useState('Service');
+  const [createType, setCreateType] = React.useState('Special');
   const [createDate, setCreateDate] = React.useState(() => new Date().toISOString().split('T')[0]);
 
   const [setupLocation, setSetupLocation] = React.useState('');
@@ -124,7 +116,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
       setListLoading(true);
       const json = await apiRequest<unknown>('events', { method: 'GET' });
       const rows = parseApiResponse<{ id: string; name: string; type: string; date: string }[]>(json);
-      setListEvents(mapRowsToCards(rows));
+      setListEvents(mapRowsToCards(rows.filter((e) => e.type !== 'Service')));
     } catch (e) {
       setEventsError(formatApiError(e));
       setListEvents([]);
@@ -177,11 +169,27 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     const id = sessionStorage.getItem(UCOS_OPEN_EVENT_ID);
     if (!id) return;
     sessionStorage.removeItem(UCOS_OPEN_EVENT_ID);
-    setView('details');
-    void loadEventOperational(id);
-  }, [loadEventOperational]);
+    void (async () => {
+      try {
+        const j = await apiRequest<unknown>(`events/${id}`, { method: 'GET' });
+        const row = parseApiResponse<{ type: string }>(j);
+        if (row.type === 'Service') {
+          openSundayServices(onModuleChange, 'plan', id);
+          return;
+        }
+      } catch {
+        /* fall through to workspace */
+      }
+      setView('details');
+      void loadEventOperational(id);
+    })();
+  }, [loadEventOperational, onModuleChange]);
 
   const handleEventClick = (event: EventCard) => {
+    if (event.type === 'Service') {
+      openSundayServices(onModuleChange, 'plan', event.id);
+      return;
+    }
     setView('details');
     void loadEventOperational(event.id, event);
   };
@@ -566,54 +574,27 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
   }
 
   return (
-    <div className="space-y-8 min-w-0 animate-in fade-in duration-700 text-left">
-       {successMessage && (
-        <div
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
-          role="status"
-        >
-          {successMessage}
-        </div>
-      )}
+    <PageLayout>
+       {successMessage && <FeedbackBanner tone="success">{successMessage}</FeedbackBanner>}
 
        <ModuleHeader
-         title="Events & Worship"
-         subtitle="Plan gatherings, assign teams, track attendance, and close out with a simple summary."
+         title="Events"
+         subtitle="Conferences, outreach gatherings, and special meetings — worship services live in Sunday & Services."
          status="live"
          icon={Star}
          actions={
-           activeTab === 'events' && (
+           <div className="flex flex-wrap gap-2">
+             <ActionButton
+               label="Sunday & Services"
+               icon={Calendar}
+               variant="secondary"
+               onClick={() => openSundayServices(onModuleChange, 'this-sunday')}
+             />
              <ActionButton label="Create Event" icon={Plus} variant="primary" onClick={() => setView('create')} />
-           )
+           </div>
          }
        />
        {eventsError && <p className="text-sm text-rose-600 font-medium mt-1 mb-4">{eventsError}</p>}
-
-       <div className="flex bg-slate-100 p-1 rounded-xl w-fit mb-6">
-          <button
-            onClick={() => setActiveTab('events')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-widest transition-all",
-              activeTab === 'events' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Events
-          </button>
-          <button
-            onClick={() => setActiveTab('services')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-widest transition-all",
-              activeTab === 'services' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Service Planning
-          </button>
-        </div>
-
-      {activeTab === 'services' ? (
-        <ServicesModule onModuleChange={onModuleChange} />
-      ) : (
-      <>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
          {listLoading ? (
@@ -677,8 +658,6 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
           Use the event cards above for details, setup, attendance sessions, and exports.
         </p>
       </div>
-      </>
-      )}
-    </div>
+    </PageLayout>
   );
 }

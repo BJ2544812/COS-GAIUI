@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Play,
   FileText,
+  Radio,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +21,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
+import { defaultRunSheet, type RunSheetSegment } from '@/lib/eventLifecycle';
+import { SortableRunSheet } from '@/components/operations/SortableRunSheet';
 import type { ERPModule } from '@/types';
+import { openSundayLive, openSundayServices, UCOS_OPEN_SERVICE_EVENT_ID } from '@/lib/sundayServicesNavigation';
 
 const UCOS_OPEN_EVENT_ID = 'ucos_open_event_id';
-const UCOS_OPEN_SERVICE_EVENT_ID = 'ucos_open_service_event_id';
 
 type ServiceEventRow = {
   id: string;
@@ -32,14 +35,6 @@ type ServiceEventRow = {
   date: string;
   location?: string | null;
 };
-
-const RUN_SHEET_TEMPLATE = [
-  { time: '09:00', dur: '05:00', item: 'Pre-service loop', media: 'Bumper / hold slide', owner: 'Media' },
-  { time: '09:05', dur: '10:00', item: 'Praise and worship', media: 'Chord charts / tracks', owner: 'Worship lead' },
-  { time: '09:15', dur: '03:00', item: 'Welcome and announcements', media: 'Slide deck', owner: 'Host' },
-  { time: '09:18', dur: '12:00', item: 'Message', media: 'Notes / props', owner: 'Speaker' },
-  { time: '09:30', dur: '05:00', item: 'Closing prayer / song', media: 'Soft loop', owner: 'Worship' },
-];
 
 export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
   const [rows, setRows] = React.useState<ServiceEventRow[]>([]);
@@ -50,6 +45,9 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
   const [planName, setPlanName] = React.useState('');
   const [planDate, setPlanDate] = React.useState(() => new Date().toISOString().split('T')[0]);
   const [planSaving, setPlanSaving] = React.useState(false);
+  const [runSheet, setRunSheet] = React.useState<RunSheetSegment[]>([]);
+  const [sheetLoading, setSheetLoading] = React.useState(false);
+  const [sheetSaving, setSheetSaving] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -76,6 +74,37 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  const loadRunSheet = React.useCallback(async (eventId: string) => {
+    setSheetLoading(true);
+    try {
+      const j = await apiRequest<unknown>(`events/${eventId}`, { method: 'GET' });
+      const ev = parseApiResponse<{ runSheet?: RunSheetSegment[] | null }>(j);
+      setRunSheet(Array.isArray(ev.runSheet) && ev.runSheet.length > 0 ? ev.runSheet : defaultRunSheet());
+    } catch {
+      setRunSheet(defaultRunSheet());
+    } finally {
+      setSheetLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (selectedService) void loadRunSheet(selectedService.id);
+    else setRunSheet([]);
+  }, [selectedService, loadRunSheet]);
+
+  const saveRunSheet = async () => {
+    if (!selectedService) return;
+    setSheetSaving(true);
+    setLoadError(null);
+    try {
+      await apiRequest(`events/${selectedService.id}/run-sheet`, { method: 'PUT', body: { runSheet } });
+    } catch (err) {
+      setLoadError(formatApiError(err));
+    } finally {
+      setSheetSaving(false);
+    }
+  };
 
   const submitPlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,19 +143,35 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
             <Button type="button" variant="outline" size="sm" onClick={() => openInEvents(selectedService.id)}>
               <Calendar className="w-4 h-4 mr-2" /> Event operations
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => onModuleChange?.('worship')}>
-              <Music className="w-4 h-4 mr-2" /> Worship planning
+            <Button type="button" variant="outline" size="sm" onClick={() => openSundayServices(onModuleChange, 'plan', selectedService.id)}>
+              <Music className="w-4 h-4 mr-2" /> Service plan
             </Button>
             <Button type="button" className="bg-indigo-600" size="sm" onClick={() => onModuleChange?.('attendance')}>
               <Users className="w-4 h-4 mr-2" /> Attendance
+            </Button>
+            <Button
+              type="button"
+              className="bg-violet-600 min-h-[44px]"
+              size="sm"
+              onClick={() => openSundayLive(onModuleChange, selectedService.id)}
+            >
+              <Radio className="w-4 h-4 mr-2" /> Sunday Service
             </Button>
           </div>
         </div>
 
         <p className="text-sm text-slate-500 font-medium max-w-3xl">
-          Run sheet below is an operational template. Persisted logistics, attendance, and media use the linked event and other modules.
+          Production run sheet is saved on this service event. Use Event operations for check-in, volunteers, and finance.
           {selectedService.location ? ` Venue: ${selectedService.location}.` : ''}
         </p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={sheetSaving || sheetLoading} onClick={() => void loadRunSheet(selectedService.id)}>
+            Reload
+          </Button>
+          <Button type="button" size="sm" className="bg-indigo-600" disabled={sheetSaving || sheetLoading} onClick={() => void saveRunSheet()}>
+            {sheetSaving ? 'Saving…' : 'Save run sheet'}
+          </Button>
+        </div>
 
         <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
           <CardHeader className="bg-slate-900 text-white p-8 border-none">
@@ -147,53 +192,18 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-sans">
-                <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                  <tr>
-                    <th className="px-8 py-4">Time</th>
-                    <th className="px-8 py-4">Dur</th>
-                    <th className="px-8 py-4">Item / segment</th>
-                    <th className="px-8 py-4">Media / cues</th>
-                    <th className="px-8 py-4 text-right">Owner</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 text-sm">
-                  {RUN_SHEET_TEMPLATE.map((item, i) => (
-                    <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                      <td className="px-8 py-5 font-mono font-bold text-indigo-600">{item.time}</td>
-                      <td className="px-8 py-5 font-mono text-slate-400 font-bold">{item.dur}</td>
-                      <td className="px-8 py-5">
-                        <p className="font-bold text-slate-800">{item.item}</p>
-                        <div className="flex gap-2 mt-1">
-                          <Badge variant="ghost" className="p-0 text-[10px] text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                            <Play size={10} /> Segment
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                          <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                          {item.media}
-                        </div>
-                      </td>
-                      <td className="px-8 py-5 text-right font-bold text-slate-400 group-hover:text-indigo-600 transition-colors uppercase tracking-widest text-[10px]">
-                        {item.owner}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="overflow-x-auto p-2">
+              {sheetLoading ? (
+                <p className="px-8 py-8 text-center text-slate-400">Loading run sheet…</p>
+              ) : (
+                <SortableRunSheet rows={runSheet} onChange={setRunSheet} />
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
     );
   }
-
-  const drafting = rows.length;
-  const inPlanning = 0;
-  const ready = 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 text-left">
@@ -247,11 +257,9 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 max-w-xs">
             {[
-              { title: 'On calendar', count: drafting, color: 'bg-slate-100 text-slate-700' },
-              { title: 'In planning', count: inPlanning, color: 'bg-indigo-100 text-indigo-700' },
-              { title: 'Ready', count: ready, color: 'bg-emerald-100 text-emerald-700' },
+              { title: 'Services on calendar', count: rows.length, color: 'bg-slate-100 text-slate-700' },
             ].map((cat, i) => (
               <div key={i} className="p-4 rounded-xl border border-slate-100 bg-white flex justify-between items-center shadow-sm">
                 <span className="text-sm font-bold text-slate-600 uppercase tracking-widest leading-none text-[10px]">{cat.title}</span>
@@ -345,10 +353,10 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
               <button
                 type="button"
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-indigo-50/50 text-slate-600 text-xs font-black uppercase tracking-widest border border-transparent hover:border-indigo-100 transition-all active:scale-95 text-left"
-                onClick={() => onModuleChange?.('worship')}
+                onClick={() => openSundayServices(onModuleChange, 'this-sunday')}
               >
                 <Music className="w-4 h-4 text-indigo-500" />
-                Worship planning
+                Sunday &amp; Services
               </button>
               <button
                 type="button"
@@ -396,3 +404,4 @@ export function ServicesModule({ onModuleChange }: { onModuleChange?: (m: ERPMod
     </div>
   );
 }
+

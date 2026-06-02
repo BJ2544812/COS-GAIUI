@@ -38,7 +38,7 @@ import { VolunteersModule }         from './modules/volunteers/VolunteersModule'
 import { SmallGroupsModule }        from './modules/small-groups/SmallGroupsModule';
 import { PathwaysModule }           from './modules/pathways/PathwaysModule';
 import { MissionsModule }           from './modules/missions/MissionsModule';
-import { WorshipPlanningModule }    from './modules/worship/WorshipPlanningModule';
+import { SundayServicesModule, WorshipPlanningRedirect } from './modules/sunday-services/SundayServicesModule';
 import { BudgetsModule }            from './modules/budgets/BudgetsModule';
 import { FundsModule }              from './modules/funds/FundsModule';
 import { VendorsModule }            from './modules/vendors/VendorsModule';
@@ -116,7 +116,7 @@ function MainApp() {
     discipleship: 'manage_members',
     // Operations
     events: 'manage_events', attendance: 'manage_attendance', services: 'manage_events',
-    worship: 'manage_events', outreach: 'manage_communication', missions: 'manage_communication',
+    'sunday-services': 'manage_events', worship: 'manage_events', outreach: 'manage_communication', missions: 'manage_communication',
     structure: 'manage_settings',
     // Finance
     giving: 'manage_giving', finance: 'manage_finance', budgets: 'manage_finance',
@@ -172,8 +172,9 @@ function MainApp() {
             // ── Operations ──────────────────────────────────────────────────
             case 'events':      return <EventsModule onModuleChange={mc} />;
             case 'attendance':  return <AttendanceModule />;
-            case 'services':    return <ServicesModule onModuleChange={mc} />;
-            case 'worship':     return <WorshipPlanningModule onModuleChange={mc} />;
+            case 'sunday-services':
+            case 'services':    return <SundayServicesModule onModuleChange={mc} />;
+            case 'worship':     return <WorshipPlanningRedirect onModuleChange={mc} />;
             case 'outreach':    return <OutreachModule />;
             case 'missions':    return <MissionsModule onModuleChange={mc} />;
             case 'structure':   return <StructureModule />;

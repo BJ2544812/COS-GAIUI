@@ -4,22 +4,21 @@ import {
   Users,
   DollarSign,
   ClipboardList,
-  ListOrdered,
   Shield,
-  Bell,
   FileText,
   ChevronRight,
   Loader2,
   Radio,
+  ListOrdered,
 } from 'lucide-react';
-import { LiveEventOpsPanel } from '@/components/events/LiveEventOpsPanel';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
-import { EVENT_STATUS_COLORS, EVENT_STATUS_LABELS, type RunSheetSegment } from '@/lib/eventLifecycle';
+import { EVENT_STATUS_COLORS, EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
+import { openSundayLive, openSundayServices } from '@/lib/sundayServicesNavigation';
 import type { ERPModule } from '@/types';
 
 type WorkspaceTab =
@@ -35,7 +34,7 @@ type WorkspaceTab =
   | 'reports'
   | 'workflow';
 
-const TABS: { id: WorkspaceTab; label: string; icon: React.ElementType }[] = [
+const ALL_TABS: { id: WorkspaceTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Calendar },
   { id: 'live', label: 'Live ops', icon: Radio },
   { id: 'sessions', label: 'Sessions', icon: ClipboardList },
@@ -44,10 +43,12 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ElementType }[] = [
   { id: 'volunteers', label: 'Volunteers', icon: Shield },
   { id: 'budget', label: 'Budget', icon: DollarSign },
   { id: 'runsheet', label: 'Run sheet', icon: ListOrdered },
-  { id: 'communication', label: 'Communication', icon: Bell },
+  { id: 'communication', label: 'Communication', icon: FileText },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'workflow', label: 'Workflow', icon: ChevronRight },
 ];
+
+const SERVICE_TABS: WorkspaceTab[] = ['overview', 'sessions', 'volunteers', 'runsheet'];
 
 type WorkspaceData = {
   event: {
@@ -58,7 +59,6 @@ type WorkspaceData = {
     status: string;
     location?: string | null;
     internalNotes?: string | null;
-    runSheet?: RunSheetSegment[] | null;
     registrationOpen?: boolean;
     attendanceSessions?: Array<{
       id: string;
@@ -90,13 +90,23 @@ const NEXT_STATUS: Record<string, string[]> = {
   COMPLETED: ['ARCHIVED'],
 };
 
+function isServiceEvent(type: string): boolean {
+  return type === 'Service';
+}
+
+function hasFinanceData(finance: WorkspaceData['finance']): boolean {
+  if (!finance?.totals) return false;
+  const { income, expenses, net } = finance.totals;
+  return income !== 0 || expenses !== 0 || net !== 0;
+}
+
 export function EventWorkspace({
   eventId,
   onModuleChange,
   currency,
 }: {
   eventId: string;
-  onModuleChange?: (m: ERPModule) => void;
+  onModuleChange?: (m: ERPModule, tab?: string) => void;
   currency: string;
 }) {
   const [tab, setTab] = React.useState<WorkspaceTab>('overview');
@@ -104,8 +114,6 @@ export function EventWorkspace({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [transitioning, setTransitioning] = React.useState(false);
-  const [runSheet, setRunSheet] = React.useState<RunSheetSegment[]>([]);
-  const [savingSheet, setSavingSheet] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -114,7 +122,6 @@ export function EventWorkspace({
       const j = await apiRequest<unknown>(`events/${eventId}/workspace`, { method: 'GET' });
       const ws = parseApiResponse<WorkspaceData>(j);
       setData(ws);
-      setRunSheet(Array.isArray(ws.event.runSheet) ? ws.event.runSheet! : []);
     } catch (e) {
       setError(formatApiError(e));
       setData(null);
@@ -127,6 +134,21 @@ export function EventWorkspace({
     void load();
   }, [load]);
 
+  const serviceMode = data?.event ? isServiceEvent(data.event.type) : false;
+  const visibleTabs = React.useMemo(() => {
+    if (!data) return ALL_TABS;
+    return ALL_TABS.filter((t) => {
+      if (!serviceMode) return true;
+      if (!SERVICE_TABS.includes(t.id)) return false;
+      if (t.id === 'budget' && !hasFinanceData(data.finance)) return false;
+      return true;
+    });
+  }, [data, serviceMode]);
+
+  React.useEffect(() => {
+    if (!visibleTabs.some((t) => t.id === tab)) setTab('overview');
+  }, [tab, visibleTabs]);
+
   const transition = async (status: string) => {
     setTransitioning(true);
     setError(null);
@@ -137,18 +159,6 @@ export function EventWorkspace({
       setError(formatApiError(e));
     } finally {
       setTransitioning(false);
-    }
-  };
-
-  const saveRunSheet = async () => {
-    setSavingSheet(true);
-    try {
-      await apiRequest(`events/${eventId}/run-sheet`, { method: 'PUT', body: { runSheet } });
-      await load();
-    } catch (e) {
-      setError(formatApiError(e));
-    } finally {
-      setSavingSheet(false);
     }
   };
 
@@ -187,25 +197,44 @@ export function EventWorkspace({
 
   const ev = data.event;
   const statusKey = ev.status || 'DRAFT';
-  const next = NEXT_STATUS[statusKey] ?? [];
+  const next = serviceMode ? [] : (NEXT_STATUS[statusKey] ?? []);
 
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-rose-600 font-medium">{error}</p>}
 
+      {serviceMode && (
+        <Card className="rounded-2xl border-indigo-100 bg-indigo-50/50">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-indigo-900 font-medium">
+              Worship services are planned in Sunday &amp; Services. Live timing runs in Sunday Service.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" className="bg-indigo-600" onClick={() => openSundayServices(onModuleChange, 'plan', eventId)}>
+                Open service plan
+              </Button>
+              <Button type="button" size="sm" className="bg-violet-600" onClick={() => openSundayLive(onModuleChange, eventId)}>
+                <Radio className="w-4 h-4 mr-2" /> Sunday Service
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         <Badge className={cn('font-bold uppercase tracking-widest text-[10px]', EVENT_STATUS_COLORS[statusKey] ?? 'bg-slate-100')}>
           {EVENT_STATUS_LABELS[statusKey] ?? statusKey}
         </Badge>
-        {next.map((s) => (
-          <Button key={s} size="sm" variant="outline" disabled={transitioning} onClick={() => void transition(s)}>
-            → {EVENT_STATUS_LABELS[s] ?? s}
-          </Button>
-        ))}
+        {!serviceMode &&
+          next.map((s) => (
+            <Button key={s} size="sm" variant="outline" disabled={transitioning} onClick={() => void transition(s)}>
+              → {EVENT_STATUS_LABELS[s] ?? s}
+            </Button>
+          ))}
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-2">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -221,8 +250,16 @@ export function EventWorkspace({
         ))}
       </div>
 
-      {tab === 'live' && (
-        <LiveEventOpsPanel eventId={eventId} onModuleChange={onModuleChange} />
+      {tab === 'live' && !serviceMode && (
+        <Card className="rounded-2xl p-8 text-center space-y-4">
+          <CardTitle className="text-lg">Live operations</CardTitle>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            For worship services, use Sunday Service for the live cockpit.
+          </p>
+          <Button type="button" className="bg-violet-600" onClick={() => openSundayLive(onModuleChange, eventId)}>
+            Open Sunday Service
+          </Button>
+        </Card>
       )}
 
       {tab === 'overview' && (
@@ -241,10 +278,15 @@ export function EventWorkspace({
           ))}
           <Card className="md:col-span-3 rounded-2xl border-slate-100">
             <CardHeader>
-              <CardTitle className="text-lg">Team notes</CardTitle>
+              <CardTitle className="text-lg">{serviceMode ? 'Planning notes' : 'Team notes'}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{ev.internalNotes || 'No staff notes yet.'}</p>
+              {serviceMode && (
+                <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => openSundayServices(onModuleChange, 'plan', eventId)}>
+                  Edit in service plan
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -316,7 +358,7 @@ export function EventWorkspace({
         </Card>
       )}
 
-      {tab === 'budget' && (
+      {tab === 'budget' && !serviceMode && (
         <Card className="rounded-2xl">
           <CardHeader>
             <CardTitle>Event finances</CardTitle>
@@ -349,95 +391,18 @@ export function EventWorkspace({
       )}
 
       {tab === 'runsheet' && (
-        <Card className="rounded-2xl">
-          <CardHeader className="flex flex-row justify-between">
-            <div>
-              <CardTitle>Service run sheet</CardTitle>
-              <CardDescription>Saved on this event</CardDescription>
-            </div>
-            <Button size="sm" disabled={savingSheet} onClick={() => void saveRunSheet()}>
-              {savingSheet ? 'Saving…' : 'Save run sheet'}
-            </Button>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-[10px] uppercase text-slate-400">
-                <tr>
-                  <th className="py-2">Time</th>
-                  <th>Dur</th>
-                  <th>Segment</th>
-                  <th>Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runSheet.map((row, i) => (
-                  <tr key={row.id ?? i} className="border-t border-slate-50">
-                    <td className="py-2">
-                      <input
-                        className="w-20 border rounded px-2 py-1"
-                        value={row.time}
-                        onChange={(e) => {
-                          const next = [...runSheet];
-                          next[i] = { ...row, time: e.target.value };
-                          setRunSheet(next);
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="w-16 border rounded px-2 py-1"
-                        value={row.duration}
-                        onChange={(e) => {
-                          const next = [...runSheet];
-                          next[i] = { ...row, duration: e.target.value };
-                          setRunSheet(next);
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="w-full border rounded px-2 py-1"
-                        value={row.item}
-                        onChange={(e) => {
-                          const next = [...runSheet];
-                          next[i] = { ...row, item: e.target.value };
-                          setRunSheet(next);
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="w-full border rounded px-2 py-1"
-                        value={row.owner ?? ''}
-                        onChange={(e) => {
-                          const next = [...runSheet];
-                          next[i] = { ...row, owner: e.target.value };
-                          setRunSheet(next);
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-4"
-              onClick={() =>
-                setRunSheet((s) => [
-                  ...s,
-                  { id: String(Date.now()), time: '10:00', duration: '05:00', item: 'New segment', owner: '' },
-                ])
-              }
-            >
-              Add segment
-            </Button>
-          </CardContent>
+        <Card className="rounded-2xl p-8 text-center space-y-4">
+          <CardTitle className="text-lg">Service plan</CardTitle>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            The run sheet is edited in Sunday &amp; Services — one canonical planner for worship flow.
+          </p>
+          <Button type="button" className="bg-indigo-600" onClick={() => openSundayServices(onModuleChange, 'plan', eventId)}>
+            Open service plan
+          </Button>
         </Card>
       )}
 
-      {(tab === 'registrations' || tab === 'attendance' || tab === 'communication' || tab === 'reports' || tab === 'workflow') && (
+      {!serviceMode && (tab === 'registrations' || tab === 'attendance' || tab === 'communication' || tab === 'reports' || tab === 'workflow') && (
         <Card className="rounded-2xl p-8">
           <CardTitle className="text-lg mb-2">
             {tab === 'registrations' && 'Registrations'}
@@ -457,7 +422,7 @@ export function EventWorkspace({
             {tab === 'workflow' && 'Approvals create tasks you can track in Activity log.'}
           </p>
           {tab === 'workflow' && (
-            <Button className="mt-4" variant="outline" size="sm" onClick={() => onModuleChange?.('event-admin')}>
+            <Button className="mt-4" variant="outline" size="sm" onClick={() => onModuleChange?.('workflow-monitor')}>
               Open activity log
             </Button>
           )}

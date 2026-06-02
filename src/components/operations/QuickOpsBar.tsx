@@ -35,6 +35,7 @@ const ICON_BY_MODULE: Partial<Record<ERPModule, React.ElementType>> = {
   vendors: Library,
   events: Star,
   worship: Music4,
+  'sunday-services': Music4,
   members: Users,
   communication: MessageCircle,
   hr: ShieldCheck,
@@ -54,6 +55,7 @@ const ACCENT_BY_MODULE: Partial<Record<ERPModule, string>> = {
   vendors: 'text-emerald-600',
   events: 'text-indigo-600',
   worship: 'text-violet-600',
+  'sunday-services': 'text-violet-600',
   members: 'text-indigo-600',
   communication: 'text-rose-600',
   hr: 'text-slate-600',
@@ -101,7 +103,7 @@ export function QuickOpsBar({
                 if (id === 'sunday-mode') {
                   const last = sessionStorage.getItem(UCOS_LIVE_SERVICE_ID);
                   if (!last) {
-                    /* user picks service inside Sunday Mode */
+                    /* user picks service inside Sunday Service */
                   }
                 }
                 onModuleChange(id);

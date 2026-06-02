@@ -9,15 +9,14 @@ export const CANONICAL_ADMIN_MODULES: readonly ERPModule[] = [
   'members',
   'families',
   'volunteers',
-  'workforce',
   'hr',
   'small-groups',
   'pathways',
   'discipleship',
   'events',
+  'sunday-services',
   'sunday-mode',
   'attendance',
-  'worship',
   'outreach',
   'structure',
   'giving',
@@ -40,8 +39,12 @@ export const CANONICAL_ADMIN_MODULES: readonly ERPModule[] = [
 ] as const;
 
 /** Legacy module ids → canonical target (+ optional tab). */
+const UCOS_HR_ACTIVE_TAB = 'ucos_hr_active_tab';
+
 export const MODULE_ALIASES: Record<string, { module: ERPModule; tab?: string }> = {
-  services: { module: 'events', tab: 'services' },
+  workforce: { module: 'hr', tab: 'directory' },
+  worship: { module: 'sunday-services', tab: 'this-sunday' },
+  services: { module: 'sunday-services', tab: 'schedule' },
   missions: { module: 'outreach' },
   funds: { module: 'budgets', tab: 'funds' },
   content: { module: 'sermons' },
@@ -58,7 +61,7 @@ export const MODULE_ALIASES: Record<string, { module: ERPModule; tab?: string }>
   mobile: { module: 'website', tab: 'dashboard' },
 };
 
-const UCOS_EVENTS_ACTIVE_TAB = 'ucos_events_active_tab';
+const UCOS_SUNDAY_SERVICES_TAB = 'ucos_sunday_services_tab';
 
 export type AdminRouteState = {
   module: ERPModule;
@@ -84,11 +87,17 @@ export function normalizeAdminModule(raw: string | null | undefined): AdminRoute
 
 function applyModuleTabSideEffects(module: ERPModule, tab?: string) {
   if (typeof window === 'undefined' || !tab) return;
+  if (module === 'sunday-services' && tab) {
+    sessionStorage.setItem(UCOS_SUNDAY_SERVICES_TAB, tab);
+  }
   if (module === 'events' && tab === 'services') {
-    sessionStorage.setItem(UCOS_EVENTS_ACTIVE_TAB, 'services');
+    sessionStorage.setItem(UCOS_SUNDAY_SERVICES_TAB, 'schedule');
   }
   if (module === 'finance' && tab) {
     sessionStorage.setItem('church_erp_finance_tab', tab as FinanceWorkspaceTab);
+  }
+  if (module === 'hr' && tab) {
+    sessionStorage.setItem(UCOS_HR_ACTIVE_TAB, tab);
   }
 }
 
@@ -110,6 +119,23 @@ export function buildAdminPath(state: AdminRouteState): string {
   if (state.tab) params.set('tab', state.tab);
   const q = params.toString();
   return `/admin${q ? `?${q}` : ''}`;
+}
+
+/** Canonical member profile — Members module reads memberId + view=profile from URL. */
+export function buildMemberProfilePath(memberId: string): string {
+  const params = new URLSearchParams();
+  params.set('module', 'members');
+  params.set('memberId', memberId);
+  params.set('view', 'profile');
+  return `/admin?${params.toString()}`;
+}
+
+/** Families household detail — Families module reads familyId from URL. */
+export function buildFamilyDetailPath(familyId: string): string {
+  const params = new URLSearchParams();
+  params.set('module', 'families');
+  params.set('familyId', familyId);
+  return `/admin?${params.toString()}`;
 }
 
 export function adminModuleLabel(module: ERPModule): string {

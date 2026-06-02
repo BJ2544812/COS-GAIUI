@@ -42,6 +42,9 @@ export type ModuleStatus =
   | 'planned'
   | 'experimental';
 
+/** Navigate to an admin module (optional tab for deep links). */
+export type ModuleNavigate = (module: ERPModule, tab?: string) => void;
+
 // Module identifiers for navigation
 export type ERPModule =
   // Special
@@ -52,6 +55,7 @@ export type ERPModule =
   | 'families'
   | 'volunteers'
   | 'workforce'
+  | 'hr'
   | 'small-groups'
   | 'pathways'
   | 'discipleship'
@@ -59,6 +63,8 @@ export type ERPModule =
   | 'events'
   | 'attendance'
   | 'services'
+  | 'sunday-mode'
+  | 'sunday-services'
   | 'worship'
   | 'outreach'
   | 'missions'
@@ -86,6 +92,7 @@ export type ERPModule =
   | 'seo'
   // INTELLIGENCE
   | 'analytics'
+  | 'academy'
   | 'engagement'
   | 'workflow-monitor'
   | 'event-admin'
@@ -94,5 +101,6 @@ export type ERPModule =
   | 'settings'
   | 'permissions'
   | 'feature-flags'
+  | 'admin-center'
   | 'tenant-settings'
   | 'integrations';

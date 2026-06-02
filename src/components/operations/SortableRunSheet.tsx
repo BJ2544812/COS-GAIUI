@@ -19,13 +19,22 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { RunSheetSegment } from '@/lib/eventLifecycle';
+import {
+  getSermonIdFromSegment,
+  isMessageSegment,
+  setSermonIdOnSegment,
+} from '@/lib/runSheetSermonRef';
+
+type SermonOption = { id: string; title: string; speaker?: string | null };
 
 function SortableRow({
   item,
   onChange,
+  sermons,
 }: {
   item: RunSheetSegment;
-  onChange: (patch: Partial<RunSheetSegment>) => void;
+  onChange: (next: RunSheetSegment) => void;
+  sermons?: SermonOption[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -35,6 +44,9 @@ function SortableRow({
     transition,
     opacity: isDragging ? 0.85 : 1,
   };
+  const sermonId = getSermonIdFromSegment(item);
+  const linked = sermons?.find((s) => s.id === sermonId);
+  const showSermon = isMessageSegment(item) && sermons && sermons.length > 0;
 
   return (
     <tr ref={setNodeRef} style={style} className="hover:bg-slate-50 bg-white">
@@ -50,20 +62,44 @@ function SortableRow({
         </button>
       </td>
       <td className="px-2 py-2">
-        <Input value={item.time} onChange={(e) => onChange({ time: e.target.value })} className="font-mono text-sm h-9" />
+        <Input value={item.time} onChange={(e) => onChange({ ...item, time: e.target.value })} className="font-mono text-sm h-9" />
       </td>
       <td className="px-2 py-2">
-        <Input value={item.duration} onChange={(e) => onChange({ duration: e.target.value })} className="font-mono text-sm h-9" />
+        <Input value={item.duration} onChange={(e) => onChange({ ...item, duration: e.target.value })} className="font-mono text-sm h-9" />
       </td>
       <td className="px-2 py-2">
-        <Input value={item.item} onChange={(e) => onChange({ item: e.target.value })} className="text-sm h-9 font-bold" />
+        <Input value={item.item} onChange={(e) => onChange({ ...item, item: e.target.value })} className="text-sm h-9 font-bold" />
       </td>
       <td className="px-2 py-2">
-        <Input value={item.media ?? ''} onChange={(e) => onChange({ media: e.target.value })} className="text-sm h-9" />
+        <Input value={item.media ?? ''} onChange={(e) => onChange({ ...item, media: e.target.value })} className="text-sm h-9" />
       </td>
       <td className="px-2 py-2">
-        <Input value={item.owner ?? ''} onChange={(e) => onChange({ owner: e.target.value })} className="text-sm h-9" />
+        <Input value={item.owner ?? ''} onChange={(e) => onChange({ ...item, owner: e.target.value })} className="text-sm h-9" />
       </td>
+      {showSermon && (
+        <td className="px-2 py-2 min-w-[180px]">
+          <select
+            className="w-full h-9 rounded-md border border-slate-200 px-2 text-sm bg-white"
+            value={sermonId ?? ''}
+            onChange={(e) => onChange(setSermonIdOnSegment(item, e.target.value || null))}
+          >
+            <option value="">Link sermon…</option>
+            {sermons!.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+                {s.speaker ? ` — ${s.speaker}` : ''}
+              </option>
+            ))}
+          </select>
+          {linked && (
+            <p className="text-[10px] text-slate-500 mt-1 truncate">
+              {linked.title}
+              {linked.speaker ? ` · ${linked.speaker}` : ''}
+            </p>
+          )}
+        </td>
+      )}
+      {!showSermon && sermons && sermons.length > 0 && <td className="px-2 py-2" />}
     </tr>
   );
 }
@@ -71,14 +107,17 @@ function SortableRow({
 export function SortableRunSheet({
   rows,
   onChange,
+  sermons,
 }: {
   rows: RunSheetSegment[];
   onChange: (rows: RunSheetSegment[]) => void;
+  sermons?: SermonOption[];
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  const hasSermonCol = Boolean(sermons && sermons.length > 0);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -100,6 +139,7 @@ export function SortableRunSheet({
             <th className="px-2 py-3">Segment</th>
             <th className="px-2 py-3">Media</th>
             <th className="px-2 py-3">Owner</th>
+            {hasSermonCol && <th className="px-2 py-3">Sermon</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50 text-sm">
@@ -108,9 +148,8 @@ export function SortableRunSheet({
               <SortableRow
                 key={item.id}
                 item={item}
-                onChange={(patch) =>
-                  onChange(rows.map((r) => (r.id === item.id ? { ...r, ...patch } : r)))
-                }
+                sermons={sermons}
+                onChange={(next) => onChange(rows.map((r) => (r.id === item.id ? next : r)))}
               />
             ))}
           </SortableContext>

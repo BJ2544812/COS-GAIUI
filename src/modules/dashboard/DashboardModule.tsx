@@ -17,7 +17,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
-import { FeedbackBanner, StatCard } from '@/components/modules/ModuleHeader';
+import { FeedbackBanner, StatCard, ModuleHeader, PageLayout } from '@/components/modules/ModuleHeader';
+import { ds } from '@/lib/designSystem';
 import { cn } from '@/lib/utils';
 import { ERPModule } from '@/types';
 import { OperationsCommandCenter } from '@/components/operations/OperationsCommandCenter';
@@ -28,6 +29,7 @@ import { usePermissions } from '@/context/AuthContext';
 import { dashboardLensLabel } from '@/lib/churchProductCopy';
 import { getRoleExperience, type DashboardLens, type RoleArchetype } from '@/lib/roleExperience';
 import { RoleFirstDayPanel } from '@/components/role/RoleFirstDayPanel';
+import { QuickTestNextCard } from '@/components/guided-learning/QuickTestNextCard';
 
 const FIRST_DAY_ARCHETYPES: RoleArchetype[] = [
   'church_admin',
@@ -386,9 +388,9 @@ export function DashboardModule({
                </CardDescription>
             </CardHeader>
             <CardContent className="p-10 pt-0 space-y-3 relative z-10">
-               {(['attendance', 'giving', 'events', 'worship'] as ERPModule[]).map((id) => (
+               {(['attendance', 'giving', 'sunday-services', 'events'] as ERPModule[]).map((id) => (
                  <Button key={id} type="button" variant="outline" className="w-full justify-center border-white/20 bg-white/5 text-white hover:bg-white/15 rounded-xl text-[10px] font-black uppercase tracking-widest" onClick={() => onModuleChange?.(id)}>
-                    {id === 'worship' ? 'Worship planning' : id.charAt(0).toUpperCase() + id.slice(1)}
+                    {id === 'sunday-services' ? 'Sunday & Services' : id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ')}
                  </Button>
                ))}
             </CardContent>
@@ -448,7 +450,7 @@ export function DashboardModule({
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       {loadWarning ? (
         <FeedbackBanner tone="warning">
           <div className="flex items-center justify-between gap-4">
@@ -462,16 +464,17 @@ export function DashboardModule({
       {roleExp && FIRST_DAY_ARCHETYPES.includes(roleExp.archetype) ? (
         <RoleFirstDayPanel archetype={roleExp.archetype} onModuleChange={onModuleChange} />
       ) : null}
+      <QuickTestNextCard className="mb-2" />
       <OnboardingChecklist compact onModuleChange={(m) => onModuleChange?.(m)} />
       {!roleExp?.focusedHome && view === 'operations' ? (
         <OnboardingChecklist onModuleChange={(m) => onModuleChange?.(m)} />
       ) : null}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-5xl font-black text-slate-900 tracking-tighter leading-none">
-            {roleExp?.title ?? (view === 'personal' ? 'Welcome back.' : 'Overview')}
+          <h1 className={ds.pageTitle}>
+            {roleExp?.title ?? (view === 'personal' ? 'Welcome back' : 'Overview')}
           </h1>
-          <p className="text-slate-500 font-medium mt-3 text-lg">
+          <p className={cn(ds.pageSubtitle, 'text-base')}>
             {roleExp?.subtitle ?? (view === 'personal' ? 'Here is a snapshot of your day and responsibilities.' : 'A clear view of church life this week.')}
           </p>
         </div>
@@ -536,6 +539,6 @@ export function DashboardModule({
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
       `}</style>
-    </div>
+    </PageLayout>
   );
 }
