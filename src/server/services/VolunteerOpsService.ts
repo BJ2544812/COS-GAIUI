@@ -8,6 +8,7 @@ import {
   releaseOperationalLock,
   operationalLockKey,
 } from '../utils/operationalLocks.js';
+import { cacheThrough, cacheInvalidatePrefix } from '../utils/opsCache.js';
 
 export class VolunteerOpsService {
   static async getVolunteerBoard(tenantId: string, eventId?: string, page = 1, pageSize = 25) {
@@ -19,13 +20,20 @@ export class VolunteerOpsService {
 
     const skip = Math.max(0, (page - 1) * pageSize);
     const take = Math.min(100, Math.max(1, pageSize));
+    const cacheKeyBase = `volunteer-board:${tenantId}:${eventId ?? 'all'}:${page}:${take}`;
     const [total, rows] = await Promise.all([
-      prisma.memberResponsibility.count({ where }),
+      cacheThrough(`${cacheKeyBase}:count`, 8000, () => prisma.memberResponsibility.count({ where })),
       prisma.memberResponsibility.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          memberId: true,
+          role: true,
+          status: true,
+          entityType: true,
+          entityId: true,
           member: {
-            select: { id: true, name: true, email: true, phone: true, profileImageUrl: true, growthStage: true },
+            select: { id: true, name: true },
           },
         },
         orderBy: [{ status: 'asc' }, { role: 'asc' }],
@@ -88,6 +96,7 @@ export class VolunteerOpsService {
     lockKey: string,
     owner: string,
   ) {
+    cacheInvalidatePrefix(`volunteer-board:${tenantId}:`);
     const item = await MemberResponsibilityRepository.update(responsibilityId, memberId, patch as any);
 
     await EventBus.publish({

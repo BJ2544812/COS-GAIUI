@@ -10,6 +10,7 @@ import {
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { cacheThrough, cacheInvalidatePrefix } from '../utils/opsCache.js';
 
 export { isAuthorizedForHRCompensation, isAuthorizedForHRManager } from '../utils/hrSecurity.js';
 
@@ -133,14 +134,23 @@ export class HRController {
     try {
       const { page, pageSize, skip } = parsePagination(req.query as Record<string, unknown>);
       const where = { tenantId: req.tenantId! };
+      const cacheKey = `employment-profiles:${req.tenantId!}:${page}:${pageSize}`;
       const [total, profiles] = await Promise.all([
-        prisma.employmentProfile.count({ where }),
+        cacheThrough(`${cacheKey}:count`, 8000, () => prisma.employmentProfile.count({ where })),
         prisma.employmentProfile.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            memberId: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            jobTitle: true,
+            emergencyContact: true,
+            notes: true,
             member: {
-              select: { id: true, name: true, email: true, phone: true, department: true, growthStage: true }
-            }
+              select: { id: true, name: true, department: true },
+            },
           },
           orderBy: { updatedAt: 'desc' },
           skip,
@@ -187,6 +197,7 @@ export class HRController {
       // Automatically allocate leave balances
       await HRService.allocateLeaveBalances(req.tenantId!, memberId);
 
+      cacheInvalidatePrefix(`employment-profiles:${req.tenantId!}:`);
       res.status(201).json({ status: 'success', data: profile });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -219,6 +230,7 @@ export class HRController {
           notes
         }
       });
+      cacheInvalidatePrefix(`employment-profiles:${req.tenantId!}:`);
       res.status(200).json({ status: 'success', data: profile });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -239,6 +251,7 @@ export class HRController {
         return res.status(404).json({ error: 'Employment profile not found.' });
       }
       await prisma.employmentProfile.delete({ where: { id: id as string } });
+      cacheInvalidatePrefix(`employment-profiles:${req.tenantId!}:`);
       res.status(200).json({ status: 'success', message: 'Employment profile deleted successfully' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

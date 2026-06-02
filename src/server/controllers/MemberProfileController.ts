@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { TenantRequest } from '../middleware/tenant.middleware.js';
 import { MemberDocumentRepository, SpiritualMilestoneRepository, MemberResponsibilityRepository } from '../repositories/MemberProfileRepository.js';
+import { cacheInvalidatePrefix } from '../utils/opsCache.js';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -381,6 +382,7 @@ export class MemberProfileController {
         usedFunds,
         notes,
       });
+      cacheInvalidatePrefix(`volunteer-board:${req.tenantId!}:`);
       res.status(201).json({ status: 'success', data: item });
     } catch (err: any) {
       console.error("createResponsibility error:", err);
@@ -392,6 +394,7 @@ export class MemberProfileController {
   static async updateResponsibility(req: TenantRequest, res: Response) {
     try {
       const item = await MemberResponsibilityRepository.update(String(req.params.resId), String(req.params.id), req.body);
+      cacheInvalidatePrefix(`volunteer-board:${req.tenantId!}:`);
       res.json({ status: 'success', data: item });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -402,6 +405,7 @@ export class MemberProfileController {
   static async deleteResponsibility(req: TenantRequest, res: Response) {
     try {
       await MemberResponsibilityRepository.delete(String(req.params.resId), String(req.params.id));
+      cacheInvalidatePrefix(`volunteer-board:${req.tenantId!}:`);
       res.json({ status: 'success' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
