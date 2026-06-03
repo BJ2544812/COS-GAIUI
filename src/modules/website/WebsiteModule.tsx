@@ -5,6 +5,7 @@ import {
   Save, 
   Trash2, 
   Layout, 
+  PlayCircle,
   Type, 
   Video, 
   Calendar, 
@@ -32,7 +33,8 @@ import {
   ChevronRight,
   Settings,
   Copy,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,17 +43,32 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
+import { apiRequest, apiFetch, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
-import { SharedEventListView, type PublicEventRow } from '@/lib/websiteSharedBlocks';
-import { sortSectionsForDisplay, heroFieldFallbacksForBuilder, DEFAULT_PUBLIC_MISSION } from '@/lib/websiteDisplay';
+import { SharedEventListView, SharedContactView, SharedNavbar, type PublicEventRow } from '@/lib/websiteSharedBlocks';
+import { sortSectionsForDisplay, heroFieldFallbacksForBuilder, DEFAULT_PUBLIC_MISSION, publicWebsiteUrl } from '@/lib/websiteDisplay';
+import {
+  bindWebsiteSectionData,
+  createWebsiteSection,
+  getWebsiteSectionPalette,
+  normalizeWebsiteSections,
+  type WebsiteSection as EngineWebsiteSection,
+  type WebsiteSectionType,
+} from '@/lib/websiteEngine';
+import {
+  mapCampaignsForWebsite,
+  mapEventsForWebsite,
+  mapLeadershipForWebsite,
+  mapMinistriesForWebsite,
+  mapSermonsForWebsite,
+} from '@/lib/websiteOperationalData';
+import { Reorder } from 'motion/react';
+import { ModuleHeader, PageLayout, StatCard } from '@/components/modules/ModuleHeader';
 
 // --- Types ---
-type SectionType = 'hero' | 'text' | 'image' | 'sermon_list' | 'event_list' | 'giving_cta' | 'contact_form' | 'stats_bar' | 'ministry_grid' | 'leadership_grid' | 'testimonials' | 'giving_impact' | 'qr_payment';
-
 interface PageSection {
   id: string;
-  type: SectionType;
+  type: WebsiteSectionType;
   config: any;
   isVisible?: boolean;
   order?: number;
@@ -65,8 +82,10 @@ interface PageData {
   isPublished: boolean;
   updatedAt: string;
 }
-
+interface Ministry { id: string; title: string; desc?: string; icon?: string; }
+interface Campaign { id: string; title: string; progress: number; target: string; current: string; }
 interface Sermon { id: string; title: string; speaker: string; date: string; }
+interface Campus { id: string; name: string; address?: string; }
 
 interface TemplateSummary {
   id: string;
@@ -77,9 +96,10 @@ interface TemplateSummary {
 }
 
 const TEMPLATES: TemplateSummary[] = [
+  { id: 'flagship-v2', name: 'Flagship V2', description: 'The definitive 10-page Premium Ministry experience.', icon: Rocket, color: 'bg-indigo-600' },
+  { id: 'cinematic', name: 'Showcase Cinema', description: 'Max visual impact for modern ministry brands.', icon: PlayCircle, color: 'bg-slate-950' },
   { id: 'classic', name: 'Classic Church', description: 'Timeless, elegant design for traditional worship.', icon: Layers, color: 'bg-slate-900' },
-  { id: 'modern', name: 'Modern Worship', description: 'Vibrant and energetic for city-wide outreach.', icon: Sparkles, color: 'bg-indigo-600' },
-  { id: 'youth', name: 'Youth Church', description: 'Bold and dynamic for the next generation.', icon: Zap, color: 'bg-rose-600' },
+  { id: 'modern', name: 'Modern Worship', description: 'Vibrant and energetic for city-wide outreach.', icon: Sparkles, color: 'bg-slate-800' },
   { id: 'minimal', name: 'Minimal Church', description: 'Clean, typography-focused depth and focus.', icon: Palette, color: 'bg-emerald-600' }
 ];
 
@@ -148,13 +168,15 @@ const PreviewHero = ({ config, branding, onUpdateConfig, isSelected, onClick, pa
   const titleVal = String(config.title ?? '').trim() || (pageSlug === 'home' ? `Welcome to ${organizationName}` : 'Join Us');
   const subVal = String(config.subtitle ?? '').trim() || (pageSlug === 'home' ? 'A community centered on faith, hope, and love.' : 'Experience grace and community.');
   const btnVal = String(config.buttonText ?? '').trim() || 'Plan Your Visit';
+  const btnSecondaryVal = String(config.secondaryButtonText ?? '').trim() || 'Watch Sermons';
+  const imageUrl = config.imageUrl || '';
 
   const updateField = (field: string, val: string) => {
     onUpdateConfig({ ...config, [field]: val });
   };
 
   const content = (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-1000 relative z-20">
        <Badge className="bg-white/10 text-white backdrop-blur-md border-white/20 font-black uppercase tracking-[0.3em] text-[9px] px-5 py-2 rounded-xl mb-4">Experience Grace</Badge>
        <EditableText 
          dataTestId="website-hero-title"
@@ -172,11 +194,9 @@ const PreviewHero = ({ config, branding, onUpdateConfig, isSelected, onClick, pa
          <Button className="h-18 px-14 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:scale-105 transition-transform text-white border-none" style={{ backgroundColor: primaryColor }}>
            {btnVal}
          </Button>
-         {config.serviceTimes && (
-            <div className="h-18 flex items-center px-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-black uppercase tracking-widest">
-               {config.serviceTimes}
-            </div>
-         )}
+         <Button variant="outline" className="h-18 px-14 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] text-white border-white/40 hover:bg-white/10 backdrop-blur-md border-2">
+            {btnSecondaryVal}
+         </Button>
        </div>
     </div>
   );
@@ -269,9 +289,15 @@ const PreviewHero = ({ config, branding, onUpdateConfig, isSelected, onClick, pa
         isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
       )}
     >
+      {imageUrl && (
+        <img src={imageUrl} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-60 scale-105 animate-subtle-zoom" />
+      )}
       <div 
-        className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/80 z-10" 
-        style={{ opacity: config.overlayOpacity ?? 0.7 }} 
+        className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 z-10" 
+      />
+      <div 
+        className="absolute inset-0 bg-black/20 z-10" 
+        style={{ opacity: config.overlayOpacity ?? 0.4 }} 
       />
       <div className="relative z-20 max-w-5xl px-10">
          {content}
@@ -429,44 +455,78 @@ const PreviewStatsBar = ({ config, onClick, isSelected }: any) => {
   );
 };
 
-const PreviewMinistryGrid = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
-  const ministries = config.ministries || [
+const PreviewMinistryGrid = ({
+  config,
+  onClick,
+  isSelected,
+  onUpdateConfig,
+  ministries: ministriesFromParent,
+}: any) => {
+  const defaultMinistries = [
     { title: 'Kids Ministry', desc: 'A safe, fun place for children to grow in faith.', icon: Sparkles },
     { title: 'Youth & Students', desc: 'Connecting the next generation to Christ.', icon: Zap },
     { title: 'Worship Arts', desc: 'Expressing devotion through music and art.', icon: Palette },
-    { title: 'Global Outreach', desc: 'Spreading hope across the globe.', icon: Globe }
+    { title: 'Global Outreach', desc: 'Spreading hope across the globe.', icon: Globe },
   ];
+
+  const IconFallback = Layers;
+  const source: any[] =
+    Array.isArray(ministriesFromParent) && ministriesFromParent.length > 0
+      ? ministriesFromParent
+      : Array.isArray(config.ministries) && config.ministries.length > 0
+        ? config.ministries
+        : defaultMinistries;
+
+  const ministries = source.map((m) => {
+    const Icon =
+      typeof m.icon === 'function' || (m.icon && typeof m.icon?.render === 'function') ? m.icon : IconFallback;
+    return {
+      ...m,
+      icon: Icon,
+      title: String(m.title ?? m.name ?? 'Ministry').trim() || 'Ministry',
+      desc: String(m.desc ?? m.description ?? '').trim() || 'Discover more about this ministry.',
+    };
+  });
+
   return (
-    <div onClick={onClick} className={cn(
-      "py-32 bg-white group cursor-pointer border-4 border-transparent relative",
-      THEME.transition,
-      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
-    )}>
-       <div className="max-w-7xl mx-auto px-10 space-y-16">
-          <div className="text-center space-y-4">
-             <EditableText 
-               value={config.title || 'Our Ministries'} 
-               onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
-               className={cn("text-4xl", THEME.font.title)} 
-             />
-             <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Opportunities for everyone to connect</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-             {ministries.map((m: any, i: number) => (
-                <Card key={i} className="border-none shadow-2xl rounded-[3rem] bg-slate-50 hover:bg-white hover:shadow-indigo-100 transition-all duration-500 group/card">
-                   <CardContent className="p-10 space-y-6 text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-indigo-600 shadow-sm mx-auto group-hover/card:bg-indigo-600 group-hover/card:text-white transition-all">
-                         <m.icon size={28} />
-                      </div>
-                      <div className="space-y-2">
-                         <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">{m.title}</h3>
-                         <p className="text-xs font-medium text-slate-500 leading-relaxed">{m.desc}</p>
-                      </div>
-                   </CardContent>
-                </Card>
-             ))}
-          </div>
-       </div>
+    <div
+      onClick={onClick}
+      className={cn(
+        'py-32 bg-white group cursor-pointer border-4 border-transparent relative',
+        THEME.transition,
+        isSelected && 'border-indigo-500 shadow-2xl z-20 scale-[1.01]',
+      )}
+    >
+      <div className="max-w-7xl mx-auto px-10 space-y-16">
+        <div className="text-center space-y-4">
+          <EditableText
+            value={config.title || 'Our Ministries'}
+            onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
+            className={cn('text-4xl', THEME.font.title)}
+          />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+            Opportunities for everyone to connect
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {ministries.map((m: any, i: number) => (
+            <Card
+              key={m.id ?? `${m.title}-${i}`}
+              className="border-none shadow-2xl rounded-[3rem] bg-slate-50 hover:bg-white hover:shadow-indigo-100 transition-all duration-500 group/card"
+            >
+              <CardContent className="p-10 space-y-6 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-indigo-600 shadow-sm mx-auto group-hover/card:bg-indigo-600 group-hover/card:text-white transition-all">
+                  {React.createElement(m.icon, { size: 28 })}
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">{m.title}</h3>
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed">{m.desc}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
@@ -617,6 +677,276 @@ const PreviewQRPayment = ({ config, onClick, isSelected, branding }: any) => {
   );
 };
 
+const PreviewContact = ({ config, onClick, isSelected, orgSettings }: any) => {
+  return (
+    <div onClick={onClick} className={cn(
+      "relative group cursor-pointer border-4 border-transparent",
+      THEME.transition,
+      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
+    )}>
+      <SharedContactView config={config} orgSettings={orgSettings} />
+    </div>
+  );
+};
+
+const PreviewWelcomeVision = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const imageUrl = config.imageUrl || '';
+  return (
+    <div onClick={onClick} className={cn(
+      "py-32 bg-white group cursor-pointer border-4 border-transparent relative",
+      THEME.transition,
+      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
+    )}>
+       <div className="max-w-7xl mx-auto px-10 grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
+          <div className="space-y-10">
+             <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                   <Badge className="bg-indigo-50 text-indigo-700 border-none font-black uppercase tracking-[0.3em] text-[10px] px-5 py-2 rounded-xl">
+                      <EditableText 
+                        value={config.title || 'Welcome'} 
+                        onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
+                      />
+                   </Badge>
+                </div>
+                <EditableText 
+                  value={config.mission || 'Our Heart & Vision'} 
+                  onSave={(v: string) => onUpdateConfig({ ...config, mission: v })}
+                  className="text-5xl md:text-6xl font-black text-slate-900 uppercase tracking-tight leading-[1.1]"
+                  multiline
+                />
+             </div>
+             <EditableText 
+               value={config.pastorMessage || 'We believe that every person has a divine purpose. Our community exists to help you discover yours.'} 
+               onSave={(v: string) => onUpdateConfig({ ...config, pastorMessage: v })}
+               className="text-xl font-medium text-slate-500 leading-relaxed max-w-xl"
+               multiline
+             />
+             <div className="flex items-center gap-6 pt-4">
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden">
+                   {imageUrl ? <img src={imageUrl} className="w-full h-full object-cover" /> : <Users size={32} />}
+                </div>
+                <div>
+                   <EditableText 
+                     value={config.pastorName || 'Senior Pastor'} 
+                     onSave={(v: string) => onUpdateConfig({ ...config, pastorName: v })}
+                     className="text-sm font-black text-slate-900 uppercase tracking-widest"
+                   />
+                   <p className="text-xs font-medium text-slate-400">Lead Leadership</p>
+                </div>
+             </div>
+          </div>
+          <div className="relative">
+             <div className="aspect-[4/5] bg-slate-100 rounded-[4rem] overflow-hidden shadow-2xl relative z-10 flex items-center justify-center text-slate-200">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="Welcome" className="w-full h-full object-cover" />
+                ) : (
+                  <Layout size={120} strokeWidth={0.5} />
+                )}
+             </div>
+             <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl -z-10" />
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewPrayerCTA = ({ config, onClick, isSelected, onUpdateConfig, branding }: any) => {
+  const bg = branding?.primaryColor ?? '#4F46E5';
+  return (
+    <div onClick={onClick} className={cn(
+      "py-32 bg-white group cursor-pointer border-4 border-transparent relative",
+      THEME.transition,
+      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
+    )}>
+       <div className="max-w-7xl mx-auto px-10">
+          <div className="bg-slate-900 rounded-[5rem] p-16 md:p-32 text-center space-y-12 relative overflow-hidden group shadow-2xl">
+             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.15),transparent)] pointer-events-none" />
+             <div className="relative z-10 space-y-8">
+                <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center mx-auto text-indigo-400">
+                   <Heart size={40} />
+                </div>
+                <div className="space-y-4">
+                   <EditableText 
+                     value={config.title || 'How Can We Pray For You?'} 
+                     onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
+                     className="text-5xl md:text-7xl font-black text-white uppercase tracking-tight"
+                   />
+                   <EditableText 
+                     value={config.subtitle || 'Our team is honored to stand with you in prayer. Share your request today.'} 
+                     onSave={(v: string) => onUpdateConfig({ ...config, subtitle: v })}
+                     className="text-xl text-slate-400 font-medium max-w-2xl mx-auto leading-relaxed"
+                     multiline
+                   />
+                </div>
+                <div className="pt-6">
+                   <Button className="h-18 px-16 rounded-[2rem] font-black uppercase text-[11px] tracking-[0.4em] text-white border-none shadow-2xl" style={{ backgroundColor: bg }}>
+                      Submit Request
+                   </Button>
+                </div>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewNextSteps = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const steps = config.steps || [
+    { title: 'New to Faith', desc: 'Discover what it means to follow Jesus.', icon: Sparkles },
+    { title: 'Baptism', desc: 'Take your faith public through baptism.', icon: Layout },
+    { title: 'Membership', desc: 'Join the family and find your place.', icon: Users },
+    { title: 'Serve', desc: 'Make a difference using your gifts.', icon: Heart }
+  ];
+  return (
+    <div onClick={onClick} className={cn(
+      "py-32 bg-slate-50 group cursor-pointer border-4 border-transparent relative",
+      THEME.transition,
+      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
+    )}>
+       <div className="max-w-7xl mx-auto px-10 space-y-20">
+          <div className="text-center space-y-4">
+             <EditableText 
+               value={config.title || 'Your Next Step'} 
+               onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
+               className="text-5xl font-black text-slate-900 uppercase tracking-tight"
+             />
+             <div className="w-24 h-1.5 bg-indigo-600 mx-auto rounded-full" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+             {steps.map((s: any, i: number) => (
+                <div key={i} className="bg-white rounded-[3.5rem] p-12 space-y-8 shadow-xl shadow-slate-200/50 hover:translate-y-[-12px] transition-all duration-500 group border border-slate-50">
+                   <div className="w-16 h-16 rounded-2xl bg-slate-950 text-white flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
+                      {typeof s.icon === 'string' ? <MousePointer2 size={28} /> : <s.icon size={28} />}
+                   </div>
+                   <div className="space-y-3">
+                      <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{s.title}</h3>
+                      <p className="text-sm font-medium text-slate-500 leading-relaxed">{s.desc}</p>
+                   </div>
+                   <div className="pt-4">
+                      <Button variant="link" className="p-0 text-indigo-600 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+                         Get Started <ArrowRight size={14} />
+                      </Button>
+                   </div>
+                </div>
+             ))}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewTimeline = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const events = config.events || [
+    { year: '2010', title: 'The Beginning', desc: 'A small group of families met in a living room.' },
+    { year: 'Today', title: 'The Future', desc: 'Continuing to build a legacy of faith.' }
+  ];
+  return (
+    <div onClick={onClick} className={cn("py-32 bg-slate-50 group cursor-pointer border-4 border-transparent relative", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className="max-w-7xl mx-auto px-10 text-center space-y-16">
+          <EditableText value={config.title || 'Our Story'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className={cn("text-5xl", THEME.font.title)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+             {events.map((e: any, i: number) => (
+               <div key={i} className="space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-white mx-auto shadow-xl flex items-center justify-center font-black text-indigo-600">{e.year}</div>
+                  <h3 className="text-xl font-black uppercase tracking-tight">{e.title}</h3>
+                  <p className="text-xs font-medium text-slate-500">{e.desc}</p>
+               </div>
+             ))}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewValues = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const values = config.values || [
+    { title: 'Jesus at the Center', desc: 'Everything we do is for His glory.' },
+    { title: 'Radical Generosity', desc: 'We give because He first gave.' }
+  ];
+  return (
+    <div onClick={onClick} className={cn("py-32 bg-white group cursor-pointer border-4 border-transparent relative", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className="max-w-7xl mx-auto px-10 text-center space-y-16">
+          <EditableText value={config.title || 'Our Values'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className={cn("text-5xl", THEME.font.title)} />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+             {values.map((v: any, i: number) => (
+               <div key={i} className="p-8 bg-slate-50 rounded-[2.5rem] space-y-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white mx-auto flex items-center justify-center font-black">{i+1}</div>
+                  <h3 className="text-lg font-black uppercase tracking-tight">{v.title}</h3>
+                  <p className="text-xs font-medium text-slate-500">{v.desc}</p>
+               </div>
+             ))}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewFaq = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const items = config.items || [
+    { q: 'What time are services?', a: 'Join us at 9AM and 11AM.' },
+    { q: 'Is there childcare?', a: 'Yes! Kingdom Kids is available.' }
+  ];
+  return (
+    <div onClick={onClick} className={cn("py-32 bg-white group cursor-pointer border-4 border-transparent relative", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className="max-w-4xl mx-auto px-10 text-center space-y-16">
+          <EditableText value={config.title || 'Common Questions'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className={cn("text-5xl", THEME.font.title)} />
+          <div className="space-y-4 text-left">
+             {items.map((item: any, i: number) => (
+               <div key={i} className="p-6 bg-slate-50 rounded-3xl">
+                  <h4 className="font-black uppercase tracking-tight text-slate-900 mb-2">{item.q}</h4>
+                  <p className="text-sm font-medium text-slate-500">{item.a}</p>
+               </div>
+             ))}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewMinistryHighlight = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  return (
+    <div onClick={onClick} className={cn("py-32 bg-white group cursor-pointer border-4 border-transparent relative", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className={cn("max-w-7xl mx-auto px-10 flex flex-col lg:flex-row items-center gap-16", config.reversed && "lg:flex-row-reverse")}>
+          <div className="flex-1 space-y-8 text-left">
+             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-600">Featured</span>
+             <EditableText value={config.title || 'Join the Family'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className="text-5xl md:text-7xl font-black text-slate-900 uppercase tracking-tighter leading-none" />
+             <EditableText value={config.subtitle || 'Experience community, growth, and purpose.'} onSave={(v: string) => onUpdateConfig({ ...config, subtitle: v })} className="text-xl font-medium text-slate-500 leading-relaxed" multiline />
+          </div>
+          <div className="flex-1 aspect-[4/5] bg-slate-100 rounded-[3rem] overflow-hidden shadow-2xl relative flex items-center justify-center text-slate-300">
+             {config.imageUrl ? <img src={config.imageUrl} className="w-full h-full object-cover" /> : <Layout size={60} />}
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewPastoralNote = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  return (
+    <div onClick={onClick} className={cn("py-40 bg-slate-950 group cursor-pointer border-4 border-transparent relative text-white text-left", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className="max-w-5xl mx-auto px-10 space-y-12">
+          <span className="text-[10px] font-black uppercase tracking-[0.6em] text-indigo-400">Pastoral Message</span>
+          <EditableText value={config.title || 'Welcome Home'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className="text-5xl md:text-8xl font-black uppercase tracking-tighter leading-none" />
+          <EditableText value={config.message || 'Church is a family where you belong.'} onSave={(v: string) => onUpdateConfig({ ...config, message: v })} className="text-2xl md:text-3xl font-medium text-slate-400 leading-relaxed italic" multiline />
+          <div className="pt-6 border-l-4 border-indigo-600 pl-6">
+             <EditableText value={config.author || 'Senior Pastor'} onSave={(v: string) => onUpdateConfig({ ...config, author: v })} className="text-sm font-black uppercase tracking-widest text-white" />
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const PreviewVisionStatement = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  return (
+    <div onClick={onClick} className={cn("py-48 bg-white group cursor-pointer border-4 border-transparent relative text-center", THEME.transition, isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]")}>
+       <div className="absolute inset-0 flex items-center justify-center text-[20vw] font-black text-slate-50 uppercase tracking-tighter select-none pointer-events-none">PURPOSE</div>
+       <div className="relative z-10 max-w-5xl mx-auto px-10 space-y-8">
+          <EditableText value={config.title || 'Built for His Purpose'} onSave={(v: string) => onUpdateConfig({ ...config, title: v })} className="text-6xl md:text-[8rem] font-black text-slate-950 uppercase tracking-tighter leading-[0.8]" />
+          <EditableText value={config.subtitle || 'To reach people and teach them how to follow Jesus.'} onSave={(v: string) => onUpdateConfig({ ...config, subtitle: v })} className="text-xl md:text-3xl font-medium text-slate-500 max-w-3xl mx-auto leading-relaxed" multiline />
+       </div>
+    </div>
+  );
+};
+
 const SectionWrapper = ({ children, isSelected, onSelect, onMove, onRemove, onAddAfter }: any) => {
   return (
     <div className="relative group/section">
@@ -636,15 +966,21 @@ const SectionWrapper = ({ children, isSelected, onSelect, onMove, onRemove, onAd
           "absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 opacity-0 group-hover/section:opacity-100 transition-all z-[60] bg-white shadow-2xl rounded-xl p-1 border border-slate-100 scale-90 group-hover/section:scale-100",
           isSelected && "opacity-100 border-indigo-500 ring-2 ring-indigo-100"
         )}>
-           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" onClick={(e) => { e.stopPropagation(); onMove('up'); }}><ChevronUp size={14} /></Button>
+           <div className="flex items-center gap-0.5 px-2 cursor-grab active:cursor-grabbing text-slate-300">
+              <GripVertical size={14} />
+           </div>
            <div className="w-px h-4 bg-slate-100 mx-1" />
-           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" onClick={(e) => { e.stopPropagation(); onMove('down'); }}><ChevronDown size={14} /></Button>
+           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Move Up" onClick={(e) => { e.stopPropagation(); onMove('up'); }}><ChevronUp size={14} /></Button>
+           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Move Down" onClick={(e) => { e.stopPropagation(); onMove('down'); }}><ChevronDown size={14} /></Button>
            <div className="w-px h-4 bg-slate-100 mx-1" />
-           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50" onClick={(e) => { e.stopPropagation(); onRemove(); }}><Trash2 size={14} /></Button>
+           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50" title="Remove Section" onClick={(e) => { e.stopPropagation(); onRemove(); }}><Trash2 size={14} /></Button>
            {isSelected && (
              <>
                 <div className="w-px h-4 bg-slate-100 mx-1" />
-                <div className="px-3 py-1 bg-indigo-600 rounded-lg text-[8px] font-black text-white uppercase tracking-widest">Editing</div>
+                <div className="px-3 py-1 bg-indigo-600 rounded-lg text-[8px] font-black text-white uppercase tracking-widest flex items-center gap-1.5">
+                   <Sparkles size={8} className="animate-pulse" />
+                   Editing
+                </div>
              </>
            )}
         </div>
@@ -739,15 +1075,67 @@ const SectionSettings = ({ section, onUpdate, sermons, events }: any) => {
                    </select>
                 </div>
                 <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Overlay Opacity ({Math.round((section.config.overlayOpacity ?? 0.7) * 100)}%)</Label>
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Primary Button Text</Label>
+                   <Input 
+                     value={section.config.buttonText || ''} 
+                     onChange={(e) => onUpdate({ ...section.config, buttonText: e.target.value })}
+                     className="h-12 rounded-xl border-slate-100 font-bold"
+                   />
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Secondary Button Text</Label>
+                   <Input 
+                     value={section.config.secondaryButtonText || ''} 
+                     onChange={(e) => onUpdate({ ...section.config, secondaryButtonText: e.target.value })}
+                     className="h-12 rounded-xl border-slate-100 font-bold"
+                   />
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Overlay Opacity ({Math.round((section.config.overlayOpacity ?? 0.4) * 100)}%)</Label>
                    <input 
                      type="range" min="0" max="1" step="0.1" 
-                     value={section.config.overlayOpacity ?? 0.7}
+                     value={section.config.overlayOpacity ?? 0.4}
                      onChange={(e) => onUpdate({ ...section.config, overlayOpacity: parseFloat(e.target.value) })}
                      className="w-full"
                    />
                 </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Background Image URL</Label>
+                   <Input 
+                     placeholder="https://..." 
+                     value={section.config.imageUrl || ''} 
+                     onChange={(e) => onUpdate({ ...section.config, imageUrl: e.target.value })}
+                     className="h-12 rounded-xl border-slate-100 font-bold"
+                   />
+                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">Use cinematic imagery for best results</p>
+                </div>
              </>
+          )}
+
+          {section.type === 'welcome_vision' && (
+             <div className="space-y-4">
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Hero Image URL</Label>
+                   <Input 
+                     placeholder="https://..." 
+                     value={section.config.imageUrl || ''} 
+                     onChange={(e) => onUpdate({ ...section.config, imageUrl: e.target.value })}
+                     className="h-12 rounded-xl border-slate-100 font-bold"
+                   />
+                </div>
+             </div>
+          )}
+
+          {section.type === 'worship' && (
+             <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Background Image URL</Label>
+                <Input 
+                  placeholder="https://..." 
+                  value={section.config.imageUrl || ''} 
+                  onChange={(e) => onUpdate({ ...section.config, imageUrl: e.target.value })}
+                  className="h-12 rounded-xl border-slate-100 font-bold"
+                />
+             </div>
           )}
 
           {section.type === 'text' && (
@@ -902,33 +1290,211 @@ const SectionSettings = ({ section, onUpdate, sermons, events }: any) => {
           )}
 
           {section.type === 'leadership_grid' && (
-            <div className="space-y-6">
-               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Leadership Team</Label>
-               {(section.config.staff || []).map((s: any, i: number) => (
-                 <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
-                    <Input value={s.role} onChange={(e) => {
-                       const newS = [...(section.config.staff || [])];
-                       newS[i] = { ...s, role: e.target.value };
-                       onUpdate({ ...section.config, staff: newS });
-                    }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Role (e.g. Lead Pastor)" />
-                    <Input value={s.name} onChange={(e) => {
-                       const newS = [...(section.config.staff || [])];
-                       newS[i] = { ...s, name: e.target.value };
-                       onUpdate({ ...section.config, staff: newS });
-                    }} className="h-10 border-none bg-white rounded-lg text-[10px] font-black uppercase tracking-widest text-indigo-600" placeholder="Full Name" />
-                 </div>
-               ))}
-               <Button 
-                 variant="outline" 
-                 className="w-full h-12 rounded-xl border-dashed border-slate-200"
-                 onClick={() => onUpdate({ ...section.config, staff: [...(section.config.staff || []), { name: 'Staff Name', role: 'Role Title', bio: 'Short bio' }] })}
-               >
-                 <Plus size={14} className="mr-2" /> Add Leader
-               </Button>
-            </div>
-          )}
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Leadership Team</Label>
+                {(section.config.staff || []).map((s: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <Input value={s.role} onChange={(e) => {
+                        const newS = [...(section.config.staff || [])];
+                        newS[i] = { ...s, role: e.target.value };
+                        onUpdate({ ...section.config, staff: newS });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Role (e.g. Lead Pastor)" />
+                     <Input value={s.name} onChange={(e) => {
+                        const newS = [...(section.config.staff || [])];
+                        newS[i] = { ...s, name: e.target.value };
+                        onUpdate({ ...section.config, staff: newS });
+                     }} className="h-10 border-none bg-white rounded-lg text-[10px] font-black uppercase tracking-widest text-indigo-600" placeholder="Full Name" />
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full h-12 rounded-xl border-dashed border-slate-200"
+                  onClick={() => onUpdate({ ...section.config, staff: [...(section.config.staff || []), { name: 'Staff Name', role: 'Role Title', bio: 'Short bio' }] })}
+                >
+                  <Plus size={14} className="mr-2" /> Add Leader
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'next_steps' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Engagement Steps</Label>
+                {(section.config.steps || []).map((s: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <Input value={s.title} onChange={(e) => {
+                        const newSteps = [...(section.config.steps || [])];
+                        newSteps[i] = { ...s, title: e.target.value };
+                        onUpdate({ ...section.config, steps: newSteps });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Step Title" />
+                     <textarea value={s.desc} onChange={(e) => {
+                        const newSteps = [...(section.config.steps || [])];
+                        newSteps[i] = { ...s, desc: e.target.value };
+                        onUpdate({ ...section.config, steps: newSteps });
+                     }} className="w-full min-h-[60px] p-3 rounded-lg border-none bg-white text-xs font-medium" placeholder="Description" />
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full h-12 rounded-xl border-dashed border-slate-200"
+                  onClick={() => onUpdate({ ...section.config, steps: [...(section.config.steps || []), { title: 'New Step', desc: 'Action description', icon: MousePointer2 }] })}
+                >
+                  <Plus size={14} className="mr-2" /> Add Step
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'testimonials' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Testimonials</Label>
+                {(section.config.items || []).map((t: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <textarea value={t.text || t.quote} onChange={(e) => {
+                        const newItems = [...(section.config.items || [])];
+                        newItems[i] = { ...t, text: e.target.value, quote: e.target.value };
+                        onUpdate({ ...section.config, items: newItems });
+                     }} className="w-full min-h-[80px] p-3 rounded-lg border-none bg-white text-xs font-medium" placeholder="Testimonial text" />
+                     <Input value={t.author} onChange={(e) => {
+                        const newItems = [...(section.config.items || [])];
+                        newItems[i] = { ...t, author: e.target.value };
+                        onUpdate({ ...section.config, items: newItems });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Author Name" />
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" 
+                  className="w-full h-12 rounded-xl border-dashed border-slate-200"
+                  onClick={() => onUpdate({ ...section.config, items: [...(section.config.items || []), { author: 'Member Name', text: 'Story of impact' }] })}
+                >
+                  <Plus size={14} className="mr-2" /> Add Testimonial
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'timeline' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Timeline Events</Label>
+                {(section.config.events || []).map((e: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <Input value={e.year} onChange={(val) => {
+                        const newEvents = [...(section.config.events || [])];
+                        newEvents[i] = { ...e, year: val.target.value };
+                        onUpdate({ ...section.config, events: newEvents });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Year" />
+                     <Input value={e.title} onChange={(val) => {
+                        const newEvents = [...(section.config.events || [])];
+                        newEvents[i] = { ...e, title: val.target.value };
+                        onUpdate({ ...section.config, events: newEvents });
+                     }} className="h-10 border-none bg-white rounded-lg font-black uppercase text-[10px]" placeholder="Event Title" />
+                  </div>
+                ))}
+                <Button variant="outline" className="w-full h-12 rounded-xl border-dashed border-slate-200" onClick={() => onUpdate({ ...section.config, events: [...(section.config.events || []), { year: '20XX', title: 'New Event', desc: '' }] })}>
+                   <Plus size={14} className="mr-2" /> Add Event
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'values' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Core Values</Label>
+                {(section.config.values || []).map((v: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <Input value={v.title} onChange={(val) => {
+                        const newV = [...(section.config.values || [])];
+                        newV[i] = { ...v, title: val.target.value };
+                        onUpdate({ ...section.config, values: newV });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Value Title" />
+                     <textarea value={v.desc} onChange={(val) => {
+                        const newV = [...(section.config.values || [])];
+                        newV[i] = { ...v, desc: val.target.value };
+                        onUpdate({ ...section.config, values: newV });
+                     }} className="w-full min-h-[60px] p-3 rounded-lg border-none bg-white text-xs font-medium" placeholder="Description" />
+                  </div>
+                ))}
+                <Button variant="outline" className="w-full h-12 rounded-xl border-dashed border-slate-200" onClick={() => onUpdate({ ...section.config, values: [...(section.config.values || []), { title: 'New Value', desc: '' }] })}>
+                   <Plus size={14} className="mr-2" /> Add Value
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'faq' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">FAQ Items</Label>
+                {(section.config.items || []).map((item: any, i: number) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl space-y-4">
+                     <Input value={item.q} onChange={(val) => {
+                        const newI = [...(section.config.items || [])];
+                        newI[i] = { ...item, q: val.target.value };
+                        onUpdate({ ...section.config, items: newI });
+                     }} className="h-10 border-none bg-white rounded-lg font-bold" placeholder="Question" />
+                     <textarea value={item.a} onChange={(val) => {
+                        const newI = [...(section.config.items || [])];
+                        newI[i] = { ...item, a: val.target.value };
+                        onUpdate({ ...section.config, items: newI });
+                     }} className="w-full min-h-[60px] p-3 rounded-lg border-none bg-white text-xs font-medium" placeholder="Answer" />
+                  </div>
+                ))}
+                <Button variant="outline" className="w-full h-12 rounded-xl border-dashed border-slate-200" onClick={() => onUpdate({ ...section.config, items: [...(section.config.items || []), { q: 'Question?', a: '' }] })}>
+                   <Plus size={14} className="mr-2" /> Add Item
+                </Button>
+             </div>
+           )}
+
+           {section.type === 'ministry_highlight' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Highlight Settings</Label>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Reversed Layout</Label>
+                   <Switch checked={section.config.reversed} onCheckedChange={(val) => onUpdate({ ...section.config, reversed: val })} />
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[8px] uppercase opacity-40">Image URL</Label>
+                   <Input value={section.config.imageUrl || ''} onChange={(e) => onUpdate({ ...section.config, imageUrl: e.target.value })} className="h-10 border-none bg-slate-50 rounded-lg" placeholder="https://..." />
+                </div>
+             </div>
+           )}
+
+           {section.type === 'pastoral_note' && (
+             <div className="space-y-6">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Message Config</Label>
+                <div className="space-y-2">
+                   <Label className="text-[8px] uppercase opacity-40">Profile Image URL</Label>
+                   <Input value={section.config.imageUrl || ''} onChange={(e) => onUpdate({ ...section.config, imageUrl: e.target.value })} className="h-10 border-none bg-slate-50 rounded-lg" placeholder="https://..." />
+                </div>
+             </div>
+           )}
         </div>
      </div>
+  );
+};
+
+const PreviewWorshipSection = ({ config, onClick, isSelected, onUpdateConfig }: any) => {
+  const imageUrl = config.imageUrl || '';
+  return (
+    <div onClick={onClick} className={cn(
+      "py-48 bg-slate-950 group cursor-pointer border-4 border-transparent relative overflow-hidden text-center text-white",
+      THEME.transition,
+      isSelected && "border-indigo-500 shadow-2xl z-20 scale-[1.01]"
+    )}>
+       {imageUrl && (
+         <img src={imageUrl} alt="Worship" className="absolute inset-0 w-full h-full object-cover opacity-30 scale-110 blur-[1px]" />
+       )}
+       <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-transparent to-slate-950 z-10" />
+       <div className="relative z-20 max-w-5xl mx-auto px-10 space-y-12">
+          <Badge className="bg-white/10 backdrop-blur-md text-white border-white/20 font-black uppercase tracking-[0.4em] text-[10px] px-8 py-3 rounded-full mb-8">Atmosphere of Grace</Badge>
+          <EditableText 
+            value={config.title || 'Worship as a Lifestyle'} 
+            onSave={(v: string) => onUpdateConfig({ ...config, title: v })}
+            className="text-7xl md:text-[9rem] font-black uppercase tracking-tighter leading-none mb-6"
+            multiline
+          />
+          <EditableText 
+            value={config.subtitle || 'Experience the presence of God through music, prayer, and authentic community.'} 
+            onSave={(v: string) => onUpdateConfig({ ...config, subtitle: v })}
+            className="text-xl md:text-3xl font-medium opacity-80 max-w-3xl mx-auto leading-relaxed"
+            multiline
+          />
+       </div>
+    </div>
   );
 };
 
@@ -958,7 +1524,7 @@ const SuccessOverlay = ({ onDismiss, onViewLive }: { onDismiss: () => void; onVi
 
 // --- Main Module ---
 
-export function WebsiteModule() {
+export function WebsiteModule({ initialView }: { initialView?: string } = {}) {
   const { settings } = useSettings();
   const orgName = settings?.organization?.name?.trim() || 'Church';
   const primaryColor = settings?.branding?.primaryColor ?? '#4F46E5';
@@ -968,13 +1534,20 @@ export function WebsiteModule() {
   const [sections, setSections] = React.useState<PageSection[]>([]);
   const [sermons, setSermons] = React.useState<Sermon[]>([]);
   const [publicEvents, setPublicEvents] = React.useState<PublicEventRow[]>([]);
+  const [ministries, setMinistries] = React.useState<Ministry[]>([]);
+  const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
+  const [campuses, setCampuses] = React.useState<Campus[]>([]);
+  const [leadership, setLeadership] = React.useState<Array<{ name?: string; role?: string; image?: string }>>([]);
   const [selectedSectionId, setSelectedSectionId] = React.useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = React.useState<'desktop' | 'mobile'>('desktop');
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [isApplyingTemplate, setIsApplyingTemplate] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
-  const [activeView, setActiveView] = React.useState<string>('dashboard');
+  const [activeView, setActiveView] = React.useState<string>(initialView ?? 'dashboard');
+  React.useEffect(() => {
+    if (initialView) setActiveView(initialView);
+  }, [initialView]);
   const [isDirty, setIsDirty] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPreviewMode, setIsPreviewMode] = React.useState(false);
@@ -984,6 +1557,98 @@ export function WebsiteModule() {
   const [isEditingPageSettings, setIsEditingPageSettings] = React.useState(false);
   const [showSiteMap, setShowSiteMap] = React.useState(false);
   const [pageSettingsData, setPageSettingsData] = React.useState({ title: '', slug: '' });
+
+  const websiteMediaUrls = React.useMemo(() => {
+    const urls = new Set<string>();
+    for (const p of pages) {
+      try {
+        const sections = JSON.parse(p.content || '[]') as Array<{ config?: { imageUrl?: string } }>;
+        for (const s of sections) {
+          const u = s.config?.imageUrl?.trim();
+          if (u) urls.add(u);
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    }
+    return [...urls];
+  }, [pages]);
+
+  type MediaItem = { id: string; url: string; filename?: string; uploadedAt: string };
+  const [mediaLibrary, setMediaLibrary] = React.useState<MediaItem[]>([]);
+  const [seoForm, setSeoForm] = React.useState({
+    siteTitle: '',
+    description: '',
+    keywords: '',
+    allowIndexing: true,
+    ogImageUrl: '',
+  });
+  const [configLoading, setConfigLoading] = React.useState(false);
+  const [configMessage, setConfigMessage] = React.useState<string | null>(null);
+  const mediaFileRef = React.useRef<HTMLInputElement>(null);
+
+  const allMediaUrls = React.useMemo(() => {
+    const urls = new Set<string>(websiteMediaUrls);
+    for (const m of mediaLibrary) urls.add(m.url);
+    return [...urls];
+  }, [websiteMediaUrls, mediaLibrary]);
+
+  const loadWebsiteConfig = React.useCallback(async () => {
+    setConfigLoading(true);
+    try {
+      const [seoRes, mediaRes] = await Promise.all([
+        apiRequest<unknown>('website/config/seo'),
+        apiRequest<unknown>('website/config/media'),
+      ]);
+      const seo = parseApiResponse<typeof seoForm>(seoRes);
+      const media = parseApiResponse<MediaItem[]>(mediaRes);
+      if (seo) {
+        setSeoForm({
+          siteTitle: String(seo.siteTitle ?? `${orgName} | Official Site`),
+          description: String(seo.description ?? settings?.organization?.tagline ?? ''),
+          keywords: String(seo.keywords ?? ''),
+          allowIndexing: seo.allowIndexing !== false,
+          ogImageUrl: String(seo.ogImageUrl ?? ''),
+        });
+      }
+      if (media) setMediaLibrary(media);
+    } catch {
+      /* non-fatal */
+    } finally {
+      setConfigLoading(false);
+    }
+  }, [orgName, settings?.organization?.tagline]);
+
+  React.useEffect(() => {
+    if (activeView === 'seo' || activeView === 'media') void loadWebsiteConfig();
+  }, [activeView, loadWebsiteConfig]);
+
+  const handleMediaUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiFetch('upload', { method: 'POST', body: formData });
+    const json = (await res.json()) as { status?: string; data?: { url?: string; filename?: string } };
+    if (!res.ok || !json.data?.url) throw new Error('Upload failed');
+    await apiRequest('website/config/media', {
+      method: 'POST',
+      body: JSON.stringify({ url: json.data.url, filename: json.data.filename || file.name }),
+    });
+    await loadWebsiteConfig();
+    setConfigMessage('Image uploaded to media library.');
+  };
+
+  const handleSeoSave = async () => {
+    setConfigLoading(true);
+    setConfigMessage(null);
+    try {
+      await apiRequest('website/config/seo', { method: 'PUT', body: JSON.stringify(seoForm) });
+      setConfigMessage('SEO settings saved. Public site meta tags will use these values.');
+    } catch (e) {
+      setConfigMessage(formatApiError(e));
+    } finally {
+      setConfigLoading(false);
+    }
+  };
 
   // Track changes to sections to manage isDirty
   const initialSectionsRef = React.useRef<string>('[]');
@@ -1003,8 +1668,7 @@ export function WebsiteModule() {
     if (raw == null || raw === '') return [];
     try {
       const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return [];
-      return parsed as PageSection[];
+      return normalizeWebsiteSections(parsed) as PageSection[];
     } catch {
       return [];
     }
@@ -1031,6 +1695,26 @@ export function WebsiteModule() {
       } catch {
         setPublicEvents([]);
       }
+
+      try {
+        const mRes = await apiRequest<unknown>('website/structure/ministries');
+        setMinistries(parseApiResponse<Ministry[]>(mRes));
+      } catch { setMinistries([]); }
+
+      try {
+        const cRes = await apiRequest<unknown>('website/giving/campaigns');
+        setCampaigns(parseApiResponse<Campaign[]>(cRes));
+      } catch { setCampaigns([]); }
+
+      try {
+        const campusRes = await apiRequest<unknown>('website/structure/campuses');
+        setCampuses(parseApiResponse<Campus[]>(campusRes));
+      } catch { setCampuses([]); }
+
+      try {
+        const lRes = await apiRequest<unknown>('website/public/leadership');
+        setLeadership(parseApiResponse(lRes) ?? []);
+      } catch { setLeadership([]); }
 
       if (pList.length > 0) {
         const target = (slug ? pList.find((p) => p.slug === slug) : null) ?? pList[0];
@@ -1087,7 +1771,7 @@ export function WebsiteModule() {
     try {
       await apiRequest(`website/pages/${encodeURIComponent(activePage.slug)}`, {
         method: 'PATCH',
-        body: { content: JSON.stringify(sections) },
+        body: { content: JSON.stringify(normalizeWebsiteSections(sections)) },
       });
       initialSectionsRef.current = JSON.stringify(sections);
       setIsDirty(false);
@@ -1208,13 +1892,12 @@ export function WebsiteModule() {
 
   const [addingAfterId, setAddingAfterId] = React.useState<string | null>(null);
 
-  const addSection = (type: SectionType, afterId?: string) => {
+  const addSection = (type: WebsiteSectionType, afterId?: string) => {
+    const idSeed = `section-${Date.now()}`;
+    const created = createWebsiteSection(type, idSeed) as EngineWebsiteSection;
     const newSection: PageSection = {
-      id: `section-${Date.now()}`,
-      type,
-      config: {},
-      isVisible: true,
-      order: (sections.length > 0 ? Math.max(...sections.map(s => s.order ?? 0)) : 0) + 1
+      ...created,
+      order: (sections.length > 0 ? Math.max(...sections.map((s) => s.order ?? 0)) : 0) + 1,
     };
 
     if (!afterId) {
@@ -1265,13 +1948,14 @@ export function WebsiteModule() {
   };
 
   const resetToFlagship = async () => {
-    if (!confirm('This will DELETE ALL PAGES and reset to the flagship template. Continue?')) return;
+    if (!confirm('Restore Flagship Website? This resets pages, navigation, and layout but keeps sermons, events, campaigns, and settings.')) return;
     try {
       setLoading(true);
-      // 1. Wipe all pages via backend
-      await apiRequest('website/pages', { method: 'DELETE' });
-      // 2. Apply template
-      await handleApplyTemplate('flagship-1');
+      await apiRequest('website/templates/restore-flagship', {
+        method: 'POST',
+      });
+      await loadAllData('home');
+      setShowSuccess(true);
     } catch (e) {
       console.error('Reset failed', e);
       setLoadError(formatApiError(e));
@@ -1279,6 +1963,20 @@ export function WebsiteModule() {
       setLoading(false);
     }
   };
+
+  const currency = settings?.financial?.currency || 'INR';
+  const websiteBindCtx = React.useMemo(
+    () => ({
+      sermons: mapSermonsForWebsite(sermons),
+      events: mapEventsForWebsite(publicEvents),
+      ministries: mapMinistriesForWebsite(ministries),
+      campaigns: mapCampaignsForWebsite(campaigns, currency),
+      leadership: mapLeadershipForWebsite(leadership),
+      campuses,
+      settings,
+    }),
+    [sermons, publicEvents, ministries, campaigns, leadership, campuses, settings, currency],
+  );
 
   if (loading) {
     return (
@@ -1347,7 +2045,7 @@ export function WebsiteModule() {
         <SuccessOverlay
           onDismiss={() => setShowSuccess(false)}
           onViewLive={() =>
-            window.open(`${window.location.origin}/website/home`, '_blank', 'noopener,noreferrer')
+            window.open(publicWebsiteUrl('home'), '_blank', 'noopener,noreferrer')
           }
         />
       )}
@@ -1521,7 +2219,7 @@ export function WebsiteModule() {
                                       <span className="text-[9px] font-bold text-slate-400 font-mono">/{p.slug}</span>
                                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                          <button 
-                                           onClick={(e) => { e.stopPropagation(); window.open(`${window.location.origin}/website/${p.slug}`, '_blank'); }}
+                                           onClick={(e) => { e.stopPropagation(); window.open(publicWebsiteUrl(p.slug), '_blank'); }}
                                            title="Open Live Page"
                                            className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-100 text-slate-400 hover:text-indigo-600"
                                          >
@@ -1563,7 +2261,7 @@ export function WebsiteModule() {
                            <div className="pt-6 border-t border-slate-100 space-y-4">
                               <div className="p-6 rounded-[2rem] bg-indigo-600 text-white space-y-4 relative overflow-hidden">
                                  <Globe className="absolute -right-4 -bottom-4 w-24 h-24 opacity-10" />
-                                 <h5 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Global Status</h5>
+                                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Publishing Overview</h5>
                                  <div>
                                     <p className="text-2xl font-black tracking-tight">{pages.filter(p => p.isPublished).length} / {pages.length}</p>
                                     <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-1">Pages Published</p>
@@ -1644,6 +2342,7 @@ export function WebsiteModule() {
                                  <Button 
                                    onClick={resetToFlagship}
                                    variant="ghost"
+                                   data-testid="website-restore-flagship"
                                    className="w-full h-14 rounded-2xl text-rose-600 hover:bg-rose-50 font-black uppercase text-[9px] tracking-[0.2em]"
                                  >
                                     <Trash2 size={16} className="mr-2" /> Reset Website to Flagship
@@ -1669,77 +2368,93 @@ export function WebsiteModule() {
                         <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
                         <div className="ml-4 flex-1 h-7 bg-white rounded-lg border border-slate-200 px-4 flex items-center">
-                           <span className="text-[10px] text-slate-300 font-medium truncate">{window.location.origin}/website/{activePage?.slug}</span>
+                           <span className="text-[10px] text-slate-300 font-medium truncate">{publicWebsiteUrl(activePage?.slug ?? 'home')}</span>
                         </div>
                      </div>
                    )}
 
                    {/* The Content */}
                    <div className={cn("overflow-x-hidden", previewDevice === 'mobile' && "rounded-[2.8rem] h-[calc(850px-24px)] overflow-y-auto")}>
-                      <header className="h-24 px-12 border-b border-slate-50 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30">
-                        <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-white font-black text-lg">{orgName[0]}</div>
-                           <span className="text-sm font-black uppercase tracking-tight">{orgName}</span>
-                        </div>
-                        <nav className={cn("flex items-center gap-8", previewDevice === 'mobile' && "hidden")}>
-                           {pages.filter(p => p.isPublished).map(p => (
-                             <span key={p.id} className={cn("text-[10px] font-black uppercase tracking-widest", activePage?.slug === p.slug ? "text-indigo-600" : "text-slate-400")}>{p.title}</span>
-                           ))}
-                           <Button className="h-10 px-6 rounded-xl font-black uppercase text-[9px] tracking-widest" style={{ backgroundColor: primaryColor }}>Giving</Button>
-                        </nav>
-                        {previewDevice === 'mobile' && <div className="w-10 h-10 flex flex-col justify-center items-end gap-1.5"><div className="w-6 h-0.5 bg-slate-900" /><div className="w-4 h-0.5 bg-slate-900" /></div>}
-                      </header>
+                      {/* Unified Navbar */}
+                      <div className="sticky top-0 z-50">
+                        <SharedNavbar 
+                          organizationName={orgName} 
+                          primaryColor={primaryColor} 
+                          pages={pages.filter(p => p.isPublished)} 
+                        />
+                      </div>
 
                       <main className="min-h-[500px]">
-                        {sections.map((section) => {
-                            const commonProps = { config: section.config, isSelected: selectedSectionId === section.id, onClick: () => setSelectedSectionId(section.id) };
-                            const editProps = { onUpdateConfig: (c: any) => updateSectionConfig(section.id, c) };
-                            
-                            const renderContent = (isEdit: boolean) => {
-                              const props = isEdit ? { ...commonProps, ...editProps } : commonProps;
-                              switch (section.type) {
-                                case 'hero': return <PreviewHero {...props} branding={settings.branding} organizationName={orgName} pageSlug={activePage?.slug} />;
-                                case 'text': return <PreviewText {...props} pageSlug={activePage?.slug} />;
-                                case 'sermon_list': return <PreviewSermonList {...props} sermons={sermons} />;
-                                case 'event_list': return <PreviewEventList {...props} events={publicEvents} />;
-                                case 'giving_cta': return <PreviewGivingCta {...props} branding={settings.branding} />;
-                                case 'stats_bar': return <PreviewStatsBar {...props} />;
-                                case 'ministry_grid': return <PreviewMinistryGrid {...props} />;
-                                case 'leadership_grid': return <PreviewLeadershipGrid {...props} />;
-                                case 'testimonials': return <PreviewTestimonials {...props} />;
-                                case 'giving_impact': return <PreviewGivingImpact {...props} branding={settings.branding} />;
-                                case 'qr_payment': return <PreviewQRPayment {...props} branding={settings.branding} />;
-                                default: return null;
-                              }
-                            };
+                        <Reorder.Group axis="y" values={sections} onReorder={setSections} className="space-y-0">
+                          {sections.map((section) => {
+                             const boundSection = bindWebsiteSectionData(section, websiteBindCtx);
+                             const isSelected = selectedSectionId === section.id;
+                             const commonProps = { config: boundSection.config, isSelected, onClick: () => setSelectedSectionId(section.id) };
+                             const editProps = { onUpdateConfig: (c: any) => updateSectionConfig(section.id, c) };
+                             
+                             const renderContent = (isEdit: boolean) => {
+                               const props = isEdit ? { ...commonProps, ...editProps } : commonProps;
+                               switch (section.type) {
+                                 case 'hero': return <PreviewHero {...props} branding={settings.branding} organizationName={orgName} pageSlug={activePage?.slug} />;
+                                 case 'text': return <PreviewText {...props} pageSlug={activePage?.slug} />;
+                                 case 'sermon_list': return <PreviewSermonList {...props} sermons={websiteBindCtx.sermons} />;
+                                 case 'event_list': return <PreviewEventList {...props} events={websiteBindCtx.events} />;
+                                 case 'giving_cta': return <PreviewGivingCta {...props} branding={settings.branding} />;
+                                case 'contact_form': return <PreviewContact {...props} orgSettings={settings} />;
+                                 case 'stats_bar': return <PreviewStatsBar {...props} branding={settings.branding} />;
+                                 case 'ministry_grid': return <PreviewMinistryGrid {...props} ministries={ministries} />;
+                                 case 'leadership_grid': return <PreviewLeadershipGrid {...props} />;
+                                 case 'testimonials': return <PreviewTestimonials {...props} />;
+                                 case 'giving_impact': return <PreviewGivingImpact {...props} campaigns={campaigns} branding={settings.branding} />;
+                                 case 'qr_payment': return <PreviewQRPayment {...props} branding={settings.branding} />;
+                                 case 'welcome_vision': return <PreviewWelcomeVision {...props} />;
+                                 case 'prayer_cta': return <PreviewPrayerCTA {...props} branding={settings.branding} />;
+                                 case 'next_steps': return <PreviewNextSteps {...props} />;
+                                 case 'worship': return <PreviewWorshipSection {...props} />;
+                                 case 'timeline': return <PreviewTimeline {...props} />;
+                                 case 'values': return <PreviewValues {...props} />;
+                                 case 'faq': return <PreviewFaq {...props} />;
+                                 case 'ministry_highlight': return <PreviewMinistryHighlight {...props} />;
+                                 case 'pastoral_note': return <PreviewPastoralNote {...props} />;
+                                 case 'vision_statement': return <PreviewVisionStatement {...props} />;
+                                 default: return null;
+                               }
+                             };
 
-                            return isPreviewMode ? (
-                              <div key={section.id}>{renderContent(false)}</div>
-                            ) : (
-                              <SectionWrapper 
-                                key={section.id} 
-                                isSelected={selectedSectionId === section.id}
-                                onSelect={() => setSelectedSectionId(section.id)}
-                                onMove={(dir: any) => moveSection(section.id, dir)}
-                                onRemove={() => removeSection(section.id)}
-                                onAddAfter={() => setAddingAfterId(section.id)}
-                              >
-                                {renderContent(true)}
-                              </SectionWrapper>
-                            );
+                             return (
+                                <Reorder.Item 
+                                  key={section.id} 
+                                  value={section}
+                                  className="relative group/reorder"
+                                >
+                                  {isPreviewMode ? (
+                                    <div key={section.id}>{renderContent(false)}</div>
+                                  ) : (
+                                    <SectionWrapper 
+                                      isSelected={isSelected}
+                                      onMove={(dir) => moveSection(section.id, dir)}
+                                      onRemove={() => removeSection(section.id)}
+                                      onClick={() => setSelectedSectionId(section.id)}
+                                    >
+                                       {renderContent(true)}
+                                    </SectionWrapper>
+                                  )}
+                                </Reorder.Item>
+                             );
                           })}
-
-                         {!isPreviewMode && sections.length === 0 && (
-                            <div className="py-32 text-center flex flex-col items-center justify-center gap-6">
-                               <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center text-slate-200"><Layout size={40} /></div>
-                               <div className="space-y-2">
-                                  <p className="text-slate-900 font-black uppercase tracking-widest text-sm">Design your page</p>
-                                  <p className="text-slate-400 font-medium text-xs">Start by adding your first section below</p>
-                               </div>
-                               <Button onClick={() => addSection('hero')} className="rounded-2xl font-black uppercase text-[10px] bg-indigo-600 text-white">Add Section</Button>
-                            </div>
-                         )}
+                        </Reorder.Group>
                       </main>
+
+                      {!isPreviewMode && sections.length === 0 && (
+                         <div className="py-32 text-center flex flex-col items-center justify-center gap-6">
+                            <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center text-slate-200"><Layout size={40} /></div>
+                            <div className="space-y-2">
+                               <p className="text-slate-900 font-black uppercase tracking-widest text-sm">Design your page</p>
+                               <p className="text-slate-400 font-medium text-xs">Start by adding your first section below</p>
+                            </div>
+                            <Button onClick={() => addSection('hero')} className="rounded-2xl font-black uppercase text-[10px] bg-indigo-600 text-white">Add Section</Button>
+                         </div>
+                      )}
 
                       <footer className="bg-slate-950 text-white p-24 text-center space-y-8">
                          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mx-auto text-white font-black text-xl">{orgName[0]}</div>
@@ -1796,34 +2511,49 @@ export function WebsiteModule() {
                       <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Add Section</h3>
                       <p className="text-sm font-medium text-slate-400">Choose a layout component to inject into your page</p>
                    </div>
-                   {[
-                      { type: 'hero', icon: Monitor, label: 'Hero Section', desc: 'Cinematic header' },
-                      { type: 'text', icon: Type, label: 'Text Block', desc: 'Narrative content' },
-                      { type: 'stats_bar', icon: Zap, label: 'Impact Bar', desc: 'Statistics' },
-                      { type: 'ministry_grid', icon: Globe, label: 'Ministries', desc: 'Service grid' },
-                      { type: 'leadership_grid', icon: Layout, label: 'Leadership', desc: 'Staff gallery' },
-                      { type: 'testimonials', icon: Sparkles, label: 'Social Proof', desc: 'Testimonials' },
-                      { type: 'sermon_list', icon: Video, label: 'Sermons', desc: 'Message archive' },
-                      { type: 'event_list', icon: Calendar, label: 'Events', desc: 'Upcoming schedule' },
-                      { type: 'giving_impact', icon: Heart, label: 'Impact Tracker', desc: 'Donation goals' },
-                      { type: 'qr_payment', icon: Smartphone, label: 'QR Giving', desc: 'Instant donation' },
-                      { type: 'giving_cta', icon: Heart, label: 'Giving CTA', desc: 'Call to action' },
-                      { type: 'contact_form', icon: Globe, label: 'Contact', desc: 'Lead generation form' }
-                   ].map(opt => (
+                  {getWebsiteSectionPalette().map((opt) => {
+                    const iconMap: Record<string, any> = {
+                      hero: Monitor,
+                      text: Type,
+                      image: Layout,
+                      sermon_list: Video,
+                      event_list: Calendar,
+                      giving_cta: Heart,
+                      contact_form: Globe,
+                      stats_bar: Zap,
+                      ministry_grid: Globe,
+                      leadership_grid: Users,
+                      testimonials: Sparkles,
+                      giving_impact: Heart,
+                      qr_payment: Smartphone,
+                      welcome_vision: Sparkles,
+                      prayer_cta: Heart,
+                      next_steps: MousePointer2,
+                      worship: PlayCircle,
+                      timeline: Layout,
+                      values: Sparkles,
+                      faq: FileText,
+                      ministry_highlight: Sparkles,
+                      pastoral_note: FileText,
+                      vision_statement: Zap,
+                    };
+                    const Icon = iconMap[opt.type] ?? Layout;
+                    return (
                      <div 
                        key={opt.type}
-                       onClick={() => addSection(opt.type as any, addingAfterId === 'top' ? undefined : addingAfterId)}
+                      onClick={() => addSection(opt.type, addingAfterId === 'top' ? undefined : addingAfterId)}
                        className="p-8 rounded-[2.5rem] border-2 border-slate-50 hover:border-indigo-600 hover:bg-indigo-50/30 transition-all cursor-pointer space-y-4 group"
                      >
                         <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white mx-auto transition-all shadow-sm group-hover:shadow-indigo-200">
-                           <opt.icon size={28} />
+                          <Icon size={28} />
                         </div>
                         <div className="text-center space-y-1">
-                           <p className="text-[11px] font-black uppercase tracking-widest text-slate-900">{opt.label}</p>
-                           <p className="text-[9px] font-medium text-slate-400 uppercase tracking-tight leading-tight">{opt.desc}</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-slate-900">{opt.label}</p>
+                          <p className="text-[9px] font-medium text-slate-400 uppercase tracking-tight leading-tight">{opt.type.replace(/_/g, ' ')}</p>
                         </div>
                      </div>
-                   ))}
+                    );
+                  })}
                    <Button variant="ghost" className="col-span-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.4em] text-slate-400" onClick={() => setAddingAfterId(null)}>Close Library</Button>
                 </div>
              </div>
@@ -1874,8 +2604,8 @@ export function WebsiteModule() {
                          <div className="pt-4 border-t border-slate-200">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Public Preview URL</p>
                             <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                               <span className="text-[10px] font-mono text-indigo-600 truncate mr-4">{window.location.origin}/website/{activePage.slug}</span>
-                               <Button variant="ghost" size="icon" onClick={() => window.open(`${window.location.origin}/website/${activePage.slug}`, '_blank')} className="h-8 w-8 text-slate-400 hover:text-indigo-600 shrink-0">
+                               <span className="text-[10px] font-mono text-indigo-600 truncate mr-4">{publicWebsiteUrl(activePage.slug)}</span>
+                               <Button variant="ghost" size="icon" onClick={() => window.open(publicWebsiteUrl(activePage.slug), '_blank')} className="h-8 w-8 text-slate-400 hover:text-indigo-600 shrink-0">
                                   <ExternalLink size={14} />
                                </Button>
                             </div>
@@ -1909,15 +2639,15 @@ export function WebsiteModule() {
       {activeView === 'dashboard' ? (
         <div className="flex-1 overflow-y-auto p-12 bg-slate-50/50">
            <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="flex justify-between items-end">
-                 <div className="space-y-2">
-                    <h1 className="text-4xl font-black uppercase tracking-tight text-slate-900">Website builder</h1>
-                    <p className="text-slate-500 font-medium tracking-widest text-sm uppercase">Operational status & public engagement</p>
-                 </div>
+              <ModuleHeader
+                title="Website builder"
+                subtitle="Public site overview and engagement — page content preview is unchanged on the live site."
+                icon={Globe}
+              />
+              <div className="flex justify-end items-end">
                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-slate-100">
-                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Site Status: Operational</span>
+                    <div className="bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-slate-100">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Public URL</span>
                     </div>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mr-2">{orgName.toLowerCase().replace(/\s+/g, '')}.kingdom.os</p>
                  </div>
@@ -1948,8 +2678,8 @@ export function WebsiteModule() {
                         <div className="absolute top-0 right-0 p-8 text-rose-50 opacity-50 group-hover:opacity-100 transition-opacity"><Heart size={120} /></div>
                         <div className="w-16 h-16 rounded-[1.5rem] bg-rose-50 flex items-center justify-center text-rose-600 shadow-sm"><Heart size={28}/></div>
                         <div>
-                           <h3 className="font-black text-5xl tracking-tighter text-slate-900">248</h3>
-                           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Global Leads</p>
+                           <h3 className="font-black text-5xl tracking-tighter text-slate-900">—</h3>
+                           <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Lead Capture</p>
                         </div>
                      </CardContent>
                   </Card>
@@ -1969,7 +2699,9 @@ export function WebsiteModule() {
                                  <Globe size={16} className="text-slate-400" />
                                  <span className="font-bold text-sm">{p.title}</span>
                                </div>
-                               <Badge className={p.isPublished ? "bg-emerald-100 text-emerald-700 border-none" : "bg-slate-200 text-slate-600 border-none"}>{p.isPublished ? 'LIVE' : 'DRAFT'}</Badge>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                {p.isPublished ? 'Published' : 'Draft'}
+                              </span>
                              </div>
                            ))}
                          </div>
@@ -1981,31 +2713,23 @@ export function WebsiteModule() {
                        )}
                     </CardContent>
                  </Card>
-                  <Card className="rounded-[2.5rem] border-none shadow-xl bg-white flex flex-col min-h-[300px]">
+                 <Card className="rounded-[2.5rem] border-none shadow-xl bg-white flex flex-col min-h-[300px]">
                      <CardHeader className="p-8 pb-4">
-                        <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-900">SEO & Health</CardTitle>
+                        <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-900">SEO & Discovery</CardTitle>
                      </CardHeader>
-                     <CardContent className="p-8 pt-0 flex-1 flex flex-col justify-center gap-6">
-                        <div className="space-y-2">
-                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                              <span>Search Visibility</span>
-                              <span className="text-emerald-600">92%</span>
-                           </div>
-                           <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-500 rounded-full w-[92%]" />
-                           </div>
-                        </div>
-                        <div className="space-y-2">
-                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                              <span>Mobile Optimization</span>
-                              <span className="text-indigo-600">85%</span>
-                           </div>
-                           <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500 rounded-full w-[85%]" />
-                           </div>
-                        </div>
+                     <CardContent className="p-8 pt-0 flex-1 flex flex-col justify-center gap-4">
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          SEO diagnostics are not connected in this build. Configure page titles/slugs and publish pages
+                          from the builder for operational website management.
+                        </p>
                         <div className="pt-4 border-t border-slate-50">
-                           <Button variant="ghost" className="w-full text-indigo-600 font-black uppercase text-[9px] tracking-widest h-10 rounded-xl hover:bg-indigo-50">Run Full SEO Audit</Button>
+                          <Button
+                            variant="ghost"
+                            disabled
+                            className="w-full text-slate-400 font-black uppercase text-[9px] tracking-widest h-10 rounded-xl"
+                          >
+                            SEO Audit Unavailable
+                          </Button>
                         </div>
                      </CardContent>
                   </Card>
@@ -2060,7 +2784,7 @@ export function WebsiteModule() {
                              <Heart size={24} />
                           </div>
                           <h3 className="font-black text-lg text-slate-900">{form}</h3>
-                          <Badge className="bg-indigo-50 text-indigo-700 border-none font-black">{i * 3 + 1} New Submissions</Badge>
+                          <Badge variant="outline" className="border-slate-200 text-slate-500 font-bold">Managed in Forms module</Badge>
                        </CardContent>
                     </Card>
                  ))}
@@ -2075,17 +2799,68 @@ export function WebsiteModule() {
                     <h1 className="text-4xl font-black uppercase tracking-tight text-slate-900">Media Library</h1>
                     <p className="text-slate-500 font-medium tracking-widest text-sm uppercase">Manage images, videos, and documents</p>
                  </div>
-                 <Button className="h-12 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 text-white hover:bg-emerald-700">
+                 <input
+                   ref={mediaFileRef}
+                   type="file"
+                   accept="image/*"
+                   className="hidden"
+                   onChange={async (e) => {
+                     const f = e.target.files?.[0];
+                     if (!f) return;
+                     try {
+                       await handleMediaUpload(f);
+                     } catch (err) {
+                       setConfigMessage(formatApiError(err));
+                     }
+                     e.target.value = '';
+                   }}
+                 />
+                 <Button
+                   type="button"
+                   className="h-12 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 text-white hover:bg-emerald-700"
+                   onClick={() => mediaFileRef.current?.click()}
+                   disabled={configLoading}
+                 >
                     <Plus size={16} className="mr-2" /> Upload
                  </Button>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 {[1,2,3,4,5,6].map((img) => (
-                    <div key={img} className="aspect-square bg-slate-200 rounded-[2rem] flex items-center justify-center text-slate-400 hover:scale-105 transition-transform cursor-pointer shadow-md">
-                       <Sparkles size={24} className="opacity-50" />
+              {configMessage && activeView === 'media' ? (
+                <p className="text-sm font-bold text-indigo-600">{configMessage}</p>
+              ) : null}
+              {allMediaUrls.length === 0 ? (
+                <div className="text-center p-12 bg-white rounded-[2rem] text-slate-500">
+                  <p className="font-bold">No images yet.</p>
+                  <p className="text-sm mt-2">Upload images here, then paste URLs into page sections in the editor.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {mediaLibrary.map((item) => (
+                    <div key={item.id} className="relative aspect-square bg-slate-200 rounded-[2rem] overflow-hidden shadow-md group">
+                      <img src={item.url} alt={item.filename || ''} className="w-full h-full object-cover" />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white/90 opacity-0 group-hover:opacity-100"
+                        onClick={async () => {
+                          await apiRequest(`website/config/media/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+                          await loadWebsiteConfig();
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
                     </div>
-                 ))}
-              </div>
+                  ))}
+                  {websiteMediaUrls
+                    .filter((url) => !mediaLibrary.some((m) => m.url === url))
+                    .map((url) => (
+                      <div key={url} className="aspect-square bg-slate-200 rounded-[2rem] overflow-hidden shadow-md">
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <p className="text-[9px] font-bold text-center p-2 text-slate-500 uppercase">On a page</p>
+                      </div>
+                    ))}
+                </div>
+              )}
            </div>
         </div>
       ) : activeView === 'landing_pages' ? (
@@ -2135,23 +2910,63 @@ export function WebsiteModule() {
                  <h1 className="text-4xl font-black uppercase tracking-tight text-slate-900">SEO & Meta Configuration</h1>
                  <p className="text-slate-500 font-medium tracking-widest text-sm uppercase">Search visibility and social sharing</p>
               </div>
+              {configMessage && activeView === 'seo' ? (
+                <p className="text-sm font-bold text-indigo-600">{configMessage}</p>
+              ) : null}
               <Card className="rounded-[3rem] border-none shadow-xl bg-white">
                  <CardContent className="p-12 space-y-8">
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Global Site Title</Label>
-                       <Input defaultValue={`${orgName} - Official Site`} className="h-14 rounded-2xl border-slate-200 font-bold" />
+                       <Input
+                         value={seoForm.siteTitle}
+                         onChange={(e) => setSeoForm((f) => ({ ...f, siteTitle: e.target.value }))}
+                         className="h-14 rounded-2xl border-slate-200 font-bold"
+                       />
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Global Description</Label>
-                       <textarea className="w-full min-h-[100px] p-4 rounded-2xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" defaultValue="Welcome to our community. Experience faith, hope, and love with us." />
+                       <textarea
+                         value={seoForm.description}
+                         onChange={(e) => setSeoForm((f) => ({ ...f, description: e.target.value }))}
+                         className="w-full min-h-[100px] p-4 rounded-2xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Keywords</Label>
+                       <Input
+                         value={seoForm.keywords}
+                         onChange={(e) => setSeoForm((f) => ({ ...f, keywords: e.target.value }))}
+                         className="h-14 rounded-2xl border-slate-200 font-bold"
+                         placeholder="church, worship, Chennai"
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Social share image (Open Graph)</Label>
+                       <Input
+                         value={seoForm.ogImageUrl}
+                         onChange={(e) => setSeoForm((f) => ({ ...f, ogImageUrl: e.target.value }))}
+                         className="h-14 rounded-2xl border-slate-200 font-bold"
+                         placeholder="https://..."
+                       />
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
                        <div className="space-y-1">
                           <p className="font-black text-sm">Search Engine Indexing</p>
                           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Allow Google to crawl your site</p>
                        </div>
-                       <Switch defaultChecked />
+                       <Switch
+                         checked={seoForm.allowIndexing}
+                         onCheckedChange={(v) => setSeoForm((f) => ({ ...f, allowIndexing: v }))}
+                       />
                     </div>
+                    <Button
+                      type="button"
+                      className="w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest"
+                      onClick={() => void handleSeoSave()}
+                      disabled={configLoading}
+                    >
+                      <Save size={16} className="mr-2" /> Save SEO Settings
+                    </Button>
                  </CardContent>
               </Card>
            </div>
@@ -2194,7 +3009,7 @@ export function WebsiteModule() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => window.open(`${window.location.origin}/website/${p.slug}`, '_blank')}
+                          onClick={() => window.open(publicWebsiteUrl(p.slug), '_blank')}
                           className="h-10 w-10 rounded-xl bg-white text-slate-400 hover:text-indigo-600 border border-slate-100"
                         >
                           <ExternalLink size={14} />
@@ -2217,6 +3032,7 @@ export function WebsiteModule() {
                      </button>
                      <button 
                        onClick={resetToFlagship}
+                       data-testid="website-restore-flagship"
                        className="h-14 px-6 rounded-2xl bg-rose-600 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-rose-100 hover:bg-slate-900 transition-all active:scale-95"
                      >
                         <RefreshCw className="w-4 h-4" />

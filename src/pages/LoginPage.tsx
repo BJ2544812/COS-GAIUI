@@ -7,13 +7,73 @@ import * as React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Church, Lock, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { Church, Lock, User as UserIcon } from 'lucide-react';
 import { getToken, setToken, getDefaultTenantId, loginWithCredentials } from '@/lib/authSession';
 import { formatApiError, apiRequest } from '@/lib/apiClient';
 import { normalizeSessionUser, useAuth } from '@/context/AuthContext';
-import { cn } from '@/lib/utils';
 import { getSessionUserFromApi } from '@/lib/sessionApi';
 import { resolvePostLoginPath } from '@/lib/roleExperience';
+import {
+  checkApiAvailability,
+  connectivityDetailLabels,
+  EXPECTED_API_ROOT,
+  isConnectivityLikeMessage,
+  isLoginTransportFailure,
+  type ApiAvailability,
+  type ApiAvailabilityReason,
+} from '@/lib/apiHealth';
+
+function LoginServerOfflinePanel({
+  reason,
+  retrying,
+  onRetry,
+}: {
+  reason: ApiAvailabilityReason;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  const details = connectivityDetailLabels(reason);
+
+  return (
+    <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl space-y-5">
+      <div className="space-y-2 text-center">
+        <p className="text-[11px] font-black uppercase tracking-widest text-amber-950">Server Offline</p>
+        <p className="text-[10px] font-semibold text-amber-900/90 leading-relaxed normal-case tracking-normal">
+          The Church Office server is not available.
+        </p>
+      </div>
+
+      <ul className="space-y-1.5">
+        {details.map((line) => (
+          <li
+            key={line}
+            className="text-[9px] font-bold uppercase tracking-widest text-amber-800/80 text-center before:content-['•'] before:mr-1.5"
+          >
+            {line}
+          </li>
+        ))}
+      </ul>
+
+      <div className="rounded-2xl bg-white/80 border border-amber-100 px-4 py-3 space-y-2 text-center">
+        <p className="text-[9px] font-black uppercase tracking-widest text-amber-900/70">Expected API</p>
+        <p className="text-[10px] font-mono font-semibold text-amber-950 break-all">{EXPECTED_API_ROOT}</p>
+        <p className="text-[9px] font-black uppercase tracking-widest text-amber-900/70 pt-1">Please start</p>
+        <p className="text-[10px] font-mono font-semibold text-amber-950">npm run dev:server</p>
+        <p className="text-[9px] font-semibold text-amber-800/80 normal-case tracking-normal">and try again.</p>
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        disabled={retrying}
+        onClick={onRetry}
+        className="w-full h-12 rounded-xl border-amber-200 font-black uppercase text-[9px] tracking-widest bg-white"
+      >
+        {retrying ? 'Checking server...' : 'Retry Connection'}
+      </Button>
+    </div>
+  );
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -23,21 +83,30 @@ export function LoginPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [retryingSession, setRetryingSession] = React.useState(false);
+  const [checkingApi, setCheckingApi] = React.useState(true);
+  const [apiStatus, setApiStatus] = React.useState<ApiAvailability | null>(null);
 
   const [showForgot, setShowForgot] = React.useState(false);
   const [forgotEmail, setForgotEmail] = React.useState('');
   const [forgotLoading, setForgotLoading] = React.useState(false);
   const [forgotMsg, setForgotMsg] = React.useState('');
 
-  React.useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+  const runHealthCheck = React.useCallback(async (): Promise<boolean> => {
+    const result = await checkApiAvailability();
+    setApiStatus(result);
+    return result.ok;
+  }, []);
 
+  React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const ok = await refreshUser();
-      if (cancelled) return;
-      if (ok) {
+      setCheckingApi(true);
+      const ok = await runHealthCheck();
+      if (!cancelled && ok) {
+        const token = getToken();
+        if (!token) return;
+        const sessionOk = await refreshUser();
+        if (cancelled || !sessionOk) return;
         try {
           const raw = await getSessionUserFromApi();
           const sessionUser = normalizeSessionUser(raw);
@@ -46,12 +115,27 @@ export function LoginPage() {
           navigate('/admin', { replace: true });
         }
       }
-    })().catch(() => {});
+    })().finally(() => {
+      if (!cancelled) setCheckingApi(false);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [navigate, refreshUser]);
+  }, [navigate, refreshUser, runHealthCheck]);
+
+  const offlineReason: ApiAvailabilityReason =
+    apiStatus && !apiStatus.ok
+      ? apiStatus.reason
+      : connectivityError
+        ? 'connection_refused'
+        : 'api_unavailable';
+
+  const showOfflineState =
+    !checkingApi &&
+    ((apiStatus !== null && !apiStatus.ok) ||
+      Boolean(connectivityError) ||
+      Boolean(error && isLoginTransportFailure({ message: error } as Error)));
 
   const handleRetryConnectivity = () => {
     clearConnectivityError();
@@ -59,6 +143,10 @@ export function LoginPage() {
     setRetryingSession(true);
     void (async () => {
       try {
+        setCheckingApi(true);
+        const healthy = await runHealthCheck();
+        if (!healthy) return;
+
         if (getToken()) {
           const ok = await refreshUser();
           if (ok) {
@@ -72,14 +160,11 @@ export function LoginPage() {
           }
         }
       } finally {
+        setCheckingApi(false);
         setRetryingSession(false);
       }
     })();
   };
-
-  const showBackendBanner =
-    Boolean(connectivityError) ||
-    Boolean(error && /cannot reach|failed to fetch|networkerror|4002|dev:server/i.test(error));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +183,12 @@ export function LoginPage() {
       const sessionUser = normalizeSessionUser(raw);
       navigate(sessionUser ? resolvePostLoginPath(sessionUser) : '/admin', { replace: true });
     } catch (err) {
-      setError(formatApiError(err));
+      if (isLoginTransportFailure(err)) {
+        setApiStatus({ ok: false, reason: 'connection_refused' });
+        setError(null);
+      } else {
+        setError(formatApiError(err));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -111,11 +201,17 @@ export function LoginPage() {
     try {
       await apiRequest('auth/forgot-password', {
         method: 'POST',
-        body: { email: forgotEmail }
+        body: { email: forgotEmail },
       });
       setForgotMsg('Instructions sent if account exists.');
     } catch (e) {
-      setForgotMsg(formatApiError(e));
+      if (isLoginTransportFailure(e) || isConnectivityLikeMessage(formatApiError(e))) {
+        setApiStatus({ ok: false, reason: 'connection_refused' });
+        setForgotMsg('');
+        setShowForgot(false);
+      } else {
+        setForgotMsg(formatApiError(e));
+      }
     } finally {
       setForgotLoading(false);
     }
@@ -155,29 +251,29 @@ export function LoginPage() {
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Church staff sign-in</p>
                 </div>
 
-                {error && !showBackendBanner && (
+                {checkingApi && (
+                  <div className="py-6 text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">
+                      Checking Church Office server...
+                    </p>
+                  </div>
+                )}
+
+                {!checkingApi && showOfflineState && (
+                  <LoginServerOfflinePanel
+                    reason={offlineReason}
+                    retrying={retryingSession}
+                    onRetry={handleRetryConnectivity}
+                  />
+                )}
+
+                {!checkingApi && !showOfflineState && error && (
                   <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-[11px] font-black uppercase tracking-widest text-rose-600 text-center">
                     {error}
                   </div>
                 )}
 
-                {showBackendBanner && (
-                  <div className="p-5 bg-amber-50 border border-amber-100 rounded-3xl space-y-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-900 text-center leading-relaxed">
-                      Cannot reach church office
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={retryingSession}
-                      onClick={handleRetryConnectivity}
-                      className="w-full h-12 rounded-xl border-amber-200 font-black uppercase text-[9px] tracking-widest bg-white"
-                    >
-                      {retryingSession ? 'Reconnecting...' : 'Retry Connection'}
-                    </Button>
-                  </div>
-                )}
-
+                {!checkingApi && !showOfflineState && (
                 <form onSubmit={handleSubmit} className="space-y-8">
                    <div className="space-y-3">
                       <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-2">Username</label>
@@ -222,7 +318,9 @@ export function LoginPage() {
                       {submitting ? 'Authenticating...' : 'Enter Dashboard'}
                    </Button>
                 </form>
+                )}
 
+                {!checkingApi && !showOfflineState && (
                 <div className="pt-6 border-t border-white/10 flex items-center justify-between">
                    <button 
                      onClick={() => setShowForgot(true)}
@@ -237,12 +335,15 @@ export function LoginPage() {
                       Back to Website
                    </button>
                 </div>
+                )}
+                {!checkingApi && !showOfflineState && (
                 <p className="text-center text-[10px] font-bold text-white/50 mt-4">
                   Member?{' '}
                   <Link to="/member-login" className="text-rose-300 hover:text-rose-200 underline-offset-2 hover:underline">
                     Sign in to My Church
                   </Link>
                 </p>
+                )}
              </CardContent>
           </Card>
 

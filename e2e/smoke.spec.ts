@@ -1,14 +1,7 @@
-import { test, expect } from './fixtures';
-
-const USER = process.env.E2E_USER ?? 'admin';
-const PASS = process.env.E2E_PASS ?? 'admin123';
+import { test, expect, loginAsAdmin } from './fixtures';
 
 async function login(page: import('@playwright/test').Page) {
-  await page.goto('/login');
-  await page.locator('#login-username').fill(USER);
-  await page.locator('#login-password').fill(PASS);
-  await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
+  await loginAsAdmin(page);
 }
 
 test.describe('Kingdom OS operational smoke', () => {
@@ -34,7 +27,9 @@ test.describe('Kingdom OS operational smoke', () => {
   test('dashboard loads with stat surfaces', async ({ page }) => {
     await login(page);
     await page.getByTestId('nav-dashboard').click();
-    await expect(page.getByText(/Welcome back\.|Overview/).first()).toBeVisible();
+    await expect(
+      page.getByText(/Welcome back\.|Overview|Church leadership|Pastoral leadership|Finance & stewardship/i).first(),
+    ).toBeVisible();
     await expect(page.getByText('Loading dashboard…')).toBeHidden({ timeout: 30_000 });
     await expect(page.locator('text=/Tasks|Upcoming|Giving|Attendance/i').first()).toBeVisible();
   });
@@ -65,6 +60,11 @@ test.describe('Kingdom OS operational smoke', () => {
     await page.getByRole('button', { name: 'Complete Registration' }).click();
     await expect(page.getByText('Member saved successfully.').first()).toBeVisible({ timeout: 30_000 });
 
+    // Search for the created member to ensure it's visible in the paginated table
+    const searchInput = page.locator('input[placeholder*="Search"]').first();
+    await searchInput.fill(email);
+    await page.waitForTimeout(500);
+
     await page.locator('tr', { hasText: email }).first().click();
     await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('1/15/1990').first()).toBeVisible();
@@ -73,26 +73,39 @@ test.describe('Kingdom OS operational smoke', () => {
     await page.getByRole('button', { name: 'Spiritual Journey' }).click();
     await expect(page.getByText('Baptism').first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Compliance' }).click();
+    await page.getByRole('main').getByRole('button', { name: /Compliance|Records/i }).click();
+    await page.screenshot({ path: `scratch/verification/member-profile-records-before-generate-${suffix}.png`, fullPage: true });
     await expect(page.getByText('DeclarationForm').first()).toBeVisible();
+    await page.getByRole('button', { name: /Member decl/i }).click();
+    await page.getByRole('button', { name: /Generate & File Record/i }).click();
+    await expect(page.getByText('GeneratedMemberDeclaration').first()).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: `scratch/verification/member-profile-records-after-member-declaration-${suffix}.png`, fullPage: true });
     await page.getByRole('button', { name: /Visitor decl/i }).click();
+    await page.getByRole('button', { name: /Generate & File Record/i }).click();
     await expect(page.getByText('GeneratedVisitorDeclaration').first()).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: `scratch/verification/member-profile-records-after-visitor-declaration-${suffix}.png`, fullPage: true });
 
     await page.reload();
     await expect(page.getByText('KINGDOM OS', { exact: true })).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('nav-members').click();
+    await page.locator('input[placeholder*="Search"]').first().fill(email);
+    await page.waitForTimeout(500);
     await page.locator('tr', { hasText: email }).first().click();
     await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('1/15/1990').first()).toBeVisible();
     await expect(page.getByText(`PW Household ${suffix}`).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Compliance' }).click();
+    await page.getByRole('main').getByRole('button', { name: /Compliance|Records/i }).click();
+    await expect(page.getByText('GeneratedMemberDeclaration').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('GeneratedVisitorDeclaration').first()).toBeVisible({ timeout: 20_000 });
+    await page.screenshot({ path: `scratch/verification/member-profile-records-after-refresh-${suffix}.png`, fullPage: true });
 
     await page.getByTestId('nav-families').click();
     await expect(page.getByRole('heading', { name: 'Families', exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(`PW Household ${suffix}`).first()).toBeVisible({ timeout: 25_000 });
 
     await page.getByTestId('nav-members').click();
+    await page.locator('input[placeholder*="Search"]').first().fill(email);
+    await page.waitForTimeout(500);
     await page.locator('tr', { hasText: email }).first().click();
     await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 15_000 });
 
@@ -135,6 +148,9 @@ test.describe('Kingdom OS operational smoke', () => {
     await expect(page.locator('div', { hasText: email }).filter({ hasText: 'Member' }).first()).toBeVisible({ timeout: 20_000 });
 
     await page.getByTestId('nav-members').click();
+    // Search for the member to ensure it's visible in the paginated table
+    await page.locator('input[placeholder*="Search"]').first().fill(email);
+    await page.waitForTimeout(500);
     await page.locator('tr', { hasText: email }).first().click();
     await page.getByRole('button', { name: 'Edit Profile' }).click();
     const growthSelect = page
@@ -146,6 +162,28 @@ test.describe('Kingdom OS operational smoke', () => {
     await expect(growthSelect).toHaveValue('Member');
     await page.getByRole('button', { name: 'Cancel Changes' }).click();
   });
+
+  async function openMemberSpiritualJourney(
+    page: import('@playwright/test').Page,
+    email: string,
+    first: string,
+    last: string,
+  ) {
+    await page.getByTestId('nav-members').click();
+    await page.locator('input[placeholder*="Search"]').first().fill(email);
+    await page.waitForTimeout(500);
+    const detail = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/members/') && r.request().method() === 'GET' && r.ok(),
+    );
+    await page.locator('tr', { hasText: email }).first().click();
+    await detail;
+    await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 20_000 });
+    const journeyTab = page.getByRole('main').getByRole('button', { name: 'Spiritual Journey' });
+    await journeyTab.scrollIntoViewIfNeeded();
+    await journeyTab.click();
+    await expect(journeyTab).toHaveClass(/border-indigo-600/);
+    await expect(page.getByRole('main').getByText('Greeter', { exact: true })).toBeVisible({ timeout: 20_000 });
+  }
 
   test('volunteer role assignment appears on member profile after reload', async ({ page }) => {
     await login(page);
@@ -172,19 +210,14 @@ test.describe('Kingdom OS operational smoke', () => {
     await volModal.locator('select').first().selectOption({ label: `${first} ${last}` });
     await volModal.locator('select').nth(1).selectOption('Greeter');
     await volModal.getByRole('button', { name: /^Assign Role$/ }).click();
-
-    await page.getByTestId('nav-members').click();
-    await page.locator('tr', { hasText: email }).first().click();
-    await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Spiritual Journey' }).click();
+    await expect(volModal).toBeHidden({ timeout: 15_000 });
+    await page.getByPlaceholder('Search by name or role...').fill(first);
     await expect(page.getByText('Greeter').first()).toBeVisible({ timeout: 20_000 });
+
+    await openMemberSpiritualJourney(page, email, first, last);
     await page.reload();
     await expect(page.getByText('KINGDOM OS', { exact: true })).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId('nav-members').click();
-    await page.locator('tr', { hasText: email }).first().click();
-    await expect(page.getByRole('heading', { name: `${first} ${last}` })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('button', { name: 'Spiritual Journey' }).click();
-    await expect(page.getByText('Greeter').first()).toBeVisible({ timeout: 20_000 });
+    await openMemberSpiritualJourney(page, email, first, last);
 
     await page.getByTestId('nav-volunteers').click();
     await page.getByPlaceholder('Search by name or role...').fill(first);
@@ -256,24 +289,33 @@ test.describe('Kingdom OS operational smoke', () => {
     await expect(page.getByText(/was created/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole('heading', { name: title, level: 3 }).click();
     await expect(page.getByRole('heading', { name: title, level: 2 })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Check-ins and guests').first()).toBeVisible();
+    await expect(page.getByText('Loading event workspace…')).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByText('Checked in').first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('attendance live portal loads', async ({ page }) => {
     await login(page);
     await page.getByTestId('nav-attendance').click();
-    await expect(page.getByRole('heading', { name: 'Attendance' })).toBeVisible();
-    page.once('dialog', (d) => d.accept(`PW Smoke ${Date.now()}`));
-    await page.getByRole('button', { name: 'Open Live Portal' }).click();
-    await expect(page.getByRole('heading', { name: 'Live Attendance Portal' })).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('heading', { name: 'Attendance', exact: true })).toBeVisible();
+    await expect(page.getByText('Recent service sessions')).toBeVisible({ timeout: 25_000 });
+    const firstSession = page.locator('h3.font-black').first();
+    if (await firstSession.isVisible().catch(() => false)) {
+      await firstSession.click();
+    } else {
+      page.once('dialog', (d) => d.accept(`PW Smoke ${Date.now()}`));
+      await page.getByRole('button', { name: 'New session' }).click();
+    }
+    await expect(page.getByRole('heading', { name: 'Live attendance' })).toBeVisible({ timeout: 25_000 });
   });
 
   test('giving recent history table renders', async ({ page }) => {
     await login(page);
     await page.getByTestId('nav-giving').click();
     await expect(page.getByRole('heading', { name: 'Giving', exact: true })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Donor' })).toBeVisible({ timeout: 25_000 });
-    await expect(page.getByText('Recent History').first()).toBeVisible();
+    // Wait for the donation operations dashboard to load with KPI cards visible
+    await expect(page.getByText('Total giving', { exact: false }).first()).toBeVisible({ timeout: 40_000 });
+    // Verify the workspace tabs are present
+    await expect(page.getByRole('button', { name: 'All gifts' })).toBeVisible();
   });
 
   test('sermon create and edit round-trip', async ({ page }) => {
@@ -294,7 +336,7 @@ test.describe('Kingdom OS operational smoke', () => {
     await page.getByTestId('nav-website').click();
     await expect(page.getByRole('heading', { name: 'Website builder' })).toBeVisible();
     await page.getByRole('button', { name: 'Visual Builder' }).click();
-    await expect(page.getByRole('button', { name: 'Exit' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Exit' }).first()).toBeVisible({ timeout: 30_000 });
 
     const hero = page.getByTestId('website-hero-title');
     await hero.click();

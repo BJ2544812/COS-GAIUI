@@ -16,8 +16,8 @@ test.describe('Runtime resilience (simulated API faults)', () => {
     });
 
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: 'Kingdom OS' })).toBeVisible({ timeout: 25_000 });
-    await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('heading', { name: 'Staff Access' })).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('button', { name: /retry connection/i })).toBeVisible({ timeout: 25_000 });
     expect(errors, `pageerror: ${errors.join('\n')}`).toHaveLength(0);
   });
 
@@ -27,11 +27,13 @@ test.describe('Runtime resilience (simulated API faults)', () => {
 
     await page.route('**/api/v1/auth/login**', (route) => route.abort('failed'));
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: 'Kingdom OS' })).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('heading', { name: 'Staff Access' })).toBeVisible({ timeout: 25_000 });
     await page.locator('#login-username').fill('admin');
     await page.locator('#login-password').fill('admin123');
     await page.getByRole('button', { name: 'Login' }).click();
-    await expect(page.getByText(/cannot reach|failed to fetch|network/i)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByText(/server offline|ecosystem offline|cannot reach|failed to fetch|network|port 4002|timed out|something went wrong/i).first(),
+    ).toBeVisible({ timeout: 15_000 });
     expect(errors, `pageerror: ${errors.join('\n')}`).toHaveLength(0);
   });
 
@@ -53,13 +55,13 @@ test.describe('Runtime resilience (simulated API faults)', () => {
     });
 
     await page.goto('/login');
-    await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('button', { name: /retry connection/i })).toBeVisible({ timeout: 25_000 });
 
     block = false;
-    await page.getByRole('button', { name: 'Retry connection' }).click();
+    await page.getByRole('button', { name: /retry connection/i }).click();
 
-    await expect(page.getByRole('button', { name: 'Retry connection' })).not.toBeVisible({ timeout: 25_000 });
-    await expect(page.getByRole('heading', { name: 'Kingdom OS' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /retry connection/i })).not.toBeVisible({ timeout: 25_000 });
+    await expect(page.getByRole('heading', { name: 'Staff Access' })).toBeVisible();
     await expect(page.locator('#login-username')).toBeVisible();
 
     const user = process.env.E2E_USER ?? 'admin';

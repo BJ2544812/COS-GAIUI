@@ -87,7 +87,7 @@ const GROUPS: GroupDef[] = [
   {
     label: 'Website', color: 'text-violet-500',
     items: [
-      { id: 'website',       label: 'Website Builder', icon: Globe,      permission: 'manage_settings', status: 'operational' },
+      { id: 'website',       label: 'Website Builder', icon: Globe,      permission: 'manage_website', status: 'operational' },
     ],
   },
   {
@@ -241,7 +241,7 @@ export function AppShell({
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          'w-64 shrink-0 flex flex-col bg-white border-r border-slate-200 z-50',
+          'w-64 shrink-0 flex flex-col bg-white border-r border-slate-200 z-[70]',
           'fixed md:sticky top-0 h-screen overflow-hidden transition-transform duration-200',
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}

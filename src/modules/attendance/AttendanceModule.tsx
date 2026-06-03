@@ -27,13 +27,21 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import {
+  ModuleHeader,
+  ActionButton,
+  PageLayout,
+  StatCard,
+  FeedbackBanner,
+} from '@/components/modules/ModuleHeader';
+import { ChurchAreaChart, ChartSection } from '@/components/modules/ChurchChart';
+import { SubpageHeader } from '@/components/modules/SubpageHeader';
+import { ds } from '@/lib/designSystem';
 import {
   enqueueOfflineCheckIn,
   getOfflineQueue,
@@ -205,17 +213,12 @@ export function AttendanceModule() {
             </Button>
           </div>
         )}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-8">
-           <div className="flex items-center gap-6">
-              <Button variant="ghost" size="icon" onClick={() => setIsLiveCheckin(false)} className="rounded-full h-12 w-12 bg-slate-100">
-                <ArrowLeft className="w-5 h-5 text-slate-900" />
-              </Button>
-              <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Live Attendance Portal</h1>
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1">Accepting check-ins for {currentSession.name}</p>
-              </div>
-           </div>
-           <div className="flex gap-3">
+        <SubpageHeader
+          title="Live attendance"
+          subtitle={`Accepting check-ins for ${currentSession.name}`}
+          onBack={() => setIsLiveCheckin(false)}
+           actions={
+             <>
               {currentSession.status === 'OPEN' && (
                 <Button 
                   onClick={async () => {
@@ -231,16 +234,20 @@ export function AttendanceModule() {
                       setAttendanceError(formatApiError(err));
                     }
                   }}
-                  className="h-14 px-8 rounded-2xl bg-amber-500 text-white font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-amber-600"
+                  variant="outline"
                 >
-                  <Clock className="w-4 h-4 mr-2" /> Close Session
+                  <Clock className="w-4 h-4 mr-2" /> Close session
                 </Button>
               )}
-              <Button onClick={() => setShowQR(showQR ? null : currentSession.id)} className="h-14 px-8 rounded-2xl bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest shadow-xl">
-                <QrCode className="w-4 h-4 mr-2" /> {showQR ? 'Hide Kiosk Mode' : 'Open Kiosk Mode'}
-              </Button>
-           </div>
-        </div>
+              <ActionButton
+                label={showQR ? 'Hide kiosk' : 'Open kiosk'}
+                icon={QrCode}
+                variant="primary"
+                onClick={() => setShowQR(showQR ? null : currentSession.id)}
+              />
+             </>
+           }
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
            <div className="lg:col-span-8 space-y-10">
@@ -420,17 +427,16 @@ export function AttendanceModule() {
   }
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       <ModuleHeader
         title="Attendance"
         subtitle="Sessions, check-ins, and headcounts from attendance data for the selected period."
-        status="live"
         icon={CalendarCheck}
         actions={
           <>
             <ActionButton label="Export records" icon={Download} variant="secondary" />
             <ActionButton 
-              label="Open Live Portal" 
+              label="New session" 
               icon={PlusCircle} 
               variant="primary" 
               onClick={async () => {
@@ -449,83 +455,81 @@ export function AttendanceModule() {
                   setAttendanceError(formatApiError(e));
                 }
               }} 
-              className="bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100/50" 
             />
           </>
         }
       />
-      {attendanceError && (
-        <div className="mt-4 mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 font-bold text-sm">
-          {attendanceError}
-        </div>
-      )}
+      {attendanceError && <FeedbackBanner tone="error">{attendanceError}</FeedbackBanner>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+        <StatCard
+          label="Total attendances"
+          value={metrics.totalAttendances?.toLocaleString?.() ?? metrics.totalAttendances ?? 0}
+          icon={Users}
+        />
+        <StatCard
+          label="Active members (30d)"
+          value={metrics.activeMembers30d ?? 0}
+          icon={TrendingUp}
+          iconColor="text-emerald-600"
+          iconBg="bg-emerald-50"
+        />
+        <StatCard
+          label="Open sessions"
+          value={sessions.filter((s) => s.status === 'OPEN').length}
+          icon={CalendarCheck}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8">
-           <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
-              <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between">
-                 <div className="space-y-2">
-                    <CardTitle className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Attendance trend</CardTitle>
-                    <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">From attendance/metrics when sessions exist; otherwise flat zeros.</CardDescription>
-                 </div>
-                 <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-400 shadow-inner">
-                    <TrendingUp size={24} />
-                 </div>
-              </CardHeader>
-              <CardContent className="p-12">
-                 <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={sessions.length > 0 ? metrics.recentVelocity.map((v: any) => ({ 
-                         day: new Date(v.date).toLocaleDateString(undefined, { weekday: 'short' }), 
-                         count: v.count 
-                       })) : [
-                         { day: 'Sun', count: 0 },
-                       ]}>
-                          <defs>
-                             <linearGradient id="colorAttend" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={settings.branding.primaryColor} stopOpacity={0.15} />
-                                <stop offset="95%" stopColor={settings.branding.primaryColor} stopOpacity={0} />
-                             </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
-                          <Tooltip contentStyle={{ borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: 'none' }} />
-                          <Area type="monotone" dataKey="count" stroke={settings.branding.primaryColor} strokeWidth={6} fill="url(#colorAttend)" dot={{ r: 6, strokeWidth: 3, fill: 'white', stroke: settings.branding.primaryColor }} />
-                       </AreaChart>
-                    </ResponsiveContainer>
-                 </div>
-              </CardContent>
-           </Card>
+          <ChartSection
+            title="Attendance trend"
+            subtitle="Recent velocity from attendance metrics"
+          >
+            <ChurchAreaChart
+              data={
+                sessions.length > 0
+                  ? metrics.recentVelocity.map((v: { date: string; count: number }) => ({
+                      day: new Date(v.date).toLocaleDateString(undefined, { weekday: 'short' }),
+                      count: v.count,
+                    }))
+                  : [{ day: 'Sun', count: 0 }]
+              }
+              xKey="day"
+              dataKey="count"
+              color={settings.branding.primaryColor}
+              gradientId="attendanceTrend"
+            />
+          </ChartSection>
         </div>
 
-        <div className="lg:col-span-4 flex flex-col gap-10">
-           <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-12 space-y-12 flex-1 relative overflow-hidden group">
-              <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
-              <div className="relative z-10 space-y-10">
-                 <div className="space-y-2">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Participations</p>
-                    <h3 className="text-6xl font-black text-white tracking-tighter leading-none">
+        <div className="lg:col-span-4 flex flex-col gap-6">
+           <Card className={cn(ds.card, ds.cardPadding)}>
+              <div className="space-y-4">
+                 <div className="space-y-1">
+                    <p className={ds.kpiLabel}>Avg. per session</p>
+                    <p className={ds.kpiValue}>
                         {sessions.length > 0 
                           ? Math.round(sessions.reduce((sum, s) => sum + (s._count?.attendances || 0), 0) / sessions.length).toLocaleString()
                           : '0'
                         }
-                    </h3>
+                    </p>
                  </div>
-                 <div className="space-y-6">
-                    <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex justify-between items-center group-hover:bg-white/10 transition-all">
+                 <div className="grid grid-cols-1 gap-3 pt-2">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center">
                        <div>
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Active Members (30d)</p>
-                          <p className="text-2xl font-black text-emerald-400">42</p>
+                          <p className={ds.kpiLabel}>Member check-ins</p>
+                          <p className="text-lg font-black text-emerald-600">{metrics.memberParticipation ?? 0}</p>
                        </div>
-                       <Users className="w-6 h-6 text-emerald-500/50" />
+                       <Users className="w-5 h-5 text-emerald-500/60" />
                     </div>
-                    <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex justify-between items-center group-hover:bg-white/10 transition-all">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center">
                        <div>
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Visitors</p>
-                          <p className="text-2xl font-black text-rose-400">4.2%</p>
+                          <p className={ds.kpiLabel}>Visitor check-ins</p>
+                          <p className="text-lg font-black text-slate-800">{metrics.visitorConversion ?? 0}</p>
                        </div>
-                       <CalendarCheck className="w-6 h-6 text-rose-500/50" />
+                       <CalendarCheck className="w-5 h-5 text-slate-400" />
                     </div>
                  </div>
               </div>
@@ -535,7 +539,7 @@ export function AttendanceModule() {
 
       <div className="space-y-8">
         <div className="flex items-center justify-between px-2 border-b border-slate-100 pb-6">
-           <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Recent Service Sessions</h2>
+           <h2 className={ds.sectionTitle}>Recent service sessions</h2>
            <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50">View History Archive</Button>
         </div>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -546,7 +550,7 @@ export function AttendanceModule() {
                  setSelectedSession(session);
                  setIsLiveCheckin(true);
                }}
-               className="border-none shadow-2xl group hover:translate-y-[-8px] cursor-pointer overflow-hidden transition-all active:scale-[0.98] rounded-[3rem] bg-white relative"
+               className={cn(ds.card, 'group cursor-pointer overflow-hidden transition-all hover:shadow-md active:scale-[0.99]')}
              >
                <CardContent className="p-0">
                  <div className="flex h-40">
@@ -560,7 +564,7 @@ export function AttendanceModule() {
                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{session.campus?.name || 'All Campuses'} &bull; {new Date(session.date).toLocaleDateString()}</p>
                              {session.status === 'OPEN' && <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
                           </div>
-                          <h3 className="text-3xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tighter leading-none uppercase">{session.name}</h3>
+                          <h3 className="text-lg font-black text-slate-900 group-hover:text-brand-primary transition-colors leading-tight">{session.name}</h3>
                           <div className="flex items-center gap-4 pt-1">
                              <div className="flex items-center gap-2">
                                 <Users className="w-5 h-5 text-slate-300" />
@@ -577,12 +581,12 @@ export function AttendanceModule() {
              </Card>
            ))}
            {sessions.length === 0 && (
-             <div className="md:col-span-2 p-20 text-center bg-white rounded-[3rem] border border-dashed border-slate-200">
+             <div className={cn('md:col-span-2 p-12 text-center border border-dashed border-slate-200 rounded-2xl', ds.card)}>
                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No service sessions recorded yet</p>
              </div>
            )}
          </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

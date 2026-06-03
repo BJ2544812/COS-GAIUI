@@ -2,29 +2,20 @@
  * Shared website section ordering and hero copy resolution so builder preview and public pages stay aligned.
  * Frontend-only; no API changes.
  */
+import { WEBSITE_SECTION_REGISTRY } from '@/lib/websiteEngine';
 
 export const DEFAULT_PUBLIC_MISSION =
   'Growing in faith, serving with compassion, and welcoming everyone God sends our way.';
 
 const GENERIC_HERO_TITLES = /^welcome$/i;
 
-const SECTION_FLOW_PRIORITY: Record<string, number> = {
-  hero: 0,
-  text: 1,
-  event_list: 2,
-  sermon_list: 3,
-  giving_cta: 4,
-  contact_form: 5,
-  image: 6,
-};
-
 export function sortSectionsForDisplay<T extends { type: string; order?: number }>(sections: T[]): T[] {
   return [...sections].sort((a, b) => {
     if (typeof a.order === 'number' && typeof b.order === 'number') {
       return a.order - b.order;
     }
-    const pa = SECTION_FLOW_PRIORITY[a.type] ?? 99;
-    const pb = SECTION_FLOW_PRIORITY[b.type] ?? 99;
+    const pa = WEBSITE_SECTION_REGISTRY[a.type as keyof typeof WEBSITE_SECTION_REGISTRY]?.order ?? 999;
+    const pb = WEBSITE_SECTION_REGISTRY[b.type as keyof typeof WEBSITE_SECTION_REGISTRY]?.order ?? 999;
     return pa - pb;
   });
 }
@@ -82,4 +73,18 @@ export function heroFieldFallbacksForBuilder(
       : '';
   const subtitleFallback = slug === 'home' ? DEFAULT_PUBLIC_MISSION : 'Gather with us this week.';
   return { titleFallback, subtitleFallback };
+}
+
+/** Public SPA path for a CMS page slug (home → `/`). */
+export function publicWebsitePath(slug: string): string {
+  const s = String(slug || 'home').trim();
+  if (!s || s === 'home') return '/';
+  return `/${encodeURIComponent(s)}`;
+}
+
+/** Full public URL for opening live site from the builder. */
+export function publicWebsiteUrl(slug: string, origin?: string): string {
+  const base = (origin ?? (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+  const path = publicWebsitePath(slug);
+  return path === '/' ? `${base}/` : `${base}${path}`;
 }

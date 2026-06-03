@@ -174,13 +174,14 @@ export function mapSermonsForWebsite(
   });
 }
 
-export function formatEventDateParts(isoDate: string): { month: string; day: string; timeLabel: string } {
+export function formatEventDateParts(isoDate: string): { weekday: string; month: string; day: string; timeLabel: string } {
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) {
-    return { month: 'TBD', day: '—', timeLabel: 'See calendar' };
+    return { weekday: 'TBD', month: 'TBD', day: '—', timeLabel: 'See calendar' };
   }
+  const weekday = d.toLocaleString('en-US', { weekday: 'long' });
   const month = d.toLocaleString('en-US', { month: 'short' });
   const day = String(d.getDate());
   const timeLabel = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return { month, day, timeLabel };
+  return { weekday, month, day, timeLabel };
 }

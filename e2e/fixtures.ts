@@ -1,4 +1,40 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+
+/** Staff login surface (org-branded; shell brand is KINGDOM OS after sign-in). */
+export async function expectStaffLoginPage(page: Page) {
+  await expect(page.getByRole('heading', { name: 'Staff Access' })).toBeVisible();
+  await expect(page.locator('#login-username')).toBeVisible();
+  await expect(page.locator('#login-password')).toBeVisible();
+}
+
+/** Sign in and land in the ERP shell at /admin (not public website). */
+export async function loginAsRole(
+  page: Page,
+  username: string,
+  password = process.env.E2E_PASS ?? 'admin123',
+  options?: { skipAdminNav?: boolean },
+) {
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText(/Checking Church Office server/i)).toBeHidden({ timeout: 30_000 });
+  await expect(page.locator('#login-username')).toBeVisible({ timeout: 15_000 });
+  await page.locator('#login-username').fill(username);
+  await page.locator('#login-password').fill(password);
+  await page.locator('#login-password').press('Enter');
+  await expect(page).not.toHaveURL(/\/login$/, { timeout: 25_000 });
+  await expect(page.getByText('KINGDOM OS', { exact: true })).toBeVisible({ timeout: 25_000 });
+  if (!options?.skipAdminNav) {
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15_000 });
+  }
+}
+
+export async function loginAsAdmin(
+  page: Page,
+  user = process.env.E2E_USER ?? 'admin',
+  pass = process.env.E2E_PASS ?? 'admin123',
+) {
+  await loginAsRole(page, user, pass);
+}
 
 /**
  * Attaches lightweight runtime-trust listeners for each test page.

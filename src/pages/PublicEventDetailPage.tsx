@@ -125,7 +125,7 @@ export function PublicEventDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <SharedNavbar orgName={orgName} primaryColor={primaryColor} />
+      <SharedNavbar organizationName={orgName} primaryColor={primaryColor} />
       <main className="max-w-3xl mx-auto px-6 py-16 space-y-10">
         <Link to="/events" className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm font-bold uppercase tracking-widest">
           <ArrowLeft className="w-4 h-4" /> All events
@@ -226,7 +226,7 @@ export function PublicEventDetailPage() {
           </>
         )}
       </main>
-      <SharedFooter orgName={orgName} />
+      <SharedFooter organizationName={orgName} />
     </div>
   );
 }
