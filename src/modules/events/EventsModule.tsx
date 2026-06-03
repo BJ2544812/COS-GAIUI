@@ -12,8 +12,6 @@ import {
   ArrowLeft,
   Settings,
   Share2,
-  Ticket,
-  DollarSign,
   Download,
   Mic2,
 } from 'lucide-react';
@@ -26,10 +24,18 @@ import { useSettings } from '@/context/SettingsContext';
 import { EventWorkspace } from '@/components/events/EventWorkspace';
 import { openSundayServices, UCOS_OPEN_EVENT_ID } from '@/lib/sundayServicesNavigation';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
-import { EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
+import { EVENT_STATUS_LABELS, EVENT_STATUS_COLORS } from '@/lib/eventLifecycle';
 import { ModuleHeader, ActionButton, PageLayout, FeedbackBanner } from '@/components/modules/ModuleHeader';
 import type { ERPModule } from '@/types';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  EventPublicPublishingFields,
+  emptyPublicForm,
+  publicFormFromProfile,
+  publicFormToProfile,
+  type EventPublicFormState,
+} from '@/components/events/EventPublicPublishingFields';
+import { getEventPublicProfile, publicRegistrationCount, isPublishedToWebsite } from '@/lib/eventPublicProfile';
 
 
 type EventDetailDto = {
@@ -37,9 +43,12 @@ type EventDetailDto = {
   name: string;
   type: string;
   date: string;
+  status?: string;
   location?: string | null;
   internalNotes?: string | null;
   recurringRule?: string | null;
+  opsConfig?: unknown;
+  registrationOpen?: boolean;
   campus?: { id: string; name: string } | null;
   attendanceSessions?: Array<{
     id: string;
@@ -66,8 +75,10 @@ type EventCard = {
   title: string;
   date: string;
   status: string;
+  statusKey: string;
   attendees: number;
-  budget: string;
+  regCount: number;
+  published: boolean;
   type: string;
 };
 
@@ -87,8 +98,11 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
   const [createName, setCreateName] = React.useState('');
   const [createType, setCreateType] = React.useState('Special');
   const [createDate, setCreateDate] = React.useState(() => new Date().toISOString().split('T')[0]);
+  const [createLocation, setCreateLocation] = React.useState('');
+  const [createPublic, setCreatePublic] = React.useState<EventPublicFormState>(emptyPublicForm);
 
   const [setupLocation, setSetupLocation] = React.useState('');
+  const [setupPublic, setSetupPublic] = React.useState<EventPublicFormState>(emptyPublicForm);
   const [setupInternalNotes, setSetupInternalNotes] = React.useState('');
   const [setupRecurring, setSetupRecurring] = React.useState('');
   const [setupName, setSetupName] = React.useState('');
@@ -97,16 +111,31 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
   const [setupSaving, setSetupSaving] = React.useState(false);
 
   const mapRowsToCards = React.useCallback(
-    (rows: { id: string; name: string; type: string; date: string }[]) =>
-      rows.map((e) => ({
-        id: e.id,
-        title: e.name,
-        date: new Date(e.date).toLocaleDateString(),
-        status: 'Planned',
-        attendees: 0,
-        budget: '—',
-        type: e.type,
-      })),
+    (rows: {
+      id: string;
+      name: string;
+      type: string;
+      date: string;
+      status?: string;
+      opsConfig?: unknown;
+      attendanceSessions?: Array<{ _count?: { attendances: number } }>;
+    }[]) =>
+      rows.map((e) => {
+        const attendees = (e.attendanceSessions ?? []).reduce((s, sess) => s + (sess._count?.attendances ?? 0), 0);
+        const regCount = publicRegistrationCount(e.opsConfig);
+        const statusKey = e.status ?? 'DRAFT';
+        return {
+          id: e.id,
+          title: e.name,
+          date: new Date(e.date).toLocaleDateString(),
+          status: EVENT_STATUS_LABELS[statusKey] ?? statusKey,
+          statusKey,
+          attendees,
+          regCount,
+          published: isPublishedToWebsite(e.opsConfig),
+          type: e.type,
+        };
+      }),
     [],
   );
 
@@ -150,11 +179,14 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
         id: row.id,
         title: row.name,
         date: new Date(row.date).toLocaleDateString(),
-        status: 'Planned',
+        status: EVENT_STATUS_LABELS[row.status ?? 'DRAFT'] ?? row.status ?? 'Draft',
+        statusKey: row.status ?? 'DRAFT',
         attendees: count,
-        budget: '—',
+        regCount: publicRegistrationCount(row.opsConfig),
+        published: isPublishedToWebsite(row.opsConfig),
         type: row.type,
       });
+      setSetupPublic(publicFormFromProfile(getEventPublicProfile(row.opsConfig)));
       const aj = await apiRequest<unknown>(`attendance/event/${id}`, { method: 'GET' });
       setEventAttendees(parseApiResponse<EventAttendanceRow[]>(aj) ?? []);
     } catch (e) {
@@ -202,6 +234,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     setSetupLocation(eventDetail.location ?? '');
     setSetupInternalNotes(eventDetail.internalNotes ?? '');
     setSetupRecurring(eventDetail.recurringRule ?? '');
+    setSetupPublic(publicFormFromProfile(getEventPublicProfile(eventDetail.opsConfig)));
     setView('setup');
   };
 
@@ -220,6 +253,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
           location: setupLocation.trim() || null,
           internalNotes: setupInternalNotes.trim() || null,
           recurringRule: setupRecurring.trim() || null,
+          publicProfile: publicFormToProfile(setupPublic),
         },
       });
       const updated = parseApiResponse<EventDetailDto>(j);
@@ -302,7 +336,13 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     try {
       const j = await apiRequest<unknown>('events', {
         method: 'POST',
-        body: { name: createName.trim(), type: createType, date: createDate },
+        body: {
+          name: createName.trim(),
+          type: createType,
+          date: createDate,
+          location: createLocation.trim() || null,
+          publicProfile: publicFormToProfile(createPublic),
+        },
       });
       const created = parseApiResponse<{ id: string; name: string; type: string; date: string }>(j);
       await fetchEvents();
@@ -390,6 +430,24 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
                 placeholder="Volunteer briefing, pastoral follow-up, production cues…"
               />
             </div>
+            <Card className="rounded-2xl border-indigo-100 bg-indigo-50/30 p-6">
+              <h3 className="text-sm font-black text-slate-900 mb-4">Website &amp; registration</h3>
+              <EventPublicPublishingFields
+                form={setupPublic}
+                onChange={(p) => setSetupPublic((f) => ({ ...f, ...p }))}
+                eventId={eventDetail.id}
+              />
+              {setupPublic.publishedToWebsite && (
+                <p className="text-xs text-indigo-700 mt-4 font-medium">
+                  Public page:{' '}
+                  <a className="underline" href={`/events/${eventDetail.id}`} target="_blank" rel="noreferrer">
+                    /events/{eventDetail.id}
+                  </a>
+                  {publicRegistrationCount(eventDetail.opsConfig) > 0 &&
+                    ` · ${publicRegistrationCount(eventDetail.opsConfig)} online registration(s)`}
+                </p>
+              )}
+            </Card>
             <div className="flex gap-4 pt-2">
               <Button
                 type="submit"
@@ -416,124 +474,85 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Create New Event</h1>
-            <p className="text-sm text-slate-500 font-medium">Define schedules, logistics, and financial allocations.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Create event</h1>
+            <p className="text-sm text-slate-500 font-medium">
+              Conferences, outreach, and special gatherings. Worship services are planned in Sunday &amp; Services.
+            </p>
           </div>
         </div>
 
         {eventsError && <p className="text-sm text-rose-600 font-medium">{eventsError}</p>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <Card className="lg:col-span-2 rounded-[2.5rem] border-none shadow-2xl p-8 space-y-8 text-left">
-              <form className="space-y-6" onSubmit={submitNewEvent}>
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Event Title</label>
-                    <input
-                      value={createName}
-                      onChange={(e) => setCreateName(e.target.value)}
-                      type="text"
-                      className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all"
-                      placeholder="e.g. Annual Youth Conclave"
-                    />
-                 </div>
+        <Card className="rounded-[2.5rem] border-none shadow-2xl p-8 space-y-8 text-left">
+          <form className="space-y-8" onSubmit={submitNewEvent}>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Event title</label>
+              <input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                type="text"
+                required
+                className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all"
+                placeholder="e.g. Youth Conclave"
+              />
+            </div>
 
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Event type</label>
-                       <select
-                         value={createType}
-                         onChange={(e) => setCreateType(e.target.value)}
-                         className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none transition-all cursor-pointer"
-                       >
-                          <option value="Service">Service</option>
-                          <option value="Special">Special</option>
-                          <option value="SmallGroup">SmallGroup</option>
-                       </select>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Date</label>
-                       <input
-                         type="date"
-                         value={createDate}
-                         onChange={(e) => setCreateDate(e.target.value)}
-                         className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all"
-                       />
-                    </div>
-                 </div>
-
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Logistics & Accounting Type</label>
-                    <div className="grid grid-cols-3 gap-3">
-                       {['Ticketed', 'Free/Open', 'Invite Only'].map(t => (
-                         <button key={t} className="h-12 rounded-xl bg-slate-50 hover:bg-slate-100 font-bold text-[10px] uppercase tracking-widest text-slate-600 border border-slate-100 transition-all active:scale-95">{t}</button>
-                       ))}
-                    </div>
-                 </div>
-
-                  <div className="grid grid-cols-2 gap-6 border-t border-slate-100 pt-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Budget ({settings.financial.currency})</label>
-                       <div className="relative">
-                          <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <input type="number" className="w-full h-14 bg-slate-50 border-none rounded-2xl pl-12 pr-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all" placeholder="0.00" />
-                       </div>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Expense Allocation</label>
-                       <select className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none transition-all cursor-pointer">
-                          <option>Ministry Fund</option>
-                          <option>Designated Offering</option>
-                          <option>General Operations</option>
-                          <option>Grant / Sponsorship</option>
-                       </select>
-                    </div>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Financial Lead</label>
-                       <input type="text" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all" placeholder="Admin / Treasurer Name" />
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">External Partner %</label>
-                       <input type="number" className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all" placeholder="Payout / Share" />
-                    </div>
-                 </div>
-
-              <div className="pt-4 flex gap-4">
-                 <Button type="submit" disabled={creating} className="flex-1 h-16 rounded-[2rem] bg-[var(--brand-primary)] hover:opacity-90 text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-200">
-                   {creating ? 'Saving…' : 'Publish Event'}
-                 </Button>
-                 <Button type="button" variant="ghost" className="px-8 h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em]" onClick={() => setView('list')}>Save Draft</Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Event type</label>
+                <select
+                  value={createType}
+                  onChange={(e) => setCreateType(e.target.value)}
+                  className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none cursor-pointer"
+                >
+                  <option value="Special">Special event</option>
+                  <option value="SmallGroup">Small group</option>
+                </select>
               </div>
-              </form>
-           </Card>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Date</label>
+                <input
+                  type="date"
+                  value={createDate}
+                  onChange={(e) => setCreateDate(e.target.value)}
+                  required
+                  className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)]"
+                />
+              </div>
+            </div>
 
-           <div className="space-y-6">
-              <Card className="rounded-[2.5rem] bg-slate-950 text-white p-8 space-y-6 overflow-hidden relative">
-                 <div className="absolute inset-0 bg-gradient-to-br from-[color-mix(in_oklab,var(--brand-primary)12%,transparent)] to-transparent"></div>
-                 <div className="relative z-10 space-y-4">
-                    <h3 className="font-black text-lg tracking-tight">Public website</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                      Event visibility on the public site is managed from the Website builder when pages are wired to this calendar. This toggle is not connected yet.
-                    </p>
-                    <div className="flex items-center gap-3 py-3 border-y border-white/5 opacity-50 pointer-events-none">
-                       <div className="w-10 h-5 bg-slate-600 rounded-full relative p-1 transition-all shadow-inner">
-                          <div className="w-3 h-3 bg-white rounded-full ml-auto"></div>
-                       </div>
-                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Not connected</span>
-                    </div>
-                 </div>
-              </Card>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Location</label>
+              <input
+                value={createLocation}
+                onChange={(e) => setCreateLocation(e.target.value)}
+                className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900"
+                placeholder="Venue or campus room"
+              />
+            </div>
 
-              <Card className="rounded-[2.5rem] border-none shadow-sm p-8 text-left space-y-4">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Approvals</h4>
-                 <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                   Multi-step approval routing is not connected in this build. Use your church&apos;s usual approval process until workflows are wired.
-                 </p>
-              </Card>
-           </div>
-        </div>
+            <div className="border-t border-slate-100 pt-6">
+              <h3 className="text-sm font-black text-slate-900 mb-4">Website &amp; registration</h3>
+              <EventPublicPublishingFields
+                form={createPublic}
+                onChange={(p) => setCreatePublic((f) => ({ ...f, ...p }))}
+              />
+            </div>
+
+            <div className="pt-2 flex gap-4">
+              <Button
+                type="submit"
+                disabled={creating}
+                className="flex-1 h-14 rounded-2xl bg-[var(--brand-primary)] text-[11px] font-black uppercase tracking-[0.2em]"
+              >
+                {creating ? 'Saving…' : 'Create event'}
+              </Button>
+              <Button type="button" variant="ghost" className="px-8 h-14 rounded-2xl text-[11px] font-black uppercase" onClick={() => setView('list')}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
     );
   }
@@ -638,11 +657,22 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
                        <h3 className="text-xl font-black text-slate-800 tracking-tight group-hover:text-[color:var(--brand-primary)] transition-colors pt-1 leading-tight">{event.title}</h3>
                     </div>
                     
-                    <div className="flex justify-between items-center border-t border-slate-50 pt-5 mt-2">
-                       <span className="flex items-center gap-2 group-hover:text-slate-600 transition-colors text-[11px] font-bold text-slate-400"><Users size={16} className="text-slate-200 group-hover:text-[var(--brand-secondary)] transition-colors" /> {event.attendees} INTAKE</span>
-                       <Badge className={cn("text-[9px] px-3 py-1.5 rounded-full font-black border-none uppercase tracking-widest",
-                         event.status === 'Registration Open' ? "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100" : "bg-slate-50 text-slate-500"
-                       )}>{event.status}</Badge>
+                    <div className="flex flex-wrap justify-between items-center gap-2 border-t border-slate-50 pt-5 mt-2">
+                       <span className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
+                         <Users size={16} className="text-slate-300" />
+                         {event.attendees} checked in
+                         {event.regCount > 0 ? ` · ${event.regCount} registered` : ''}
+                       </span>
+                       <div className="flex flex-wrap gap-1.5">
+                         {event.published && (
+                           <Badge className="text-[9px] px-2 py-1 rounded-full font-black uppercase bg-indigo-50 text-indigo-700 border-none">
+                             Website
+                           </Badge>
+                         )}
+                         <Badge className={cn('text-[9px] px-3 py-1.5 rounded-full font-black border-none uppercase tracking-widest', EVENT_STATUS_COLORS[event.statusKey] ?? 'bg-slate-50 text-slate-500')}>
+                           {event.status}
+                         </Badge>
+                       </div>
                     </div>
                  </div>
               </CardContent>
@@ -651,13 +681,6 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
          )}
       </div>
 
-      <div className="rounded-[2.5rem] border border-slate-200 bg-slate-50/80 p-8 text-left">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Event operations</p>
-        <p className="mt-3 text-sm text-slate-600 font-medium leading-relaxed max-w-3xl">
-          Logistics matrices, funnel dashboards, and milestone timelines shown here previously were illustrative only.
-          Use the event cards above for details, setup, attendance sessions, and exports.
-        </p>
-      </div>
     </PageLayout>
   );
 }

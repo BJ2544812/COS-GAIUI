@@ -478,6 +478,37 @@ export class MemberProfileController {
     }
   }
 
+  /** POST /families */
+  static async createFamily(req: TenantRequest, res: Response) {
+    try {
+      const { name, addressLine1, addressLine2, city, stateRegion, postalCode, country } = req.body as {
+        name?: string;
+        addressLine1?: string;
+        addressLine2?: string;
+        city?: string;
+        stateRegion?: string;
+        postalCode?: string;
+        country?: string;
+      };
+      if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+      const family = await prisma.family.create({
+        data: {
+          tenantId: req.tenantId!,
+          name: name.trim(),
+          addressLine1: addressLine1?.trim() || undefined,
+          addressLine2: addressLine2?.trim() || undefined,
+          city: city?.trim() || undefined,
+          stateRegion: stateRegion?.trim() || undefined,
+          postalCode: postalCode?.trim() || undefined,
+          country: country?.trim() || 'India',
+        },
+      });
+      res.status(201).json({ status: 'success', data: family });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   /** POST /members/:id/care-notes */
   static async createCareNote(req: TenantRequest, res: Response) {
     try {

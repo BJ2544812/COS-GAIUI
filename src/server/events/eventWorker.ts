@@ -1,10 +1,13 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
+import { registerWorker } from '../utils/workerRegistry.js';
 import { DomainEventPayload } from './eventBus.js';
 import { prisma } from '../utils/prisma.js';
 import { AccountingService } from '../services/AccountingService.js';
 import { IdempotencyRepository } from '../repositories/IdempotencyRepository.js';
 import { NotificationService } from '../services/NotificationService.js';
+import { recordOperationalIncident } from '../utils/operationalIncidents.js';
+import { logStructured } from '../utils/structuredLog.js';
 
 const redisUrl = process.env.REDIS_URL;
 
@@ -30,8 +33,63 @@ export async function processDomainEvent(event: DomainEventPayload, attemptsMade
       console.log(`[Worker] Handled MemberCreated for ${entityId}`);
       
     } else if (eventName === 'EventCreated') {
-      console.log(`[Worker] Handled EventCreated for ${entityId}`);
-      
+      await NotificationService.createNotification({
+        tenantId,
+        type: 'EventCreated',
+        title: 'New event drafted',
+        message: `“${(payload as { name?: string }).name ?? 'Event'}” was created. Open Events to coordinate volunteers and logistics.`,
+        targetRole: 'Admin',
+        priority: 'LOW',
+        actionType: 'VIEW_MODULE',
+        actionLink: 'events',
+        expiresInDays: 14,
+      });
+    } else if (
+      [
+        'EventUpdated',
+        'EventApproved',
+        'RegistrationOpened',
+        'RegistrationClosed',
+        'EventActivated',
+        'EventCompleted',
+        'EventArchived',
+        'EventCancelled',
+      ].includes(eventName)
+    ) {
+      const titleMap: Record<string, string> = {
+        EventApproved: 'Event approved',
+        RegistrationOpened: 'Registration opened',
+        RegistrationClosed: 'Registration closed',
+        EventActivated: 'Event is live',
+        EventCompleted: 'Event completed',
+        EventArchived: 'Event archived',
+        EventCancelled: 'Event cancelled',
+        EventUpdated: 'Event updated',
+      };
+      await NotificationService.createNotification({
+        tenantId,
+        type: eventName,
+        title: titleMap[eventName] ?? 'Event update',
+        message: `Event “${(payload as { name?: string }).name ?? entityId}” — ${(payload as { to?: string }).to ?? 'status changed'}.`,
+        targetRole: 'Admin',
+        priority: eventName === 'EventCancelled' ? 'HIGH' : 'MEDIUM',
+        actionType: 'VIEW_MODULE',
+        actionLink: 'events',
+        expiresInDays: 21,
+      });
+    } else if (eventName === 'EventRegistrationCompleted') {
+      const payload = event.payload as { eventName?: string; registrantName?: string };
+      await NotificationService.createNotification({
+        tenantId,
+        type: 'EventRegistration',
+        title: 'Event registration',
+        message: `${payload.registrantName ?? 'Someone'} registered for “${payload.eventName ?? 'an event'}”.`,
+        targetRole: 'Admin',
+        priority: 'MEDIUM',
+        actionType: 'VIEW_MODULE',
+        actionLink: 'events',
+        expiresInDays: 30,
+      });
     } else if (eventName === 'DonationReceived') {
       const { amount, method, reference, date, debitAccountId, creditAccountId, auditUserId } = payload;
       
@@ -133,6 +191,48 @@ export async function processDomainEvent(event: DomainEventPayload, attemptsMade
         });
         console.log(`[Worker] Handled ${eventName} - Notification sent to ${recipient}`);
       }
+    } else if (eventName === 'VisitorRegistered') {
+      await NotificationService.createNotification({
+        tenantId,
+        type: 'VisitorRegistered',
+        title: 'New visitor registered',
+        message: `Guest “${(payload as { name?: string }).name ?? 'Visitor'}” — assign follow-up in Outreach.`,
+        targetRole: 'Pastoral',
+        priority: 'MEDIUM',
+        actionType: 'VIEW_MODULE',
+        actionLink: 'outreach',
+        expiresInDays: 14,
+      });
+    } else if (eventName === 'PrayerRequestAssigned') {
+      const assignee = (payload as { assignedUserId?: string }).assignedUserId;
+      if (assignee) {
+        await NotificationService.createNotification({
+          tenantId,
+          userId: assignee,
+          type: 'PrayerRequestAssigned',
+          title: 'Prayer request assigned',
+          message: 'You have been assigned a prayer request. Open Pastoral Care to respond.',
+          priority: 'MEDIUM',
+          actionType: 'VIEW_MODULE',
+          actionLink: 'discipleship',
+          expiresInDays: 14,
+        });
+      }
+      console.log(`[Worker] Prayer request ${entityId} assigned`);
+    } else if (eventName === 'CommunicationCampaignSent') {
+      await NotificationService.createNotification({
+        tenantId,
+        type: 'CampaignSent',
+        title: 'Campaign delivered',
+        message: `“${(payload as { title?: string }).title ?? 'Campaign'}” sent to ${(payload as { audienceSize?: number }).audienceSize ?? 0} recipients.`,
+        targetRole: 'Admin',
+        priority: 'LOW',
+        actionType: 'VIEW_MODULE',
+        actionLink: 'communication',
+        expiresInDays: 7,
+      });
+    } else if (eventName === 'FollowUpCompleted') {
+      console.log(`[Worker] Follow-up ${entityId} completed`);
     } else if (eventName.startsWith('Care') || eventName.startsWith('Mentorship') || eventName.startsWith('Task')) {
       // Safe default handler for Discipleship events: Just log them for the audit timeline.
       console.log(`[Worker] Safe generic processing for ${eventName} (${entityId})`);
@@ -161,16 +261,31 @@ export async function processDomainEvent(event: DomainEventPayload, attemptsMade
     });
 
   } catch (error: any) {
-    console.error(`[Worker] Failed to process event ${eventName} for ${entityId}:`, error);
-    
-    // Mark as FAILED (will be retried by BullMQ)
+    const errMsg = error.message || 'Unknown error processing event';
+    logStructured('error', 'workflow_processing_failed', {
+      tenantId,
+      workflowId: id,
+      eventId: id,
+      error: errMsg,
+      module: eventName,
+    });
+
+    await recordOperationalIncident(tenantId, {
+      severity: attemptsMade >= 2 ? 'critical' : 'warning',
+      category: 'workflow_failure',
+      title: `Workflow failed: ${eventName}`,
+      detail: errMsg,
+      workflowId: id,
+      eventId: id,
+    }).catch(() => undefined);
+
     await prisma.eventLog.update({
       where: { id },
       data: {
         status: 'FAILED',
-        error: `[Attempt ${attemptsMade + 1}] ${error.message || 'Unknown error processing event'}`
-      }
-    }).catch(e => console.error('[Worker] Failed to update eventLog status', e));
+        error: `[Attempt ${attemptsMade + 1}] ${errMsg}`,
+      },
+    }).catch((e) => console.error('[Worker] Failed to update eventLog status', e));
 
     // Emit Notification
     await NotificationService.createNotification({
@@ -195,13 +310,43 @@ export function startEventWorker() {
   }
   
   try {
-    const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
-    const worker = new Worker('domain_events', async (job: Job) => {
-      await processDomainEvent(job.data as DomainEventPayload, job.attemptsMade);
-    }, { connection });
+    const connection = new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: true,
+      retryStrategy: (times) => Math.min(times * 200, 5000),
+    });
+    const concurrency = Math.min(
+      20,
+      Math.max(1, Number(process.env.EVENT_WORKER_CONCURRENCY) || 5),
+    );
+    const worker = new Worker(
+      'domain_events',
+      async (job: Job) => {
+        await processDomainEvent(job.data as DomainEventPayload, job.attemptsMade);
+      },
+      { connection, concurrency },
+    );
 
-    worker.on('failed', (job, err) => {
-      console.error(`[Worker] Job ${job?.id} failed:`, err);
+    registerWorker(worker);
+
+    worker.on('failed', async (job, err) => {
+      const data = job?.data as DomainEventPayload | undefined;
+      logStructured('error', 'worker_job_failed', {
+        tenantId: data?.tenantId,
+        workflowId: job?.id,
+        eventId: data?.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (data?.tenantId) {
+        await recordOperationalIncident(data.tenantId, {
+          severity: 'critical',
+          category: 'worker_failure',
+          title: 'Background worker job failed',
+          detail: err instanceof Error ? err.message : String(err),
+          workflowId: job?.id,
+          eventId: data.id,
+        }).catch(() => undefined);
+      }
     });
     
     console.log('[Worker] Domain event worker started.');

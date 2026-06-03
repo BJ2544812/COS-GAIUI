@@ -14,8 +14,24 @@ export class EventRepository {
   static async findAll(tenantId: string) {
     return prisma.event.findMany({
       where: { tenantId },
-      include: { campus: true },
+      include: {
+        campus: true,
+        attendanceSessions: { select: { id: true, _count: { select: { attendances: true } } } },
+      },
       orderBy: { date: 'desc' },
+    });
+  }
+
+  /** Candidates for public website (filtered by published flag in service layer). */
+  static async findPublishedForWebsite(tenantId: string, take = 60) {
+    return prisma.event.findMany({
+      where: {
+        tenantId,
+        status: { notIn: ['CANCELLED', 'ARCHIVED'] },
+      },
+      include: { campus: true },
+      orderBy: { date: 'asc' },
+      take,
     });
   }
 
@@ -29,6 +45,14 @@ export class EventRepository {
           include: { _count: { select: { attendances: true } } },
         },
       },
+    });
+  }
+
+  static async findResponsibilitiesForEvent(tenantId: string, eventId: string) {
+    return prisma.memberResponsibility.findMany({
+      where: { tenantId, entityType: 'Event', entityId: eventId },
+      include: { member: { select: { id: true, name: true, email: true, phone: true, profileImageUrl: true } } },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

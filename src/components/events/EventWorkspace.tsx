@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { EVENT_STATUS_COLORS, EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
+import { publicRegistrationCount, isPublishedToWebsite } from '@/lib/eventPublicProfile';
 import { openSundayLive, openSundayServices } from '@/lib/sundayServicesNavigation';
 import type { ERPModule } from '@/types';
 
@@ -60,6 +61,7 @@ type WorkspaceData = {
     location?: string | null;
     internalNotes?: string | null;
     registrationOpen?: boolean;
+    opsConfig?: unknown;
     attendanceSessions?: Array<{
       id: string;
       name: string;
@@ -276,16 +278,38 @@ export function EventWorkspace({
               </CardContent>
             </Card>
           ))}
+          {!serviceMode && isPublishedToWebsite(ev.opsConfig) && (
+            <Card className="md:col-span-3 rounded-2xl border-indigo-100 bg-indigo-50/40">
+              <CardContent className="p-6 flex flex-wrap justify-between items-center gap-3">
+                <div>
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Public website</p>
+                  <p className="text-sm text-slate-700 font-medium mt-1">
+                    {publicRegistrationCount(ev.opsConfig)} online registration(s) ·{' '}
+                    <a href={`/events/${eventId}`} target="_blank" rel="noreferrer" className="underline text-indigo-700">
+                      View public page
+                    </a>
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => onModuleChange?.('events')}>
+                  Edit publishing in Setup
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <Card className="md:col-span-3 rounded-2xl border-slate-100">
             <CardHeader>
               <CardTitle className="text-lg">{serviceMode ? 'Planning notes' : 'Team notes'}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{ev.internalNotes || 'No staff notes yet.'}</p>
-              {serviceMode && (
+              {serviceMode ? (
                 <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => openSundayServices(onModuleChange, 'plan', eventId)}>
                   Edit in service plan
                 </Button>
+              ) : (
+                <p className="text-xs text-slate-500 mt-3">
+                  Public description and image are managed in Event setup → Website &amp; registration.
+                </p>
               )}
             </CardContent>
           </Card>
