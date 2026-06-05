@@ -1,13 +1,14 @@
 import { prisma } from '../utils/prisma.js';
 import { Prisma } from '@prisma/client';
+import { parseDateOnlyToISO } from '../../lib/dateOnly.js';
 
 export class MemberRepository {
   static async create(tenantId: string, data: Omit<Prisma.MemberCreateInput, 'tenant'>) {
     if (data.membershipDate && typeof data.membershipDate === 'string') {
-      data.membershipDate = new Date(data.membershipDate).toISOString();
+      data.membershipDate = parseDateOnlyToISO(data.membershipDate) ?? data.membershipDate;
     }
     if (data.dob && typeof data.dob === 'string') {
-      data.dob = new Date(data.dob).toISOString();
+      data.dob = parseDateOnlyToISO(data.dob) ?? data.dob;
     }
     console.log('FINAL DATA TO PRISMA (CREATE):', data);
     return prisma.member.create({
@@ -18,9 +19,9 @@ export class MemberRepository {
     });
   }
 
-  static async findAll(tenantId: string) {
+  static async findAll(tenantId: string, familyId?: string) {
     return prisma.member.findMany({
-      where: { tenantId },
+      where: { tenantId, ...(familyId ? { familyId } : {}) },
       include: {
         family: true,
         smallGroupMembers: { include: { group: true } },
@@ -54,10 +55,10 @@ export class MemberRepository {
     const member = await prisma.member.findFirst({ where: { id, tenantId } });
     if (!member) throw new Error('Member not found');
     if (data.membershipDate && typeof data.membershipDate === 'string') {
-      data.membershipDate = new Date(data.membershipDate).toISOString();
+      data.membershipDate = parseDateOnlyToISO(data.membershipDate) ?? data.membershipDate;
     }
     if (data.dob && typeof data.dob === 'string') {
-      data.dob = new Date(data.dob).toISOString();
+      data.dob = parseDateOnlyToISO(data.dob) ?? data.dob;
     }
     console.log('FINAL DATA TO PRISMA (UPDATE):', data);
     await prisma.member.update({

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { cn } from '@/lib/utils';
 import { 
   ApiError, getMember, updateMember, uploadProfileImage, uploadFamilyImage,
-  createMemberDocument, deleteMemberDocument, updateMemberDocument,
+  createMemberDocument, deleteMemberDocument, updateMemberDocument, getMemberDocuments,
   createMemberMilestone, deleteMemberMilestone,
   createMemberResponsibility, deleteMemberResponsibility,
   linkMemberFamily, unlinkMemberFamily,
@@ -31,23 +31,23 @@ import { AppAvatar } from '@/components/ui/app-avatar';
 import { ImageCropper } from '@/components/ui/image-cropper';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettings } from '@/context/SettingsContext';
-import { MinistryJourneyTimeline } from '@/components/intelligence/MinistryJourneyTimeline';
 import { ResponsiveTableWrap } from '@/components/modules/ModuleHeader';
-
-function dateInputValue(iso: string | null | undefined): string {
-  if (!iso) return '';
-  return iso.slice(0, 10);
-}
+import { MemberSpiritualJourneyTab } from './MemberSpiritualJourneyTab';
+import { MemberFamilyTab } from './MemberFamilyTab';
+import type { ERPModule } from '@/types';
+import { dateOnlyInputValue, formatDateOnlyDisplay } from '@/lib/dateOnly';
 
 interface MemberProfileDetailProps {
   memberId: string;
   onBack: () => void;
   onMemberUpdated?: () => void | Promise<void>;
+  onModuleChange?: (module: ERPModule, tab?: string) => void;
+  onViewMember?: (memberId: string) => void;
 }
 
 type TabType = 'overview' | 'journey' | 'attendance' | 'family' | 'giving' | 'documents' | 'timeline';
 
-export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: MemberProfileDetailProps) {
+export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModuleChange, onViewMember }: MemberProfileDetailProps) {
   const [activeTab, setActiveTab] = React.useState<TabType>('overview');
   
   const [member, setMember] = React.useState<MemberDto | null>(null);
@@ -107,7 +107,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
 
   // New states for missing features
   const [milestoneOpen, setMilestoneOpen] = React.useState(false);
-  const [milestoneForm, setMilestoneForm] = React.useState({ type: 'Salvation', date: dateInputValue(new Date().toISOString()), notes: '' });
+  const [milestoneForm, setMilestoneForm] = React.useState({ type: 'Salvation', date: dateOnlyInputValue(new Date().toISOString()), notes: '' });
   const [milestoneSaving, setMilestoneSaving] = React.useState(false);
 
   const [documentOpen, setDocumentOpen] = React.useState(false);
@@ -143,8 +143,11 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
   const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getMember(memberId);
-      setMember(data);
+      const [data, docs] = await Promise.all([
+        getMember(memberId),
+        getMemberDocuments(memberId).catch(() => null),
+      ]);
+      setMember({ ...data, documents: docs ?? data.documents ?? [] });
       
       if (data.familyId) {
         // Fetch family members
@@ -180,8 +183,8 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
       status: member.status ?? 'Active',
       growthStage: member.growthStage ?? 'Visitor',
       role: member.role ?? '',
-      membershipDate: dateInputValue(member.membershipDate),
-      dob: dateInputValue(member.dob),
+      membershipDate: dateOnlyInputValue(member.membershipDate),
+      dob: dateOnlyInputValue(member.dob),
       gender: member.gender ?? '',
       aadhaar: member.aadhaar ?? '',
       pan: member.pan ?? '',
@@ -345,7 +348,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
     if (!member) return;
     setGenerateTemplate(template);
     setGenerateForm({
-      candidateDob: member.dob ? member.dob.slice(0, 10) : '',
+      candidateDob: dateOnlyInputValue(member.dob),
       fatherName: '',
       motherName: '',
       baptismDate: new Date().toISOString().slice(0, 10),
@@ -620,11 +623,11 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                          <div className="divide-y divide-slate-100 text-sm">
                             <div className="px-5 py-3 flex justify-between items-center">
                                <span className="text-slate-500 font-medium">DOB</span>
-                               <span className="font-bold text-slate-900">{member.dob ? new Date(member.dob).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</span>
+                               <span className="font-bold text-slate-900">{formatDateOnlyDisplay(member.dob, 'en-US')}</span>
                             </div>
                             <div className="px-5 py-3 flex justify-between items-center">
                                <span className="text-slate-500 font-medium">Joined</span>
-                               <span className="font-bold text-slate-900">{member.membershipDate ? new Date(member.membershipDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</span>
+                               <span className="font-bold text-slate-900">{formatDateOnlyDisplay(member.membershipDate, 'en-US')}</span>
                             </div>
                             <div className="px-5 py-3 flex justify-between items-center">
                                <span className="text-slate-500 font-medium">Family</span>
@@ -831,140 +834,19 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                         </div>
                       )}
 
-                       {activeTab === 'journey' && (
-                        <div className="space-y-6">
-                           {/* Growth Stage Pipeline */}
-                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
-                              <CardHeader className="pb-4 border-b border-slate-100">
-                                 <CardTitle className="text-base font-bold text-slate-900">Spiritual Growth Pipeline</CardTitle>
-                                 <CardDescription className="text-xs font-medium">Visualizing current standing in the discipleship journey.</CardDescription>
-                              </CardHeader>
-                              <CardContent className="p-8">
-                                 <div className="flex items-center justify-between relative max-w-2xl mx-auto">
-                                    <div className="absolute left-0 right-0 h-1 bg-slate-100 top-1/2 -translate-y-1/2" />
-                                    {GROWTH_PIPELINE.map((stage, i) => {
-                                      const currentIdx = pipelineIndex(member.growthStage);
-                                      const isCompleted = i < currentIdx;
-                                      const isActive = i === currentIdx;
-                                      
-                                      return (
-                                        <button key={stage.key} type="button" disabled={growthStageSaving} onClick={() => void saveGrowthStage(stage.key)} className="relative z-10 flex flex-col items-center gap-2 min-w-[70px]">
-                                           <div className={cn(
-                                             "w-12 h-12 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all",
-                                             isCompleted ? "bg-emerald-500 text-white" : isActive ? "bg-indigo-600 text-white scale-110" : "bg-white text-slate-300"
-                                           )}>
-                                              {isCompleted ? <Check size={16} /> : <span className="text-[10px] font-black">{i + 1}</span>}
-                                           </div>
-                                           <span className={cn(
-                                             "text-[10px] font-black uppercase tracking-widest",
-                                             isActive ? "text-indigo-600" : isCompleted ? "text-emerald-600" : "text-slate-400"
-                                           )}>
-                                             {stage.label}
-                                           </span>
-                                        </button>
-                                      );
-                                    })}
-                                 </div>
-                                 <p className="text-center text-xs font-bold text-slate-500 mt-4">
-                                   Current stage: {growthStageLabel(member.growthStage)}
-                                   {' · '}
-                                   <select
-                                     className="ml-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black uppercase"
-                                     value={member.growthStage === 'Staff' ? 'CoreTeam' : (member.growthStage || 'Visitor')}
-                                     disabled={growthStageSaving}
-                                     onChange={(e) => void saveGrowthStage(e.target.value as GrowthStageKey)}
-                                   >
-                                     {GROWTH_PIPELINE.map((s) => (
-                                       <option key={s.key} value={s.key}>{s.label}</option>
-                                     ))}
-                                   </select>
-                                 </p>
-                              </CardContent>
-                           </Card>
-
-                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden p-6">
-                              <MinistryJourneyTimeline memberId={memberId} />
-                           </Card>
-
-                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
-                              <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
-                                 <div>
-                                    <CardTitle className="text-base font-bold text-slate-900">Spiritual Milestones</CardTitle>
-                                    <CardDescription className="text-xs font-medium">Tracking specific faith events and commitments.</CardDescription>
-                                 </div>
-                                 <Button onClick={() => setMilestoneOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black h-9 rounded-xl px-4 gap-2">
-                                    <Plus size={16} /> Add Milestone
-                                 </Button>
-                              </CardHeader>
-                              <CardContent className="p-0">
-                                 {(!member.milestones || member.milestones.length === 0) ? (
-                                    <div className="p-12 text-center text-slate-400">
-                                       <Award size={32} className="mx-auto mb-3 opacity-20" />
-                                       <p className="text-sm font-bold">No milestones recorded.</p>
-                                    </div>
-                                 ) : (
-                                    <div className="divide-y divide-slate-100">
-                                       {member.milestones.map((m: any) => (
-                                          <div key={m.id} className="flex items-center justify-between p-5 hover:bg-slate-50 transition-colors">
-                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-100">
-                                                   <CheckCircle2 size={18} />
-                                                </div>
-                                                <div>
-                                                   <p className="text-sm font-bold text-slate-900">{m.type}</p>
-                                                   <p className="text-xs font-medium text-slate-500">{new Date(m.date).toLocaleDateString()}</p>
-                                                </div>
-                                             </div>
-                                             <Button variant="ghost" size="icon" className="text-rose-400 hover:text-rose-600" onClick={() => deleteMilestone(m.id)}>
-                                                <Trash2 size={16} />
-                                             </Button>
-                                          </div>
-                                       ))}
-                                    </div>
-                                 )}
-                              </CardContent>
-                           </Card>
-
-                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
-                              <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
-                                 <div>
-                                 <CardTitle className="text-base font-bold text-slate-900">Roles & Responsibilities</CardTitle>
-                                 <CardDescription className="text-xs font-medium">Current assignments in church departments.</CardDescription>
-                                 </div>
-                                 <Button onClick={() => setResponsibilityOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black h-9 rounded-xl px-4 gap-2">
-                                    <Plus size={16} /> Assign Role
-                                 </Button>
-                              </CardHeader>
-                              <CardContent className="p-0">
-                                 {(!member.responsibilities || member.responsibilities.length === 0) ? (
-                                    <div className="p-12 text-center text-slate-400">
-                                       <Briefcase size={32} className="mx-auto mb-3 opacity-20" />
-                                       <p className="text-sm font-bold">No active responsibilities.</p>
-                                    </div>
-                                 ) : (
-                                    <div className="divide-y divide-slate-100">
-                                       {member.responsibilities.map((r: any) => (
-                                          <div key={r.id} className="flex items-center justify-between p-5">
-                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                                                   <Briefcase size={18} />
-                                                </div>
-                                                <div>
-                                                   <p className="text-sm font-bold text-slate-900">{r.role}</p>
-                                                   <p className="text-xs font-medium text-slate-500">{r.status} • {resolveResponsibilityLabel(r)} · {servingTierForRole(r.role)}</p>
-                                                </div>
-                                             </div>
-                                             <div className="flex items-center gap-2">
-                                               <Badge className="bg-slate-100 text-slate-600 border-none uppercase tracking-widest text-[10px] font-black">{r.status}</Badge>
-                                               <Button variant="ghost" size="icon" className="text-rose-400" onClick={() => void removeResponsibility(r.id)}><Trash2 size={16} /></Button>
-                                             </div>
-                                          </div>
-                                       ))}
-                                    </div>
-                                 )}
-                              </CardContent>
-                           </Card>
-                        </div>
+                       {activeTab === 'journey' && member && (
+                        <MemberSpiritualJourneyTab
+                          member={member}
+                          memberId={memberId}
+                          growthStageSaving={growthStageSaving}
+                          saveGrowthStage={saveGrowthStage}
+                          onAddMilestone={() => setMilestoneOpen(true)}
+                          onDeleteMilestone={deleteMilestone}
+                          onAssignRole={() => setResponsibilityOpen(true)}
+                          onRemoveResponsibility={removeResponsibility}
+                          resolveResponsibilityLabel={resolveResponsibilityLabel}
+                          onModuleChange={onModuleChange}
+                        />
                       )}
 
                       {activeTab === 'attendance' && (
@@ -1029,84 +911,24 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                         </div>
                       )}
 
-                      {activeTab === 'family' && (
-                        <div className="space-y-6">
-                           <Card className="rounded-2xl shadow-sm border-slate-200 bg-white overflow-hidden">
-                              <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
-                                 <div className="flex items-center gap-4">
-                                    <input type="file" ref={familyPhotoInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" onChange={(e) => onPhotoSelect(e, 'family')} />
-                                    <div className="relative group" onClick={() => {
-                                       if (!member.familyId) return;
-                                       setCropType('family');
-                                       familyPhotoInputRef.current?.click();
-                                    }}>
-                                       <div className={cn("w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-md transition-all", member.familyId && "cursor-pointer group-hover:scale-105")}>
-                                          <AppAvatar src={member.family?.imageUrl ? `${SERVER_ROOT}${member.family.imageUrl}` : undefined} name={member.family?.name || '?'} className="w-full h-full rounded-none" />
-                                          {member.familyId && (
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                               <Camera size={16} className="text-white" />
-                                            </div>
-                                          )}
-                                       </div>
-                                    </div>
-                                    <div>
-                                       <CardTitle className="text-base font-bold text-slate-900">Household Structure</CardTitle>
-                                       <CardDescription className="text-xs font-bold mt-1 uppercase tracking-widest text-indigo-600">{member.family?.name || 'No household record'}</CardDescription>
-                                    </div>
-                                 </div>
-                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="bg-white shadow-sm font-bold h-9 rounded-xl border-slate-200" onClick={() => {
-                                       setFamilyLinkForm({ familyId: member.familyId || '', familyName: '' });
-                                       setFamilyLinkOpen(true);
-                                    }}>
-                                       {member.familyId ? 'Change Family' : 'Link Family'}
-                                    </Button>
-                                    {member.familyId && <Button variant="ghost" size="sm" className="text-rose-500 hover:bg-rose-50 font-bold h-9 rounded-xl" onClick={handleUnlinkFamily}>Unlink</Button>}
-                                 </div>
-                              </CardHeader>
-                              <CardContent className="p-0">
-                                 {familyMembers.length === 0 ? (
-                                    <div className="p-16 flex flex-col items-center justify-center text-slate-400 text-center">
-                                       <Users size={32} className="mb-4 opacity-20"/>
-                                       <p className="font-bold text-slate-900 mb-1">Independent Profile</p>
-                                       <p className="text-sm font-medium">This member is not linked to any other family accounts.</p>
-                                    </div>
-                                 ) : (
-                                    <ResponsiveTableWrap className="border-0 rounded-none">
-                                    <table className="w-full min-w-[480px] text-sm text-left">
-                                       <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100 text-xs uppercase tracking-widest font-black">
-                                          <tr>
-                                             <th className="px-6 py-4">Name</th>
-                                             <th className="px-6 py-4">Relation</th>
-                                             <th className="px-6 py-4 text-right">Actions</th>
-                                          </tr>
-                                       </thead>
-                                       <tbody className="divide-y divide-slate-100">
-                                          {familyMembers.map(f => (
-                                             <tr key={f.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4">
-                                                   <div className="flex items-center gap-3">
-                                                      <AppAvatar src={f.profileImageUrl ? `${SERVER_ROOT}${f.profileImageUrl}` : undefined} name={f.name} className="w-8 h-8 rounded-full shadow-sm" />
-                                                      <span className="font-bold text-slate-900">{f.name}</span>
-                                                   </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                   <Badge variant="secondary" className="bg-slate-100 text-slate-600 shadow-none border-none uppercase tracking-widest text-[10px] font-black">
-                                                      {f.id === member.id ? 'Self' : 'Family'}
-                                                   </Badge>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                   <Button variant="ghost" size="sm" className="h-8 px-2 text-[10px] font-bold text-slate-400">View Profile</Button>
-                                                </td>
-                                             </tr>
-                                          ))}
-                                       </tbody>
-                                    </table>
-                                    </ResponsiveTableWrap>
-                                 )}
-                              </CardContent>
-                           </Card>
-                        </div>
+                      {activeTab === 'family' && member && (
+                        <MemberFamilyTab
+                          member={member}
+                          memberId={memberId}
+                          familyMembers={familyMembers}
+                          onViewMember={(id) => { if (id !== memberId) onViewMember?.(id); }}
+                          onLinkFamily={() => {
+                            setFamilyLinkForm({ familyId: member.familyId || '', familyName: '' });
+                            setFamilyLinkOpen(true);
+                          }}
+                          onUnlinkFamily={handleUnlinkFamily}
+                          onFamilyPhotoClick={() => {
+                            setCropType('family');
+                            familyPhotoInputRef.current?.click();
+                          }}
+                          familyPhotoInput={familyPhotoInputRef}
+                          onFamilyPhotoSelect={(e) => onPhotoSelect(e, 'family')}
+                        />
                       )}
 
                       {activeTab === 'giving' && (
@@ -1499,7 +1321,10 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated }: Membe
                <select className="w-full h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold shadow-sm" value={milestoneForm.type} onChange={e => setMilestoneForm(f => ({ ...f, type: e.target.value }))}>
                   <option value="Salvation">Salvation</option>
                   <option value="Baptism">Baptism</option>
+                  <option value="Membership">Membership</option>
                   <option value="MembershipClass">Membership Class</option>
+                  <option value="Ministry Onboarding">Ministry Onboarding</option>
+                  <option value="Leadership Milestones">Leadership Milestones</option>
                   <option value="SmallGroupLeader">Small Group Leader</option>
                   <option value="Other">Other</option>
                </select>

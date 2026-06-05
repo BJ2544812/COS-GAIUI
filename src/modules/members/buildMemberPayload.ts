@@ -1,4 +1,5 @@
 import type { MemberCreateBody, MemberUpdateBody } from './memberApi';
+import { parseDateOnlyToISO } from '@/lib/dateOnly';
 
 /** Spiritual growth track checkboxes (step 4) — persisted as SpiritualMilestone rows. */
 export const INTAKE_SPIRITUAL_TRACK_LABELS = [
@@ -73,12 +74,12 @@ export function buildCreatePayloadFromIntake(form: IntakeFormData & Record<strin
   if (phone) body.phone = phone;
 
   if (form.joinDate) {
-    body.membershipDate = new Date(`${form.joinDate}T12:00:00.000Z`).toISOString();
+    body.membershipDate = parseDateOnlyToISO(form.joinDate) ?? undefined;
   }
 
   const bd = typeof form.birthDate === 'string' ? form.birthDate.trim() : '';
   if (bd) {
-    body.dob = new Date(`${bd}T12:00:00.000Z`).toISOString();
+    body.dob = parseDateOnlyToISO(bd) ?? undefined;
   }
 
   const g = typeof form.gender === 'string' ? form.gender.trim() : '';

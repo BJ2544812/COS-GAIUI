@@ -1,6 +1,4 @@
-import { apiRequest, parseApiResponse, stripUndefined, ApiError } from '@/lib/apiClient';
-import { API_BASE_URL } from '@/lib/apiConfig';
-import { getToken, getTenantId } from '@/lib/authSession';
+import { apiFetch, apiRequest, parseApiResponse, stripUndefined, ApiError } from '@/lib/apiClient';
 
 export { ApiError };
 
@@ -23,15 +21,43 @@ export interface MemberDto {
   gender: string | null;
   aadhaar: string | null;
   pan: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: string;
   updatedAt: string;
-  family?: { id: string; name: string; imageUrl?: string | null; tenantId: string; createdAt: string; updatedAt: string } | null;
+  family?: {
+    id: string;
+    name: string;
+    imageUrl?: string | null;
+    tenantId: string;
+    createdAt: string;
+    updatedAt: string;
+    addressLine1?: string | null;
+    city?: string | null;
+    stateRegion?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null;
   documents?: MemberDocumentDto[];
   milestones?: SpiritualMilestoneDto[];
   attendances?: any[];
   careNotes?: CareNoteDto[];
   donations?: any[];
   responsibilities?: any[];
+  smallGroupMembers?: {
+    id: string;
+    role: string;
+    joinedAt?: string;
+    group?: { id: string; name: string; type?: string; meetingDay?: string | null; isActive?: boolean };
+  }[];
 }
 
 // ------------------------------------------------------------------
@@ -131,7 +157,31 @@ export type MemberUpdateBody = Partial<Omit<MemberCreateBody, 'email' | 'phone' 
   gender?: string | null;
   aadhaar?: string | null;
   pan?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
+
+export async function importMembers(rows: MemberCreateBody[]): Promise<{ created: number; errors: { index: number; message: string }[]; memberIds: string[] }> {
+  const json = await apiRequest<{ status: string; data: { created: number; errors: { index: number; message: string }[]; memberIds: string[] } }>(
+    '/members/import',
+    { method: 'POST', body: { rows } },
+  );
+  return parseApiResponse(json);
+}
+
+export async function createFamily(body: { name: string; addressLine1?: string; city?: string; stateRegion?: string; postalCode?: string }): Promise<{ id: string; name: string }> {
+  const json = await apiRequest<{ status: string; data: { id: string; name: string } }>('/families', {
+    method: 'POST',
+    body: stripUndefined(body as Record<string, unknown>),
+  });
+  return parseApiResponse(json);
+}
 
 export async function updateMember(id: string, body: MemberUpdateBody): Promise<MemberDto> {
   const json = await apiRequest<{ status: string; data: MemberDto }>(`/members/${encodeURIComponent(id)}`, {
@@ -148,17 +198,8 @@ export async function uploadProfileImage(memberId: string, file: File): Promise<
   const form = new FormData();
   form.append('file', file);
 
-  const token = getToken();
-  const tenantId = getTenantId();
-  const base = API_BASE_URL.replace(/\/$/, '');
-  const url = `${base}/members/${encodeURIComponent(memberId)}/profile-image`;
-  console.log("API CALL:", url);
-  const res = await fetch(url, {
+  const res = await apiFetch(`members/${encodeURIComponent(memberId)}/profile-image`, {
     method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
-    },
     body: form,
   });
 
@@ -192,17 +233,8 @@ export async function createMemberDocument(
     if (data.number) form.append('number', data.number);
     if (data.notes) form.append('notes', data.notes);
 
-    const token = getToken();
-    const tenantId = getTenantId();
-    const base = API_BASE_URL.replace(/\/$/, '');
-    const url = `${base}/members/${encodeURIComponent(memberId)}/documents`;
-    console.log("API CALL:", url);
-    const res = await fetch(url, {
+    const res = await apiFetch(`members/${encodeURIComponent(memberId)}/documents`, {
       method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
-      },
       body: form,
     });
     const json = await res.json();
@@ -299,7 +331,7 @@ export async function getMemberResponsibilities(memberId: string): Promise<any[]
 
 export async function createMemberResponsibility(
   memberId: string,
-  data: { role: string; entityType?: string; entityId?: string; status?: string; allocatedFunds?: number; usedFunds?: number; notes?: string }
+  data: { role: string; entityType?: string; entityId?: string; status?: string; startDate?: string; endDate?: string | null; allocatedFunds?: number; usedFunds?: number; notes?: string }
 ): Promise<any> {
   const json = await apiRequest<{ status: string; data: any }>(
     `/members/${encodeURIComponent(memberId)}/responsibilities`,
@@ -320,10 +352,11 @@ export type IdentityDocTemplate = 'visitor_declaration' | 'member_declaration' |
 export async function generateMemberIdentityDocument(
   memberId: string,
   template: IdentityDocTemplate,
+  extraFields?: Record<string, string>,
 ): Promise<MemberDocumentDto> {
   const json = await apiRequest<{ status: string; data: MemberDocumentDto }>(
     `/members/${encodeURIComponent(memberId)}/generated-documents`,
-    { method: 'POST', body: { template } },
+    { method: 'POST', body: { template, ...extraFields } },
   );
   return parseApiResponse<MemberDocumentDto>(json);
 }
@@ -411,16 +444,8 @@ export async function uploadFamilyImage(familyId: string, file: File): Promise<s
   const form = new FormData();
   form.append('file', file);
 
-  const token = getToken();
-  const tenantId = getTenantId();
-  const base = API_BASE_URL.replace(/\/$/, '');
-  const url = `${base}/families/${encodeURIComponent(familyId)}/image`;
-  const res = await fetch(url, {
+  const res = await apiFetch(`families/${encodeURIComponent(familyId)}/image`, {
     method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(tenantId ? { 'x-tenant-id': tenantId } : {}),
-    },
     body: form,
   });
 

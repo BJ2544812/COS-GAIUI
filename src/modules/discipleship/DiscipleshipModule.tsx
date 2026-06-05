@@ -13,7 +13,8 @@ import {
   Clock,
   ShieldAlert,
   MessageSquare,
-  FileText
+  FileText,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,12 +22,16 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ERPModule } from '@/types';
-import { apiRequest, parseApiResponse } from '@/lib/apiClient';
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { format } from 'date-fns';
 import { PastoralTimeline, PastoralEvent } from '@/components/ui/PastoralTimeline';
 import { CareCaseIntakeSheet } from './components/CareCaseIntakeSheet';
 import { TaskIntakeSheet } from './components/TaskIntakeSheet';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { PrayerIntakeSheet } from './components/PrayerIntakeSheet';
+import { ModuleHeader, ActionButton, PageLayout, StatCard, FeedbackBanner } from '@/components/modules/ModuleHeader';
+import { SubpageHeader } from '@/components/modules/SubpageHeader';
+import { ds } from '@/lib/designSystem';
+import { buildMemberProfilePath } from '@/lib/adminNavigation';
 
 interface DiscipleshipModuleProps {
   onModuleChange?: (module: ERPModule) => void;
@@ -42,50 +47,46 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
   const [members, setMembers] = React.useState<any[]>([]);
   const [users, setUsers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   // Intake Sheet states
   const [isCareSheetOpen, setIsCareSheetOpen] = React.useState(false);
   const [isTaskSheetOpen, setIsTaskSheetOpen] = React.useState(false);
+  const [isPrayerSheetOpen, setIsPrayerSheetOpen] = React.useState(false);
 
   // Detail states
   const [activeCareCase, setActiveCareCase] = React.useState<any>(null);
   const [newLogContent, setNewLogContent] = React.useState('');
 
-  React.useEffect(() => {
-    async function fetchData() {
-      const safetyTimeout = setTimeout(() => {
-        console.warn("[Discipleship] Initial data fetch taking > 5s. Forcing loader hide.");
-        setLoading(false);
-      }, 5000);
+  const fetchWorkspaceData = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [tasksRes, careRes, memRes, userRes, prayerRes] = await Promise.all([
+        apiRequest<unknown>('discipleship/v2/tasks/my-tasks', { method: 'GET' }),
+        apiRequest<unknown>('discipleship/v2/care-cases', { method: 'GET' }),
+        apiRequest<unknown>('members', { method: 'GET' }),
+        apiRequest<unknown>('auth/me', { method: 'GET' }),
+        apiRequest<unknown>('care/prayer', { method: 'GET' }),
+      ]);
 
-      try {
-        console.log("[Discipleship] Initializing data...");
-        setLoading(true);
-        const [tasksRes, careRes, memRes, userRes] = await Promise.all([
-          apiRequest<unknown>('discipleship/v2/tasks/my-tasks', { method: 'GET' }).catch(e => { console.error("Tasks fetch fail:", e); return { status: 'success', data: [] }; }),
-          apiRequest<unknown>('discipleship/v2/care-cases', { method: 'GET' }).catch(e => { console.error("Care cases fetch fail:", e); return { status: 'success', data: [] }; }),
-          apiRequest<unknown>('members', { method: 'GET' }).catch(e => { console.error("Members fetch fail:", e); return { status: 'success', data: [] }; }),
-          apiRequest<unknown>('auth/me', { method: 'GET' }).catch(e => { console.error("User fetch fail:", e); return { status: 'success', data: [] }; })
-        ]);
-        
-        console.log("[Discipleship] Data received. Parsing...");
-        setTasks(parseApiResponse(tasksRes) || []);
-        setCareCases(parseApiResponse(careRes) || []);
-        setMembers(parseApiResponse(memRes) || []);
-        
-        // auth/me returns the signed-in user — use as a single assignee option where staff pickers need "self".
-        const userData = parseApiResponse(userRes);
-        setUsers(userData ? [userData] : []);
-      } catch (e) {
-        console.error("Discipleship data fetch error:", e);
-      } finally {
-        clearTimeout(safetyTimeout);
-        setLoading(false);
-        console.log("[Discipleship] Initialization complete.");
-      }
+      setTasks(parseApiResponse(tasksRes) || []);
+      setCareCases(parseApiResponse(careRes) || []);
+      setMembers(parseApiResponse(memRes) || []);
+      setPrayerRequests(parseApiResponse(prayerRes) || []);
+
+      const userData = parseApiResponse(userRes);
+      setUsers(userData ? [userData] : []);
+    } catch (e) {
+      setLoadError(formatApiError(e));
+    } finally {
+      setLoading(false);
     }
-    if (view === 'workspace') fetchData();
-  }, [view]);
+  }, []);
+
+  React.useEffect(() => {
+    if (view === 'workspace') void fetchWorkspaceData();
+  }, [view, fetchWorkspaceData]);
 
   // Hydrate care detail from API (logs + member) without depending on careCases (avoids update loops).
   React.useEffect(() => {
@@ -164,6 +165,28 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
     return <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Workspace...</div>;
   }
 
+  if (loadError && view === 'workspace') {
+    return (
+      <PageLayout>
+        <ModuleHeader
+          title="Pastoral Care"
+          subtitle="Care command center — prayer, follow-ups, counseling, visits, and care cases"
+          icon={Users}
+        />
+        <FeedbackBanner tone="error">{loadError}</FeedbackBanner>
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-xl font-bold mt-4"
+          onClick={() => void fetchWorkspaceData()}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry
+        </Button>
+      </PageLayout>
+    );
+  }
+
   // -------------------------------------------------------------
   // VIEW: CARE DETAIL
   // -------------------------------------------------------------
@@ -190,23 +213,22 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
     });
 
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
-        <Button variant="ghost" onClick={() => setView('workspace')} className="gap-2 px-0 text-slate-400 hover:text-slate-900 hover:bg-transparent">
-          <ArrowLeft className="w-5 h-5" /> <span className="font-black text-[10px] tracking-widest uppercase">Back to Workspace</span>
-        </Button>
-
-        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">{activeCareCase.member?.name || 'Unknown Member'}</h1>
-              {isRestricted && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none px-3 py-1 rounded-full"><Lock className="w-3 h-3 mr-1" /> Confidential</Badge>}
-            </div>
-            <p className="text-slate-500 font-bold uppercase tracking-widest text-[11px] pl-1">{activeCareCase.category} • {activeCareCase.status}</p>
-          </div>
-          {activeCareCase.status !== 'CLOSED' && (
-            <Button onClick={() => closeCareCase(activeCareCase.id)} variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl font-black text-[10px] uppercase tracking-widest">Close Case</Button>
-          )}
-        </div>
+      <PageLayout className="max-w-5xl">
+        <SubpageHeader
+          title={activeCareCase.member?.name || 'Care case'}
+          subtitle={`${activeCareCase.category} · ${activeCareCase.status}`}
+          onBack={() => setView('workspace')}
+          actions={
+            activeCareCase.status !== 'CLOSED' ? (
+              <ActionButton label="Close case" variant="danger" onClick={() => closeCareCase(activeCareCase.id)} />
+            ) : undefined
+          }
+        />
+        {isRestricted && (
+          <Badge className="bg-amber-100 text-amber-700 border-none px-3 py-1 rounded-full w-fit">
+            <Lock className="w-3 h-3 mr-1 inline" /> Confidential
+          </Badge>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Timeline Column */}
@@ -275,16 +297,26 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
                     {activeCareCase.createdAt ? format(new Date(activeCareCase.createdAt), 'MMM d, yyyy') : 'N/A'}
                   </p>
                 </div>
-                <div className="pt-4 border-t border-slate-200 space-y-2">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Quick Actions</p>
-                  <button onClick={() => onModuleChange?.('pathways')} className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest">Update Pathway Stage <ArrowRight size={10} /></button>
-                  <button onClick={() => onModuleChange?.('small-groups')} className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest">View Small Group <ArrowRight size={10} /></button>
-                </div>
+                {onModuleChange && activeCareCase.member?.id && (
+                  <div className="pt-4 border-t border-slate-200 space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Quick Actions</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = buildMemberProfilePath(activeCareCase.member.id);
+                      }}
+                      className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest"
+                    >
+                      Open member profile <ArrowRight size={10} />
+                    </button>
+                    <button type="button" onClick={() => onModuleChange('small-groups')} className="w-full text-left text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 uppercase tracking-widest">View small groups <ArrowRight size={10} /></button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -295,16 +327,15 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
   const activeCases = careCases.filter(c => c.status !== 'CLOSED');
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 text-left">
+    <PageLayout>
       <ModuleHeader
         title="Pastoral Care"
-        subtitle="Follow-ups, care cases, and discipleship tasks for your pastoral team."
-        status="live"
+        subtitle="Care command center — prayer, follow-ups, counseling, visits, and care cases"
         icon={Users}
         actions={
           <>
-            <ActionButton label="New Task" icon={Plus} variant="secondary" onClick={() => setIsTaskSheetOpen(true)} />
-            <ActionButton label="Open Care Case" icon={Plus} variant="primary" onClick={() => setIsCareSheetOpen(true)} className="bg-slate-950 hover:bg-slate-900 text-white" />
+            <ActionButton label="New task" icon={Plus} variant="secondary" onClick={() => setIsTaskSheetOpen(true)} />
+            <ActionButton label="Open care case" icon={Plus} variant="primary" onClick={() => setIsCareSheetOpen(true)} />
           </>
         }
       />
@@ -318,42 +349,9 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
 
         <TabsContent value="overview" className="space-y-8 outline-none">
           {/* Top Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="rounded-[2rem] border-none shadow-sm bg-indigo-50/50 hover:bg-indigo-50 transition-colors">
-              <CardContent className="p-8 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600/80 mb-2">Open Tasks</p>
-                  <h3 className="text-4xl font-black text-indigo-950 leading-none">{openTasks.length}</h3>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                  <ListTodo className="w-6 h-6" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[2rem] border-none shadow-sm bg-rose-50/50 hover:bg-rose-50 transition-colors">
-              <CardContent className="p-8 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-rose-600/80 mb-2">Active Care Cases</p>
-                  <h3 className="text-4xl font-black text-rose-950 leading-none">{activeCases.length}</h3>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
-                  <Heart className="w-6 h-6" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[2rem] border-none shadow-sm bg-amber-50/50 hover:bg-amber-50 transition-colors">
-              <CardContent className="p-8 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/80 mb-2">My Mentees</p>
-                  <h3 className="text-4xl font-black text-amber-950 leading-none">0</h3>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center">
-                  <Users className="w-6 h-6" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <StatCard label="Open tasks" value={openTasks.length} icon={ListTodo} />
+            <StatCard label="Active care cases" value={activeCases.length} icon={Heart} iconColor="text-rose-600" iconBg="bg-rose-50" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -370,7 +368,7 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
                   {openTasks.length === 0 ? (
                      <div className="p-10 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No pending tasks. You're all caught up!</div>
                   ) : openTasks.slice(0, 5).map(task => (
-                    <div key={task.id} className="p-6 flex items-start justify-between hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => console.log('Task clicked')}>
+                    <div key={task.id} className="p-6 flex items-start justify-between">
                       <div className="space-y-1">
                         <p className="text-sm font-bold text-slate-900">{task.title}</p>
                         <div className="flex items-center gap-3 mt-2">
@@ -432,7 +430,11 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
               </CardHeader>
               <CardContent className="p-0">
                  <div className="divide-y divide-slate-50">
-                    {careCases.map(c => (
+                    {careCases.length === 0 ? (
+                      <div className="p-10 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                        No care cases on file. Open a new case to begin pastoral follow-up.
+                      </div>
+                    ) : careCases.map(c => (
                       <div key={c.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer group transition-colors" onClick={() => openCareDetail(c.id, c)}>
                          <div className="flex flex-col gap-1">
                             <p className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{c.member?.name}</p>
@@ -454,14 +456,50 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
         </TabsContent>
 
         <TabsContent value="prayer" className="outline-none">
-           <Card className="rounded-[2.5rem] border-none shadow-xl bg-white flex items-center justify-center p-20 text-center">
-              <div className="space-y-4">
-                 <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto text-slate-300">
-                    <ShieldAlert className="w-8 h-8" />
-                 </div>
-                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Prayer Request Center</h3>
-                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest max-w-sm mx-auto">No prayer requests requiring active pastoral administration.</p>
-              </div>
+           <Card className="rounded-[2.5rem] border-none shadow-xl bg-white overflow-hidden">
+              <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
+                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Prayer Requests</CardTitle>
+                <Button
+                  type="button"
+                  onClick={() => setIsPrayerSheetOpen(true)}
+                  className="rounded-xl px-6 bg-slate-950 hover:bg-slate-900 text-[10px] font-black uppercase tracking-widest"
+                >
+                  Log prayer request
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {prayerRequests.length === 0 ? (
+                  <div className="p-16 text-center space-y-3">
+                    <ShieldAlert className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                      No active prayer requests. Log one when your team receives a new need.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    {prayerRequests.map((prayer: { id: string; content?: string; status?: string; urgency?: string; requester?: { name?: string } }) => (
+                      <div key={prayer.id} className="p-6 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-bold text-slate-900">{prayer.requester?.name || 'Anonymous'}</p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {prayer.urgency && (
+                              <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest">
+                                {prayer.urgency}
+                              </Badge>
+                            )}
+                            {prayer.status && (
+                              <Badge className="bg-indigo-50 text-indigo-700 border-none text-[8px] font-black uppercase tracking-widest">
+                                {prayer.status}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 font-medium leading-relaxed">{prayer.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
            </Card>
         </TabsContent>
 
@@ -490,6 +528,13 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
         careCases={careCases}
         onSuccess={(newTask) => setTasks([newTask, ...tasks])} 
       />
-    </div>
+
+      <PrayerIntakeSheet
+        open={isPrayerSheetOpen}
+        onOpenChange={setIsPrayerSheetOpen}
+        members={members}
+        onSuccess={() => void fetchWorkspaceData()}
+      />
+    </PageLayout>
   );
 }

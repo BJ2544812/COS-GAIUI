@@ -1,17 +1,17 @@
 import * as React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   Search,
   Filter,
   Plus,
-  Download,
   Mail,
   CheckCircle2,
   Clock,
   ChevronRight,
   ShieldAlert,
   Upload,
-  FolderPlus,
+  Heart,
   AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,8 +29,8 @@ import { ERPModule } from '@/types';
 import { cn } from '@/lib/utils';
 import { MemberIntake } from './MemberIntake';
 import { MemberProfileDetail } from './MemberProfile';
-import { DiscipleshipModule } from '../discipleship/DiscipleshipModule';
-import { createMember, listMembers, type MemberDto, getMember, linkMemberFamily, uploadProfileImage, uploadFamilyImage, createMemberMilestone, createMemberDocument } from './memberApi';
+import { createMember, listMembers, importMembers, type MemberDto, getMember, linkMemberFamily, uploadProfileImage, uploadFamilyImage, createMemberMilestone, createMemberDocument } from './memberApi';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ApiError, formatApiError } from '@/lib/apiClient';
 import {
   buildCreatePayloadFromIntake,
@@ -40,7 +40,7 @@ import {
 } from './buildMemberPayload';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
-import { ModuleHeader, StatCard, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, ActionButton, PageLayout, FeedbackBanner } from '@/components/modules/ModuleHeader';
 
 interface MembersModuleProps {
   onModuleChange?: (module: ERPModule) => void;
@@ -49,22 +49,76 @@ interface MembersModuleProps {
 
 type ViewState = 'directory' | 'intake' | 'profile';
 
-export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: MembersModuleProps) {
-  const [activeTab, setActiveTab] = React.useState<'directory' | 'discipleship'>('directory');
-  const [view, setView] = React.useState<ViewState>('directory');
-  const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
+export function MembersModule({ onModuleChange, user: _user }: MembersModuleProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedMemberId = searchParams.get('memberId');
+  const viewParam = searchParams.get('view');
+  const view: ViewState = selectedMemberId
+    ? 'profile'
+    : viewParam === 'intake'
+      ? 'intake'
+      : 'directory';
+
+  /** Single URL update — avoids batched setSearchParams dropping memberId. */
+  const patchMemberRoute = React.useCallback(
+    (patch: { memberId?: string | null; view?: ViewState | null }) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (!next.get('module')) next.set('module', 'members');
+
+        if (patch.memberId) {
+          next.set('memberId', patch.memberId);
+          next.set('view', 'profile');
+        } else if (patch.memberId === null) {
+          next.delete('memberId');
+        }
+
+        if (patch.view === 'directory' || patch.view === null) {
+          next.delete('view');
+          next.delete('memberId');
+        } else if (patch.view === 'intake') {
+          next.set('view', 'intake');
+          next.delete('memberId');
+        } else if (patch.view === 'profile' && patch.memberId) {
+          next.set('view', 'profile');
+        }
+
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
+
+  React.useEffect(() => {
+    if (viewParam === 'profile' && !selectedMemberId) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('view');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [viewParam, selectedMemberId, setSearchParams]);
   
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterMode, setFilterMode] = React.useState<'all' | 'active' | 'new'>('all');
   const [filterStage, setFilterStage] = React.useState<'' | 'Visitor' | 'Member' | 'Leader' | 'Staff'>('');
   const [sortBy, setSortBy] = React.useState<'name' | 'joined' | 'status'>('name');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
+  const [memberPage, setMemberPage] = React.useState(0);
+  const MEMBER_PAGE_SIZE = 50;
   
   const [members, setMembers] = React.useState<MemberDto[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [listError, setListError] = React.useState<string | null>(null);
   const [listErrorStatus, setListErrorStatus] = React.useState<number | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [importFile, setImportFile] = React.useState<File | null>(null);
+  const [importing, setImporting] = React.useState(false);
+  const [importResult, setImportResult] = React.useState<string | null>(null);
 
   const fetchMembers = React.useCallback(async () => {
     setListError(null);
@@ -95,15 +149,51 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
     return () => window.clearTimeout(t);
   }, [successMessage]);
 
-  const handleAddMember = () => setView('intake');
-  const handleViewProfile = (id: string) => {
-    setSelectedMemberId(id);
-    setView('profile');
+  const runCsvImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const text = await importFile.text();
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        setImportResult('CSV must include a header row and at least one data row (name required).');
+        return;
+      }
+      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const nameIdx = headers.indexOf('name');
+      if (nameIdx < 0) {
+        setImportResult('CSV must include a "name" column.');
+        return;
+      }
+      const emailIdx = headers.indexOf('email');
+      const phoneIdx = headers.indexOf('phone');
+      const stageIdx = headers.indexOf('growthstage');
+      const dobIdx = headers.indexOf('dob');
+      const rows = lines.slice(1).map((line) => {
+        const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+        const row: { name: string; email?: string; phone?: string; growthStage?: string; dob?: string } = {
+          name: cols[nameIdx] || '',
+          email: emailIdx >= 0 ? cols[emailIdx] : undefined,
+          phone: phoneIdx >= 0 ? cols[phoneIdx] : undefined,
+          growthStage: stageIdx >= 0 ? cols[stageIdx] : 'Visitor',
+        };
+        if (dobIdx >= 0 && cols[dobIdx]) row.dob = cols[dobIdx];
+        return row;
+      }).filter((r) => r.name);
+      const result = await importMembers(rows);
+      setImportResult(`Imported ${result.created} member(s).${result.errors.length ? ` ${result.errors.length} row(s) failed.` : ''}`);
+      await fetchMembers();
+    } catch (e: any) {
+      setImportResult(e?.message || 'Import failed');
+    } finally {
+      setImporting(false);
+    }
   };
-  const handleBackToDirectory = () => {
-    setView('directory');
-    setSelectedMemberId(null);
-  };
+
+  const handleAddMember = () => patchMemberRoute({ view: 'intake' });
+  const handleViewProfile = (id: string) => patchMemberRoute({ memberId: id, view: 'profile' });
+  const handleBackToDirectory = () => patchMemberRoute({ view: 'directory' });
 
   const handleSaveMember = async (
     formData: IntakeFormData & Record<string, unknown>,
@@ -161,6 +251,8 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
         memberId={selectedMemberId}
         onBack={handleBackToDirectory}
         onMemberUpdated={fetchMembers}
+        onModuleChange={onModuleChange}
+        onViewMember={handleViewProfile}
       />
     );
   }
@@ -213,61 +305,25 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
   const visitorCount = members.filter((m) => (m.growthStage || 'Visitor') === 'Visitor').length;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
-      {/* Toast Messages */}
-      {successMessage && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm font-bold text-emerald-800 shadow-sm flex items-center gap-3 animate-in slide-in-from-top-2">
-          <CheckCircle2 size={18} className="text-emerald-500" /> {successMessage}
-        </div>
-      )}
-      {listError && listErrorStatus !== 403 && (
-         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-bold text-rose-800 shadow-sm flex items-center gap-3 animate-in slide-in-from-top-2">
-           <AlertTriangle size={18} className="text-rose-500" /> {listError}
-         </div>
-      )}
+    <PageLayout>
+      {successMessage && <FeedbackBanner tone="success">{successMessage}</FeedbackBanner>}
+      {listError && listErrorStatus !== 403 && <FeedbackBanner tone="error">{listError}</FeedbackBanner>}
 
       {/* Header & Quick Actions */}
       <ModuleHeader
         title="Members"
-        subtitle="Directory & Discipleship"
+        subtitle="People directory — open any profile for family, journey, giving, and records"
         status="live"
         icon={Users}
         actions={
-          activeTab === 'directory' && (
-            <>
-              <ActionButton label="Import" icon={Upload} variant="secondary" />
-              <ActionButton label="Family" icon={FolderPlus} variant="secondary" />
-              <ActionButton label="Add Member" icon={Plus} variant="primary" onClick={handleAddMember} />
-            </>
-          )
+          <>
+            <ActionButton label="Import" icon={Upload} variant="secondary" onClick={() => { setImportResult(null); setImportFile(null); setImportOpen(true); }} />
+            <ActionButton label="Pastoral Care" icon={Heart} variant="secondary" onClick={() => onModuleChange?.('discipleship')} />
+            <ActionButton label="Add Member" icon={Plus} variant="primary" onClick={handleAddMember} />
+          </>
         }
       />
 
-      <div className="flex bg-slate-100 p-1 rounded-xl w-fit mb-6">
-        <button
-          onClick={() => setActiveTab('directory')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all",
-            activeTab === 'directory' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Directory
-        </button>
-        <button
-          onClick={() => setActiveTab('discipleship')}
-          className={cn(
-            "px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all",
-            activeTab === 'discipleship' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Discipleship
-        </button>
-      </div>
-
-      {activeTab === 'discipleship' ? (
-        <DiscipleshipModule />
-      ) : (
       <>
       
       {/* Smart Stats Grid */}
@@ -293,7 +349,7 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
               </div>
               <Users size={40} />
            </div>
-           <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tight mb-3">Build Your Directory</h3>
+           <h3 className="text-lg font-black text-slate-900 mb-3">Build your directory</h3>
            <p className="text-slate-500 font-medium max-w-md mb-10 leading-relaxed text-lg">Start organizing your church family. Add individuals, group them into families, and begin tracking their discipleship journey seamlessly.</p>
            
            <div className="flex flex-col md:flex-row gap-6 mb-12 text-left bg-slate-50 p-6 rounded-3xl border border-slate-100">
@@ -307,7 +363,7 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
               <div className="flex items-start gap-4 p-4 rounded-2xl bg-white shadow-sm flex-1 opacity-60">
                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-sm font-black">2</div>
                  <div>
-                    <p className="text-sm font-black text-slate-900 uppercase tracking-tight">Create Family</p>
+                    <p className="text-sm font-black text-slate-900 uppercase tracking-tight">Create Household</p>
                     <p className="text-xs text-slate-500 font-medium mt-1">Group members logically by household.</p>
                  </div>
               </div>
@@ -324,7 +380,7 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
               <Button onClick={handleAddMember} className="h-14 px-10 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[11px] tracking-widest shadow-xl shadow-indigo-600/20 hover:-translate-y-0.5 transition-all">
                  Add First Member
               </Button>
-              <Button variant="outline" className="h-14 px-8 rounded-2xl border-slate-200 text-slate-600 font-black uppercase text-[11px] tracking-widest hover:bg-slate-50 shadow-sm">
+              <Button variant="outline" onClick={() => setImportOpen(true)} className="h-14 px-8 rounded-2xl border-slate-200 text-slate-600 font-black uppercase text-[11px] tracking-widest hover:bg-slate-50 shadow-sm">
                  <Upload size={16} className="mr-2 text-slate-400" /> Import List
               </Button>
            </div>
@@ -343,7 +399,7 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
                   type="text"
                   placeholder="Search by name, email, or phone..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setMemberPage(0); }}
                   className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 transition-all placeholder:font-medium placeholder:text-slate-400"
                 />
               </div>
@@ -365,9 +421,6 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
                 >
                   {sortDir === 'asc' ? '↑' : '↓'}
                 </button>
-                <Button variant="outline" className="h-10 px-4 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hidden md:flex shrink-0">
-                  <Download size={14} className="mr-2 text-slate-400" /> Export
-                </Button>
               </div>
             </div>
 
@@ -443,7 +496,7 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
                      </TableCell>
                    </TableRow>
                  ) : (
-                   filteredMembers.map((member) => (
+                   filteredMembers.slice(memberPage * MEMBER_PAGE_SIZE, (memberPage + 1) * MEMBER_PAGE_SIZE).map((member) => (
                      <TableRow key={member.id} className="group border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => handleViewProfile(member.id)}>
                        <TableCell className="py-4 px-6">
                          <div className="flex items-center gap-4">
@@ -513,18 +566,38 @@ export function MembersModule({ onModuleChange: _onModuleChange, user: _user }: 
           
           {filteredMembers.length > 0 && (
              <div className="p-4 border-t border-slate-50 flex justify-between items-center bg-slate-50/50">
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">Showing {filteredMembers.length} records</p>
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">Showing {memberPage * MEMBER_PAGE_SIZE + 1}–{Math.min((memberPage + 1) * MEMBER_PAGE_SIZE, filteredMembers.length)} of {filteredMembers.length}</p>
                <div className="flex gap-2">
-                 <Button variant="outline" className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-white shadow-sm hover:bg-slate-50">Previous</Button>
-                 <Button variant="outline" className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 bg-white shadow-sm hover:bg-slate-50 border-slate-200">Next</Button>
+                 <Button variant="outline" disabled={memberPage === 0} onClick={() => setMemberPage(memberPage - 1)} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-white shadow-sm hover:bg-slate-50">Previous</Button>
+                 <Button variant="outline" disabled={(memberPage + 1) * MEMBER_PAGE_SIZE >= filteredMembers.length} onClick={() => setMemberPage(memberPage + 1)} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 bg-white shadow-sm hover:bg-slate-50 border-slate-200">Next</Button>
                </div>
              </div>
           )}
         </Card>
       )}
       </>
-      )}
-    </div>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black">Import members (CSV)</DialogTitle>
+            <DialogDescription className="text-xs font-medium">
+              Columns: name (required), email, phone, growthStage, dob (YYYY-MM-DD). Max 100 rows per import.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <input type="file" accept=".csv,text/csv" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} className="text-sm w-full" />
+            {importResult && <p className="text-sm font-bold text-slate-700">{importResult}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)}>Close</Button>
+            <Button onClick={() => void runCsvImport()} disabled={!importFile || importing} className="bg-indigo-600 text-white font-black">
+              {importing ? 'Importing…' : 'Import'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageLayout>
   );
 }
 
@@ -536,7 +609,11 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 `;
 if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.innerHTML = scrollbarStyles;
-  document.head.appendChild(style);
+  const existing = document.getElementById('members-module-scrollbar-style');
+  if (!existing) {
+    const style = document.createElement('style');
+    style.id = 'members-module-scrollbar-style';
+    style.innerHTML = scrollbarStyles;
+    document.head.appendChild(style);
+  }
 }

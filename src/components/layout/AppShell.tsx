@@ -2,10 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart3, Users, Layers, CalendarCheck, ShieldCheck,
-  Library, HeartHandshake, Building2, Star,
+  Library, Building2, Star,
   FileBox, Globe, ChevronRight, Search, Bell,
   User, Settings, MessageCircle, Heart, CreditCard,
-  Target, Home, Network, Route, Mic2, Music4,
+  Target, Network, Mic2, Music4,
   Cpu, ScrollText, GraduationCap, Compass,
   X, CheckCircle2, TrendingUp, ChevronDown,
   Briefcase, Menu
@@ -46,12 +46,8 @@ const GROUPS: GroupDef[] = [
     label: 'Identity', color: 'text-indigo-500',
     items: [
       { id: 'members',      label: 'Members',          icon: Users,          permission: 'manage_members',      status: 'live' },
-      { id: 'families',     label: 'Families',         icon: Home,           permission: 'manage_members',      status: 'partial' },
-      { id: 'volunteers',   label: 'Volunteers',       icon: HeartHandshake, permission: 'manage_members',      status: 'partial' },
-      { id: 'hr',           label: 'HR & Staff',         icon: ShieldCheck,   permission: 'manage_members',      status: 'live' },
       { id: 'small-groups', label: 'Small Groups',     icon: Network,        permission: 'manage_members',      status: 'live' },
-      { id: 'pathways',     label: 'Growth Pathways',  icon: Route,          permission: 'manage_members',      status: 'live' },
-      { id: 'discipleship', label: 'Pastoral Care',    icon: Target,       permission: 'manage_members',      status: 'live' },
+      { id: 'discipleship', label: 'Pastoral Care',    icon: Target,         permission: 'manage_members',      status: 'live' },
     ],
   },
   {
@@ -106,6 +102,7 @@ const GROUPS: GroupDef[] = [
       { id: 'settings',        label: 'Settings',         icon: Settings,    permission: 'manage_settings', status: 'live' },
       { id: 'admin-center',    label: 'Church Admin',     icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
       { id: 'permissions',     label: 'Roles & Access',   icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
+      { id: 'hr',              label: 'HR & Staff',       icon: Briefcase,   permission: 'manage_hr',       status: 'live' },
     ],
   },
 ];

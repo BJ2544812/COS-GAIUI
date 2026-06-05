@@ -6,6 +6,16 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../utils/prisma.js';
+import {
+  buildComplianceHtml,
+  logoPathForDocument,
+  type ComplianceTemplateId,
+} from '../utils/memberComplianceTemplates.js';
+import { getMergedOrganizationSettings, getMergedDocumentSettings } from '../utils/mergeTenantSettings.js';
+import { formatDateOnlyDisplay, parseDateOnlyToISO } from '../../lib/dateOnly.js';
+import { formatAddressLine } from '../../lib/memberAddress.js';
+import { DEFAULT_SETTINGS } from '../../lib/settingsDefaults.js';
+import { SettingsRepository } from '../repositories/SettingsRepository.js';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
@@ -225,50 +235,84 @@ export class MemberProfileController {
   static async generateIdentityDocument(req: TenantRequest, res: Response) {
     try {
       const memberId = String(req.params.id);
-      const template = String((req.body as { template?: string })?.template || '');
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const template = String(body.template || '');
       const allowed = new Set(['visitor_declaration', 'member_declaration', 'baptism_certificate']);
       if (!allowed.has(template)) {
         return res.status(400).json({ error: 'Invalid template' });
       }
       const member = await prisma.member.findFirst({ where: { id: memberId, tenantId: req.tenantId! } });
       if (!member) return res.status(404).json({ error: 'Member not found' });
-      const tenant = await prisma.tenant.findUnique({ where: { id: req.tenantId! } });
 
-      const org = tenant?.name || 'Local Church';
-      const title =
-        template === 'visitor_declaration'
-          ? 'Visitor Declaration'
-          : template === 'member_declaration'
-            ? 'Member Declaration'
-            : 'Baptism Certificate (draft)';
-
-      const bodyParts: string[] = [];
-      bodyParts.push(
-        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;padding:2rem;max-width:720px;margin:auto">`,
-      );
-      bodyParts.push(`<h1>${title}</h1>`);
-      bodyParts.push(`<p><strong>Organization:</strong> ${org}</p>`);
-      bodyParts.push(`<p><strong>Member:</strong> ${member.name}</p>`);
-      if (member.email) bodyParts.push(`<p><strong>Email:</strong> ${member.email}</p>`);
-      if (member.phone) bodyParts.push(`<p><strong>Phone:</strong> ${member.phone}</p>`);
-      if (member.growthStage) bodyParts.push(`<p><strong>Growth stage:</strong> ${member.growthStage}</p>`);
-      bodyParts.push(`<p><strong>Generated (UTC):</strong> ${new Date().toISOString()}</p>`);
-      bodyParts.push('<hr />');
-      if (template === 'visitor_declaration') {
-        bodyParts.push(
-          '<p>Visitor acknowledgement for ministry administration. Replace this block with counsel-approved wording and capture formal acceptance using the document acceptance fields on file.</p>',
-        );
-      } else if (template === 'member_declaration') {
-        bodyParts.push(
-          '<p>Membership / declaration draft for Indian church administration. Finalize text with leadership, then record acceptance and optional signature metadata on the linked document record.</p>',
-        );
-      } else {
-        bodyParts.push(
-          '<p>Baptism certificate draft. Add officiant, venue, baptism date, and witness details in your records workflow; this file is a printable starting point.</p>',
-        );
+      const orgSettings = await getMergedOrganizationSettings(req.tenantId!);
+      const docSettings = await getMergedDocumentSettings(req.tenantId!);
+      let primaryColor = DEFAULT_SETTINGS.branding.primaryColor;
+      try {
+        const brandingRow = await SettingsRepository.getSettingByKey(req.tenantId!, 'branding');
+        if (brandingRow?.value) {
+          const parsed = JSON.parse(brandingRow.value) as { primaryColor?: string };
+          if (parsed.primaryColor) primaryColor = parsed.primaryColor;
+        }
+      } catch {
+        /* use default accent */
       }
-      bodyParts.push('</body></html>');
-      const html = bodyParts.join('\n');
+
+      const toIso = (value: unknown): string | null => {
+        if (value == null || value === '') return null;
+        if (value instanceof Date) return value.toISOString();
+        return parseDateOnlyToISO(String(value));
+      };
+
+      const issueIso = toIso(body.date) || new Date().toISOString();
+      const issueDateLabel = formatDateOnlyDisplay(issueIso, 'en-IN');
+      const docRef = `REG-${member.id.slice(0, 8).toUpperCase()}-${Date.now().toString(36).slice(-6).toUpperCase()}`;
+
+      const residentialAddress = formatAddressLine({
+        addressLine1: member.addressLine1,
+        addressLine2: member.addressLine2,
+        city: member.city,
+        stateRegion: member.stateRegion,
+        postalCode: member.postalCode,
+        country: member.country,
+      });
+
+      const memberCtx = {
+        name: member.name,
+        email: template === 'visitor_declaration'
+          ? String(body.visitorEmail || member.email || '')
+          : member.email,
+        phone: template === 'visitor_declaration'
+          ? String(body.visitorPhone || member.phone || '')
+          : member.phone,
+        growthStage: member.growthStage,
+        membershipDate: toIso(member.membershipDate),
+        dob: toIso(member.dob),
+        candidateDob: toIso(body.candidateDob) || toIso(member.dob),
+        fatherName: String(body.fatherName || ''),
+        motherName: String(body.motherName || ''),
+        residentialAddress,
+        prayerRequest: String(body.prayerRequest || ''),
+      };
+
+      const brandingCtx = {
+        churchName: orgSettings.name || 'Organization',
+        tagline: orgSettings.tagline,
+        denominationLine: null,
+        address: orgSettings.address,
+        phone: orgSettings.phone,
+        email: orgSettings.email,
+        registrationNumber: orgSettings.registrationNumber,
+        logoPath: logoPathForDocument(orgSettings.logo),
+        primaryColor,
+        officiantName: String(body.officiantName || docSettings.authorizedSignatoryName || ''),
+        issueDateLabel,
+        documentRef: docRef,
+        baptismDate: toIso(body.baptismDate),
+        baptismPlace: String(body.baptismPlace || orgSettings.address || ''),
+        witnessName: String(body.witnessName || ''),
+      };
+
+      const html = buildComplianceHtml(template as ComplianceTemplateId, memberCtx, brandingCtx);
 
       const safeSlug = template.replace(/_/g, '-');
       const objectName = `members/${req.tenantId}/${memberId}/generated/${safeSlug}-${randomUUID()}.html`;

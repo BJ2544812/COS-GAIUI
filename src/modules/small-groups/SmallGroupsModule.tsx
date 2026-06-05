@@ -7,10 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard, EmptyState, SectionCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, EmptyState, SectionCard, PageLayout, ActionButton, FeedbackBanner } from '@/components/modules/ModuleHeader';
+import { SubpageHeader } from '@/components/modules/SubpageHeader';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { cn } from '@/lib/utils';
+import { buildMemberProfilePath } from '@/lib/adminNavigation';
 
 interface SmallGroupsModuleProps {
   onModuleChange?: (module: ERPModule) => void;
@@ -160,7 +162,7 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
           </div>
 
           <div className="lg:col-span-2">
-            <SectionCard title="Group Members" subtitle="All assigned members and their roles">
+            <SectionCard title="Team management" subtitle="Members, leader assignment, and roles for this group">
               {detailLoading ? (
                 <div className="py-8 text-center text-slate-400 text-sm font-bold">Loading members...</div>
               ) : members.length === 0 ? (
@@ -175,8 +177,15 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
                     <div key={m.id} className="flex items-center gap-4 py-3">
                       <AppAvatar src={m.member?.profileImageUrl?`${SERVER_ROOT}${m.member.profileImageUrl}`:undefined} name={m.member?.name||''} className="w-9 h-9 rounded-xl shrink-0"/>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate">{m.member?.name}</p>
-                        {m.member?.email && <p className="text-[10px] text-slate-400 font-medium truncate">{m.member.email}</p>}
+                        <button
+                          type="button"
+                          onClick={() => { if (m.memberId) window.location.href = buildMemberProfilePath(m.memberId); }}
+                          className="text-left"
+                          title="Open member profile"
+                        >
+                          <p className="text-sm font-bold text-slate-900 truncate hover:text-indigo-600 transition-colors">{m.member?.name}</p>
+                          {m.member?.email && <p className="text-[10px] text-slate-400 font-medium truncate">{m.member.email}</p>}
+                        </button>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className={cn('px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest', ROLE_COLORS[m.role])}>{m.role}</span>
@@ -282,13 +291,13 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <ModuleHeader title="Small Groups" subtitle="Cell groups, prayer circles, and community gatherings" status="live" icon={Network}
+    <PageLayout>
+      <ModuleHeader title="Small Groups" subtitle="Cell groups, prayer circles, and community gatherings" icon={Network}
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={fetchGroups} className="h-9 px-4 rounded-xl border-slate-200 gap-2 font-bold text-[11px]"><RefreshCw size={13}/>Refresh</Button>
-            <Button onClick={()=>setShowAddForm(true)} className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] uppercase tracking-widest gap-2 shadow-sm"><Plus size={14}/>New Group</Button>
-          </div>
+          <>
+            <ActionButton label="Refresh" icon={RefreshCw} variant="secondary" onClick={fetchGroups} />
+            <ActionButton label="New group" icon={Plus} variant="primary" onClick={() => setShowAddForm(true)} />
+          </>
         }
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -296,7 +305,7 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
         <StatCard label="Total Members" value={loading?'—':totalMembers} icon={Users} iconColor="text-emerald-600" iconBg="bg-emerald-50" loading={loading}/>
         <StatCard label="Group Leaders" value={loading?'—':leaderCount} icon={Crown} iconColor="text-amber-600" iconBg="bg-amber-50" loading={loading}/>
       </div>
-      {error && <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl px-5 py-4 text-sm font-medium">{error}</div>}
+      {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
       {!loading && groups.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
@@ -317,8 +326,8 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
       ) : filteredGroups.length === 0 ? (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm">
           <EmptyState icon={Network} title={groups.length===0?"No small groups yet":"No matching groups"}
-            description={groups.length===0?"Create your first small group to start organizing your congregation.":"Try adjusting your search or filter."}
-            action={groups.length===0?<button onClick={()=>setShowAddForm(true)} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700">Create First Group</button>:undefined}
+            description={groups.length===0?"Church administrators create groups and assign leaders. If you lead a group, ask the church office to add you — you will see your roster here.":"Try adjusting your search or filter."}
+            action={groups.length===0?<button onClick={()=>setShowAddForm(true)} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700">Create a group</button>:undefined}
           />
         </div>
       ) : (
@@ -367,6 +376,6 @@ export function SmallGroupsModule({ onModuleChange }: SmallGroupsModuleProps) {
           </div>
         </SectionCard>
       )}
-    </div>
+    </PageLayout>
   );
 }
