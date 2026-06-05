@@ -28,6 +28,7 @@ import { PastoralTimeline, PastoralEvent } from '@/components/ui/PastoralTimelin
 import { CareCaseIntakeSheet } from './components/CareCaseIntakeSheet';
 import { TaskIntakeSheet } from './components/TaskIntakeSheet';
 import { PrayerIntakeSheet } from './components/PrayerIntakeSheet';
+import { PrayerRequestPanel } from './components/PrayerRequestPanel';
 import { ModuleHeader, ActionButton, PageLayout, StatCard, FeedbackBanner } from '@/components/modules/ModuleHeader';
 import { SubpageHeader } from '@/components/modules/SubpageHeader';
 import { ds } from '@/lib/designSystem';
@@ -456,51 +457,12 @@ export function DiscipleshipModule({ onModuleChange }: DiscipleshipModuleProps) 
         </TabsContent>
 
         <TabsContent value="prayer" className="outline-none">
-           <Card className="rounded-[2.5rem] border-none shadow-xl bg-white overflow-hidden">
-              <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
-                <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Prayer Requests</CardTitle>
-                <Button
-                  type="button"
-                  onClick={() => setIsPrayerSheetOpen(true)}
-                  className="rounded-xl px-6 bg-slate-950 hover:bg-slate-900 text-[10px] font-black uppercase tracking-widest"
-                >
-                  Log prayer request
-                </Button>
-              </CardHeader>
-              <CardContent className="p-0">
-                {prayerRequests.length === 0 ? (
-                  <div className="p-16 text-center space-y-3">
-                    <ShieldAlert className="w-10 h-10 text-slate-300 mx-auto" />
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                      No active prayer requests. Log one when your team receives a new need.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-50">
-                    {prayerRequests.map((prayer: { id: string; content?: string; status?: string; urgency?: string; requester?: { name?: string } }) => (
-                      <div key={prayer.id} className="p-6 space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-bold text-slate-900">{prayer.requester?.name || 'Anonymous'}</p>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {prayer.urgency && (
-                              <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest">
-                                {prayer.urgency}
-                              </Badge>
-                            )}
-                            {prayer.status && (
-                              <Badge className="bg-indigo-50 text-indigo-700 border-none text-[8px] font-black uppercase tracking-widest">
-                                {prayer.status}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-600 font-medium leading-relaxed">{prayer.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-           </Card>
+          <PrayerRequestPanel
+            prayers={prayerRequests}
+            users={users}
+            onRefresh={fetchWorkspaceData}
+            onCreate={() => setIsPrayerSheetOpen(true)}
+          />
         </TabsContent>
 
       </Tabs>

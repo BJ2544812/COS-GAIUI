@@ -266,7 +266,12 @@ function printStyles(accent: string): string {
   @media (max-width: 520px) {
     .sign-grid { grid-template-columns: 1fr; }
   }
-  .sign-block { min-height: 3rem; text-align: left; }
+  .sign-block { min-height: 4.5rem; text-align: left; }
+  .sign-blank-space {
+    min-height: 2.35rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px dashed #cbd5e1;
+  }
   .sign-line {
     border-top: 1.2px solid #0f172a;
     padding-top: 0.25rem;
@@ -276,10 +281,31 @@ function printStyles(accent: string): string {
     letter-spacing: 0.04em;
     font-weight: 800;
   }
+  .sign-date-line {
+    font-size: 0.58rem;
+    color: #64748b;
+    margin-top: 0.35rem;
+    letter-spacing: 0.03em;
+  }
+  .sign-subtitle {
+    font-size: 0.58rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.2rem;
+    font-weight: 700;
+  }
   .sign-block .hint {
     font-size: 0.68rem;
     color: #94a3b8;
     margin-top: 1.25rem;
+  }
+  .signature-instruction {
+    font-size: 0.62rem;
+    color: #64748b;
+    font-style: italic;
+    margin: 0.5rem 0 0.75rem;
+    text-align: left;
   }
   .office-use-table {
     margin-top: 1rem;
@@ -545,16 +571,38 @@ function documentFooter(branding: ComplianceBrandingContext): string {
   </footer>`;
 }
 
+/** Blank signature areas for physical signing — never pre-fill names. */
 function signatureBlock(
-  blocks: { line: string; title?: string; name?: string }[],
+  blocks: { line: string; subtitle?: string }[],
 ): string {
-  const cells = blocks.map((b) => {
-    const nameHtml = b.name
-      ? `<div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-weight:700;font-size:0.82rem;color:#0f172a;margin-bottom:0.15rem;">${esc(b.name)}</div>`
-      : '<div class="hint">&nbsp;</div>';
-    return `<div class="sign-block">${nameHtml}<div class="sign-line">${esc(b.line)}</div>${b.title ? `<div style="font-size:0.58rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.2rem;font-weight:700;">${esc(b.title)}</div>` : ''}</div>`;
-  }).join('');
-  return `<section class="signatures page-break-avoid"><div class="sign-grid">${cells}</div></section>`;
+  const cells = blocks.map((b) =>
+    `<div class="sign-block">
+      <div class="sign-blank-space">&nbsp;</div>
+      <div class="sign-line">${esc(b.line)}</div>
+      <div class="sign-date-line">Date: _______________________</div>
+      ${b.subtitle ? `<div class="sign-subtitle">${esc(b.subtitle)}</div>` : ''}
+    </div>`,
+  ).join('');
+  return `<section class="signatures page-break-avoid">
+    <p class="signature-instruction">Sign in ink after printing. Do not sign electronically on this generated copy.</p>
+    <div class="sign-grid">${cells}</div>
+  </section>`;
+}
+
+function certificateSignatureRow(labels: { left: string; center?: string; right: string }): string {
+  return `<div class="cert-signatures page-break-avoid" style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: flex-end; justify-items: center; max-width: 32rem; margin-left: auto; margin-right: auto;">
+    <div class="cert-sign" style="width: 100%;">
+      <div class="sign-blank-space" style="min-height:2rem;border-bottom:1px dashed #cbd5e1;margin-bottom:0.2rem;">&nbsp;</div>
+      <div class="sign-line" style="border-top: 1px solid #0f172a; padding-top: 0.25rem; font-size: 0.68rem; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 800;">${esc(labels.left)}</div>
+      <div class="sign-date-line">Date: _______________________</div>
+    </div>
+    <div class="cert-sign" style="width: 100%;">${labels.center || ''}</div>
+    <div class="cert-sign" style="width: 100%;">
+      <div class="sign-blank-space" style="min-height:2rem;border-bottom:1px dashed #cbd5e1;margin-bottom:0.2rem;">&nbsp;</div>
+      <div class="sign-line" style="border-top: 1px solid #0f172a; padding-top: 0.25rem; font-size: 0.68rem; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 800;">${esc(labels.right)}</div>
+      <div class="sign-date-line">Date: _______________________</div>
+    </div>
+  </div>`;
 }
 
 function certificateSealHtml(churchName: string, accent: string): string {
@@ -612,8 +660,6 @@ export function buildComplianceHtml(
   const name = esc(member.name);
   const header = documentHeader(branding);
   const footer = documentFooter(branding);
-  const officiant = branding.officiantName?.trim() ? esc(branding.officiantName.trim()) : 'Authorized Pastor';
-
   if (template === 'visitor_declaration') {
     const visitorEmail = displayVal(member.email);
     const visitorPhone = displayVal(member.phone);
@@ -667,9 +713,9 @@ export function buildComplianceHtml(
        </ul>`,
       
       signatureBlock([
-        { line: 'Visitor Signature' },
-        { line: 'Hospitality Lead', name: branding.witnessName?.trim() || undefined, title: 'Welcome Team' },
-        { line: 'Pastoral Representative', name: branding.officiantName?.trim() || undefined, title: 'Authorized Pastor' },
+        { line: 'Visitor Signature', subtitle: 'Declarant' },
+        { line: 'Witness Signature', subtitle: 'Hospitality / Welcome Team' },
+        { line: 'Pastoral Representative', subtitle: 'Authorized Pastor' },
       ]),
       '</div>',
       officeUseTable(branding.documentRef, branding.issueDateLabel),
@@ -736,9 +782,9 @@ export function buildComplianceHtml(
       `<p class="clause" style="font-style: italic;">\"I do hereby solemnly declare that I am executing this voluntary declaration of my own free will, conviction, and conscience, without any force, coercion, inducement, misrepresentation, or threat from any person or agency. I fully consent to the collection and secure preservation of my details in the permanent administrative register of the society.\"</p>`,
       `<p class="hindi-ref" style="font-size: 0.72rem; line-height: 1.35; margin-top: 0.35rem;"><strong>सत्यनिष्ठ घोषणा:</strong> मैं सत्यनिष्ठा से घोषणा करता/करती हूँ कि मैं बिना किसी दबाव, लालच, अनुचित प्रभाव या जबरदस्ती के अपनी स्वतंत्र इच्छा और विवेक से इस मण्डली के साथ जुड़ाव स्थापित कर रहा/रही हूँ। मेरे व्यक्तिगत विवरण मण्डली के स्थायी रजिस्टर में सुरक्षित रखे जाएंगे।</p>`,
       signatureBlock([
-        { line: 'Declarant / Affiant Signature', name: member.name },
-        { line: 'Attesting Trustee / Officer', name: branding.witnessName?.trim() || undefined, title: 'Witness' },
-        { line: 'Authorized Pastor', name: branding.officiantName?.trim() || undefined, title: 'Congregational Pastor' },
+        { line: 'Declarant / Affiant Signature', subtitle: 'Member' },
+        { line: 'Witness Signature', subtitle: 'Attesting Trustee / Officer' },
+        { line: 'Authorized Pastor', subtitle: 'Congregational Pastor' },
       ]),
       '</div>',
       officeUseTable(branding.documentRef, branding.issueDateLabel),
@@ -749,7 +795,6 @@ export function buildComplianceHtml(
 
   const baptDate = esc(fmtDate(branding.baptismDate));
   const place = branding.baptismPlace?.trim() ? esc(branding.baptismPlace.trim()) : '—';
-  const witnessNameVal = branding.witnessName?.trim() || 'Attesting Witness';
   const body = [
     header,
     `<div class="cert-outer doc-frame-cert page-break-avoid">`,
@@ -774,11 +819,11 @@ export function buildComplianceHtml(
     `<p class="cert-ref" style="font-size: 0.7rem; color: #94a3b8; font-family: monospace; margin-top: 0.75rem;">Registry Record Ref: ${esc(branding.documentRef)}</p>`,
     `</div>`,
     
-    `<div class="cert-signatures page-break-avoid" style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: flex-end; justify-items: center; max-width: 32rem; margin-left: auto; margin-right: auto;">`,
-    `<div class="cert-sign" style="width: 100%;"><div class="sign-line" style="border-top: 1px solid #0f172a; padding-top: 0.25rem; font-size: 0.72rem; font-family: Georgia, serif; font-style: italic; font-weight: bold; color: #0f172a;">${officiant}</div><p style="font-size:0.6rem;color:#94a3b8;margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.04em;font-family:sans-serif;">Officiating Pastor</p></div>`,
-    `<div class="cert-sign" style="width: 100%;">${certificateSealHtml(branding.churchName, accent)}</div>`,
-    `<div class="cert-sign" style="width: 100%;"><div class="sign-line" style="border-top: 1px solid #0f172a; padding-top: 0.25rem; font-size: 0.72rem; font-family: Georgia, serif; font-style: italic; font-weight: bold; color: #0f172a;">${esc(witnessNameVal)}</div><p style="font-size:0.6rem;color:#94a3b8;margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.04em;font-family:sans-serif;">Attesting Witness</p></div>`,
-    `</div>`,
+    certificateSignatureRow({
+      left: 'Officiating Pastor',
+      center: certificateSealHtml(branding.churchName, accent),
+      right: 'Attesting Witness',
+    }),
     officeUseTable(branding.documentRef, branding.issueDateLabel),
     footer,
   ].join('');

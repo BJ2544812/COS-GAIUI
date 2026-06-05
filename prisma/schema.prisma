@@ -87,6 +87,7 @@ model Tenant {
   careCases         CareCase[]
   careLogs          CareLog[]
   prayerRequests    PrayerRequest[]
+  prayerRequestActivities PrayerRequestActivity[]
   pathways          Pathway[]
   pathwaySteps      PathwayStep[]
   memberPathwayProgress MemberPathwayProgress[]
@@ -136,6 +137,7 @@ model User {
   careLogs          CareLog[]  @relation("CareLogAuthor")
   createdCareLogs   CareLog[]  @relation("CareLogCreator")
   createdPrayerRequests PrayerRequest[] @relation("PrayerRequestCreator")
+  prayerRequestActivities PrayerRequestActivity[] @relation("PrayerActivityActor")
   assignedTasks     Task[] @relation("AssignedUser")
   createdTasks      Task[] @relation("TaskCreator")
   updatedTasks      Task[] @relation("TaskUpdater")
@@ -1759,23 +1761,42 @@ model PrayerRequest {
   id             String               @id @default(uuid())
   tenantId       String
   requesterId    String?
+  title          String?
   content        String
   visibility     ConfidentialityLevel @default(PUBLIC)
-  status         String               @default("Active")
+  status         String               @default("OPEN")
   urgency        TaskPriority         @default(MEDIUM)
   category       String               @default("general")
   assignedUserId String?
   testimony      String?
+  followUpNotes  String?              @db.Text
   createdById    String?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  requester Member? @relation("PrayerRequester", fields: [requesterId], references: [id], onDelete: SetNull)
-  createdBy User?   @relation("PrayerRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester  Member?                 @relation("PrayerRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  createdBy  User?                   @relation("PrayerRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  activities PrayerRequestActivity[]
 
   @@index([tenantId, requesterId, status])
   @@index([tenantId, assignedUserId, status])
+}
+
+model PrayerRequestActivity {
+  id              String   @id @default(uuid())
+  tenantId        String
+  prayerRequestId String
+  actionType      String
+  message         String
+  actorUserId     String?
+  createdAt       DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prayerRequest PrayerRequest @relation(fields: [prayerRequestId], references: [id], onDelete: Cascade)
+  actor         User?         @relation("PrayerActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, prayerRequestId, createdAt])
 }
 
 // ---------------------------------------------------------

@@ -104,6 +104,59 @@ export function buildCreatePayloadFromIntake(form: IntakeFormData & Record<strin
 /**
  * For updates: only include fields the user is allowed to change; omit undefined.
  */
+/** Map member profile edit form → API update body (explicit fields only). */
+export function buildMemberUpdateFromEditForm(form: {
+  name: string;
+  email: string;
+  phone: string;
+  status: string;
+  growthStage: string;
+  role: string;
+  membershipDate: string;
+  dob: string;
+  gender: string;
+  aadhaar: string;
+  pan: string;
+  familyId: string;
+  workforceClass: string;
+  employmentType: string;
+  department: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  latitude: string;
+  longitude: string;
+}): MemberUpdateBody {
+  return {
+    name: form.name.trim(),
+    email: form.email.trim() || null,
+    phone: form.phone.trim() || null,
+    status: form.status,
+    growthStage: form.growthStage,
+    role: form.role.trim() || null,
+    membershipDate: form.membershipDate || null,
+    dob: form.dob || null,
+    gender: form.gender.trim() || null,
+    aadhaar: form.aadhaar.replace(/\s/g, '') || null,
+    pan: form.pan.trim().toUpperCase() || null,
+    familyId: form.familyId || null,
+    workforceClass: form.workforceClass.trim() || null,
+    employmentType: form.employmentType.trim() || null,
+    department: form.department.trim() || null,
+    addressLine1: form.addressLine1.trim() || null,
+    addressLine2: form.addressLine2.trim() || null,
+    city: form.city.trim() || null,
+    stateRegion: form.stateRegion.trim() || null,
+    postalCode: form.postalCode.trim() || null,
+    country: form.country.trim() || 'India',
+    latitude: form.latitude ? Number(form.latitude) : null,
+    longitude: form.longitude ? Number(form.longitude) : null,
+  };
+}
+
 export function buildUpdatePayload(updates: MemberUpdateBody): Record<string, unknown> {
   const src = updates as Record<string, unknown>;
   const out: Record<string, unknown> = {};

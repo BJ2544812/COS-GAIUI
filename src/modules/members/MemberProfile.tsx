@@ -22,8 +22,16 @@ import {
   getMemberCareNotes, createMemberCareNote,
   listMembers, type MemberDto,
   generateMemberIdentityDocument,
+  markDeclarationDownloaded,
+  verifyDeclarationDocument,
   type IdentityDocTemplate,
 } from './memberApi';
+import { buildMemberUpdateFromEditForm } from './buildMemberPayload';
+import {
+  declarationLifecycleLabel,
+  isGeneratedDeclarationType,
+  parseDeclarationLifecycle,
+} from '@/lib/declarationLifecycle';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { COMMON_SERVING_ROLES, ENTITY_TYPES, SERVING_STATUS_OPTIONS, servingTierForRole } from '@/lib/servingRoles';
 import { SERVER_ROOT } from '@/lib/apiConfig';
@@ -111,7 +119,7 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModul
   const [milestoneSaving, setMilestoneSaving] = React.useState(false);
 
   const [documentOpen, setDocumentOpen] = React.useState(false);
-  const [documentForm, setDocumentForm] = React.useState({ type: 'Aadhaar', number: '', notes: '' });
+  const [documentForm, setDocumentForm] = React.useState({ type: 'Aadhaar', number: '', notes: '', parentDocumentId: '' });
   const [documentFile, setDocumentFile] = React.useState<File | null>(null);
   const [documentSaving, setDocumentSaving] = React.useState(false);
   const { settings } = useSettings();
@@ -215,48 +223,50 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModul
 
   const saveEdit = async () => {
     if (!member) return;
+    if (!editForm.name.trim()) {
+      setSaveError('Full name is required.');
+      return;
+    }
     try {
       setSaving(true);
       setSaveError(null);
       setValidationErrors({});
 
-      // Validation
       const errors: Record<string, string> = {};
       if (editForm.pan && !panRegex.test(editForm.pan.toUpperCase())) {
-        errors.pan = "Invalid PAN format (e.g. ABCDE1234F)";
+        errors.pan = 'Invalid PAN format (e.g. ABCDE1234F)';
       }
       if (editForm.aadhaar && !aadhaarRegex.test(editForm.aadhaar)) {
-        errors.aadhaar = "Aadhaar must be exactly 12 digits";
+        errors.aadhaar = 'Aadhaar must be exactly 12 digits';
       }
-
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);
+        setSaveError('Please fix validation errors before saving.');
         return;
       }
-      
-      const updated = await updateMember(member.id, {
-        ...editForm,
-        dob: editForm.dob || null,
-        membershipDate: editForm.membershipDate || null,
-        aadhaar: editForm.aadhaar || null,
-        pan: editForm.pan?.toUpperCase() || null,
-        addressLine1: editForm.addressLine1 || null,
-        addressLine2: editForm.addressLine2 || null,
-        city: editForm.city || null,
-        stateRegion: editForm.stateRegion || null,
-        postalCode: editForm.postalCode || null,
-        country: editForm.country || 'India',
-        latitude: editForm.latitude ? Number(editForm.latitude) : null,
-        longitude: editForm.longitude ? Number(editForm.longitude) : null,
-      });
 
-      setMember(prev => prev ? { ...prev, ...updated } : updated);
-      setUpdateSuccess('Profile updated successfully.');
+      const payload = buildMemberUpdateFromEditForm(editForm);
+      await updateMember(member.id, payload);
+      const refreshed = await getMember(member.id);
+
+      if (payload.dob && refreshed.dob?.slice(0, 10) !== String(payload.dob).slice(0, 10)) {
+        throw new Error('Date of birth did not persist correctly. Please try again.');
+      }
+      if (payload.pan && refreshed.pan !== payload.pan) {
+        throw new Error('PAN did not persist correctly. Please try again.');
+      }
+      if (payload.addressLine1 && refreshed.addressLine1 !== payload.addressLine1) {
+        throw new Error('Address did not persist correctly. Please try again.');
+      }
+
+      setMember((prev) => (prev ? { ...prev, ...refreshed, documents: prev.documents } : refreshed));
+      setUpdateSuccess('Profile updated and saved successfully.');
       setIsEditOpen(false);
       await onMemberUpdated?.();
-      void loadData();
-    } catch (e: any) {
-      setSaveError(e.message || 'Update failed');
+      await loadData();
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Update failed';
+      setSaveError(msg);
     } finally {
       setSaving(false);
     }
@@ -318,16 +328,62 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModul
     }
   };
 
-  const saveDocument = async () => {
+  const openSignedUpload = (parentDocId: string, declType: string) => {
+    setDocumentForm({
+      type: `Signed${declType.replace('Generated', '')}`,
+      number: '',
+      notes: `Signed copy for ${declType}`,
+      parentDocumentId: parentDocId,
+    });
+    setDocumentFile(null);
+    setDocumentOpen(true);
+  };
+
+  const openDeclarationPrint = async (docId: string, fileUrl: string) => {
+    try {
+      await markDeclarationDownloaded(member.id!, docId);
+      window.open(`${SERVER_ROOT}${fileUrl}`, '_blank');
+      void loadData();
+    } catch {
+      window.open(`${SERVER_ROOT}${fileUrl}`, '_blank');
+    }
+  };
+
+  const verifyDeclaration = async (docId: string) => {
     if (!member) return;
     try {
+      await verifyDeclarationDocument(member.id, docId);
+      setUpdateSuccess('Declaration marked as verified.');
+      void loadData();
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Verification failed');
+    }
+  };
+
+  const saveDocument = async () => {
+    if (!member) return;
+    if (!documentFile) {
+      setSaveError('Please select a file to upload.');
+      return;
+    }
+    try {
       setDocumentSaving(true);
-      await createMemberDocument(member.id, documentForm, documentFile || undefined);
+      setSaveError(null);
+      await createMemberDocument(
+        member.id,
+        {
+          ...documentForm,
+          isSignedCopy: !!documentForm.parentDocumentId,
+        },
+        documentFile,
+      );
       setDocumentOpen(false);
       setDocumentFile(null);
+      setDocumentForm({ type: 'Aadhaar', number: '', notes: '', parentDocumentId: '' });
+      setUpdateSuccess('Document uploaded successfully.');
       void loadData();
-    } catch (e: any) {
-      console.error(e);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Document upload failed');
     } finally {
       setDocumentSaving(false);
     }
@@ -413,8 +469,10 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModul
       setMember((prev) => (prev ? { ...prev, ...updated } : updated));
       setUpdateSuccess(`Growth stage updated to ${growthStageLabel(stage)}.`);
       await onMemberUpdated?.();
-    } catch (e: any) {
-      console.error(e);
+      await loadData();
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Failed to update growth stage';
+      setSaveError(msg);
     } finally {
       setGrowthStageSaving(false);
     }
@@ -1028,20 +1086,32 @@ export function MemberProfileDetail({ memberId, onBack, onMemberUpdated, onModul
                                                    <p className="text-sm font-bold text-slate-900">{d.type}</p>
                                                    <p className="text-xs font-medium text-slate-500">
                                                       {d.number || 'No number'} • {new Date(d.createdAt).toLocaleDateString()}
-                                                      {d.acceptedAt ? ` • Accepted ${new Date(d.acceptedAt).toLocaleDateString()}` : ''}
+                                                      {d.verified ? ' • Verified' : ''}
                                                    </p>
-                                                   {d.signerName ? (
-                                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Signer: {d.signerName}</p>
-                                                   ) : null}
+                                                   {isGeneratedDeclarationType(String(d.type)) && (
+                                                     <Badge className="mt-1 bg-slate-100 text-slate-700 border-none text-[9px] font-black uppercase tracking-widest">
+                                                       {declarationLifecycleLabel(parseDeclarationLifecycle(d.notes))}
+                                                     </Badge>
+                                                   )}
                                                 </div>
                                              </div>
-                                             <div className="flex items-center gap-2">
-                                                {d.fileUrl && (
-                                                  <Button variant="ghost" size="sm" className="text-indigo-600 font-bold" onClick={() => window.open(`${SERVER_ROOT}${d.fileUrl}`, '_blank')}>View / Print</Button>
+                                             <div className="flex items-center gap-2 flex-wrap justify-end">
+                                                {d.fileUrl && isGeneratedDeclarationType(String(d.type)) && (
+                                                  <Button variant="ghost" size="sm" className="text-indigo-600 font-bold" onClick={() => void openDeclarationPrint(d.id, d.fileUrl)}>
+                                                    Download / Print
+                                                  </Button>
                                                 )}
-                                                {(d.type === 'DeclarationForm' || String(d.type).startsWith('Generated')) && !d.acceptedAt && (
-                                                  <Button variant="ghost" size="sm" className="text-emerald-700 font-bold" onClick={() => openDocAcceptance(d.id)}>
-                                                     Record acceptance
+                                                {d.fileUrl && !isGeneratedDeclarationType(String(d.type)) && (
+                                                  <Button variant="ghost" size="sm" className="text-indigo-600 font-bold" onClick={() => window.open(`${SERVER_ROOT}${d.fileUrl}`, '_blank')}>View</Button>
+                                                )}
+                                                {isGeneratedDeclarationType(String(d.type)) && parseDeclarationLifecycle(d.notes) !== 'Verified' && (
+                                                  <Button variant="ghost" size="sm" className="text-amber-700 font-bold" onClick={() => openSignedUpload(d.id, String(d.type))}>
+                                                    Upload signed copy
+                                                  </Button>
+                                                )}
+                                                {isGeneratedDeclarationType(String(d.type)) && parseDeclarationLifecycle(d.notes) === 'UploadedSigned' && !d.verified && (
+                                                  <Button variant="ghost" size="sm" className="text-emerald-700 font-bold" onClick={() => void verifyDeclaration(d.id)}>
+                                                    Mark verified
                                                   </Button>
                                                 )}
                                                 <Button variant="ghost" size="icon" className="text-rose-400 hover:text-rose-600" onClick={() => deleteDoc(d.id)}>

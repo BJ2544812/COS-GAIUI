@@ -32,6 +32,7 @@ router.post(
 router.get('/:id/documents', requirePermission('manage_members'), MemberProfileController.getDocuments as any);
 router.post('/:id/documents', requirePermission('manage_members'), upload.single('file'), MemberProfileController.createDocument as any);
 router.patch('/:id/documents/:docId', requirePermission('manage_members'), MemberProfileController.updateDocument as any);
+router.patch('/:id/documents/:docId/lifecycle', requirePermission('manage_members'), MemberProfileController.updateDocumentLifecycle as any);
 router.delete('/:id/documents/:docId', requirePermission('manage_members'), MemberProfileController.deleteDocument as any);
 
 router.post(

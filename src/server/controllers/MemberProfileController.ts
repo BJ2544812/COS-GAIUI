@@ -16,6 +16,10 @@ import { formatDateOnlyDisplay, parseDateOnlyToISO } from '../../lib/dateOnly.js
 import { formatAddressLine } from '../../lib/memberAddress.js';
 import { DEFAULT_SETTINGS } from '../../lib/settingsDefaults.js';
 import { SettingsRepository } from '../repositories/SettingsRepository.js';
+import {
+  isGeneratedDeclarationType,
+  withDeclarationLifecycle,
+} from '../../lib/declarationLifecycle.js';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
@@ -185,11 +189,27 @@ export class MemberProfileController {
         fileUrl = await storeFile(file, objectName);
       }
 
+      const parentDocId = typeof req.body.parentDocumentId === 'string' ? req.body.parentDocumentId.trim() : '';
+      const isSignedUpload = String(type).toLowerCase().includes('signed') || req.body.isSignedCopy === true;
+
+      let docNotes = notes ?? null;
+      if (isSignedUpload && parentDocId) {
+        docNotes = withDeclarationLifecycle(null, 'UploadedSigned', `parentDoc:${parentDocId}`);
+        const parent = await prisma.memberDocument.findFirst({
+          where: { id: parentDocId, memberId: String(req.params.id), tenantId: req.tenantId! },
+        });
+        if (parent && isGeneratedDeclarationType(parent.type)) {
+          await MemberDocumentRepository.update(parentDocId, String(req.params.id), {
+            notes: withDeclarationLifecycle(parent.notes, 'UploadedSigned'),
+          });
+        }
+      }
+
       const doc = await MemberDocumentRepository.create(req.tenantId!, String(req.params.id), {
         type,
         number: number ?? null,
         fileUrl,
-        notes: notes ?? null,
+        notes: docNotes,
         ...(req.body.acceptedAt
           ? { acceptedAt: new Date(String(req.body.acceptedAt)) }
           : {}),
@@ -216,6 +236,40 @@ export class MemberProfileController {
         signatureDataUrl,
       });
       res.json({ status: 'success', data: { ...doc, number: doc.number ? `****${doc.number.slice(-4)}` : null } });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  /** PATCH /members/:id/documents/:docId/lifecycle — declaration workflow transitions */
+  static async updateDocumentLifecycle(req: TenantRequest, res: Response) {
+    try {
+      const memberId = String(req.params.id);
+      const docId = String(req.params.docId);
+      const action = String((req.body as { action?: string })?.action || '').toLowerCase();
+
+      const existing = await prisma.memberDocument.findFirst({
+        where: { id: docId, memberId, tenantId: req.tenantId! },
+      });
+      if (!existing) return res.status(404).json({ error: 'Document not found' });
+
+      if (action === 'downloaded') {
+        const doc = await MemberDocumentRepository.update(docId, memberId, {
+          notes: withDeclarationLifecycle(existing.notes, 'Downloaded'),
+        });
+        return res.json({ status: 'success', data: { ...doc, number: doc.number ? `****${String(doc.number).slice(-4)}` : null } });
+      }
+
+      if (action === 'verified') {
+        const doc = await MemberDocumentRepository.update(docId, memberId, {
+          verified: true,
+          acceptedAt: new Date(),
+          notes: withDeclarationLifecycle(existing.notes, 'Verified'),
+        });
+        return res.json({ status: 'success', data: { ...doc, number: doc.number ? `****${String(doc.number).slice(-4)}` : null } });
+      }
+
+      return res.status(400).json({ error: 'Invalid lifecycle action' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -329,7 +383,7 @@ export class MemberProfileController {
         type,
         number: null,
         fileUrl,
-        notes: `Auto-generated from template: ${template}`,
+        notes: withDeclarationLifecycle(null, 'Generated', `template:${template}`),
       });
       res.status(201).json({
         status: 'success',

@@ -157,6 +157,11 @@ export type MemberUpdateBody = Partial<Omit<MemberCreateBody, 'email' | 'phone' 
   gender?: string | null;
   aadhaar?: string | null;
   pan?: string | null;
+  status?: string;
+  growthStage?: string;
+  workforceClass?: string | null;
+  employmentType?: string | null;
+  department?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;
@@ -223,7 +228,7 @@ export async function getMemberDocuments(memberId: string): Promise<MemberDocume
 
 export async function createMemberDocument(
   memberId: string,
-  data: { type: string; number?: string; notes?: string },
+  data: { type: string; number?: string; notes?: string; parentDocumentId?: string; isSignedCopy?: boolean },
   file?: File
 ): Promise<MemberDocumentDto> {
   if (file) {
@@ -232,6 +237,8 @@ export async function createMemberDocument(
     form.append('type', data.type);
     if (data.number) form.append('number', data.number);
     if (data.notes) form.append('notes', data.notes);
+    if (data.parentDocumentId) form.append('parentDocumentId', data.parentDocumentId);
+    if (data.isSignedCopy) form.append('isSignedCopy', 'true');
 
     const res = await apiFetch(`members/${encodeURIComponent(memberId)}/documents`, {
       method: 'POST',
@@ -247,6 +254,25 @@ export async function createMemberDocument(
   const json = await apiRequest<{ status: string; data: MemberDocumentDto }>(
     `/members/${encodeURIComponent(memberId)}/documents`,
     { method: 'POST', body: stripUndefined(data as any) }
+  );
+  return parseApiResponse<MemberDocumentDto>(json);
+}
+
+export async function markDeclarationDownloaded(memberId: string, docId: string): Promise<MemberDocumentDto> {
+  const json = await apiRequest<{ status: string; data: MemberDocumentDto }>(
+    `/members/${encodeURIComponent(memberId)}/documents/${encodeURIComponent(docId)}/lifecycle`,
+    { method: 'PATCH', body: { action: 'downloaded' } },
+  );
+  return parseApiResponse<MemberDocumentDto>(json);
+}
+
+export async function verifyDeclarationDocument(
+  memberId: string,
+  docId: string,
+): Promise<MemberDocumentDto> {
+  const json = await apiRequest<{ status: string; data: MemberDocumentDto }>(
+    `/members/${encodeURIComponent(memberId)}/documents/${encodeURIComponent(docId)}/lifecycle`,
+    { method: 'PATCH', body: { action: 'verified' } },
   );
   return parseApiResponse<MemberDocumentDto>(json);
 }

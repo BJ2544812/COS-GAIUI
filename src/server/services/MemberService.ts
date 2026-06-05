@@ -4,12 +4,19 @@ import { CodedError } from '../utils/apiErrors.js';
 import { EventBus } from '../events/eventBus.js';
 import { parseDateOnlyToISO } from '../../lib/dateOnly.js';
 
-function normalizeDates(data: any) {
-  return {
-    ...data,
-    membershipDate: parseDateOnlyToISO(data.membershipDate),
-    dob: parseDateOnlyToISO(data.dob),
-  };
+function normalizeDates<T extends Record<string, unknown>>(data: T): T {
+  const out = { ...data };
+  if ('membershipDate' in out) {
+    (out as Record<string, unknown>).membershipDate = parseDateOnlyToISO(
+      out.membershipDate as string | null | undefined,
+    );
+  }
+  if ('dob' in out) {
+    (out as Record<string, unknown>).dob = parseDateOnlyToISO(
+      out.dob as string | null | undefined,
+    );
+  }
+  return out;
 }
 
 function parseMemberUpdate(body: unknown): Prisma.MemberUpdateInput {
@@ -22,8 +29,10 @@ function parseMemberUpdate(body: unknown): Prisma.MemberUpdateInput {
   if (typeof o.name === 'string' && o.name.trim()) data.name = o.name.trim();
   if (o.email !== undefined) data.email = typeof o.email === 'string' ? o.email.trim() : null;
   if (o.phone !== undefined) data.phone = typeof o.phone === 'string' ? o.phone.trim() : null;
-  if (o.role !== undefined) data.role = typeof o.role === 'string' ? o.role.trim() : null;
-  if (o.gender !== undefined) data.gender = typeof o.gender === 'string' ? o.gender.trim() : null;
+  if (o.role !== undefined) data.role = typeof o.role === 'string' ? (o.role.trim() || null) : null;
+  if (o.gender !== undefined) {
+    data.gender = typeof o.gender === 'string' ? (o.gender.trim() || null) : null;
+  }
   if (o.aadhaar !== undefined) data.aadhaar = typeof o.aadhaar === 'string' ? o.aadhaar.trim() : null;
   if (o.pan !== undefined) data.pan = typeof o.pan === 'string' ? o.pan.trim() : null;
   if (o.status !== undefined) data.status = typeof o.status === 'string' ? o.status.trim() : undefined;
