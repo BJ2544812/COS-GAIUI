@@ -1,7 +1,7 @@
 import React from 'react';
 import { CreditCard, DollarSign, Plus, ReceiptText, Store, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ModuleHeader, ActionButton, FeedbackBanner, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, FeedbackBanner, PageLayout, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
 import { ERPModule } from '@/types';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
@@ -66,7 +66,7 @@ export function VendorsModule({ onModuleChange }: { onModuleChange?: (m: ERPModu
   }, [payables, payrollRuns]);
 
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
+    <PageLayout>
       <ModuleHeader
         title="Vendors, Payables & Payroll"
         subtitle="Vendors, bills, and payroll — linked to vouchers in Finance."
@@ -187,6 +187,6 @@ export function VendorsModule({ onModuleChange }: { onModuleChange?: (m: ERPModu
           </div>
         </SectionCard>
       )}
-    </div>
+    </PageLayout>
   );
 }

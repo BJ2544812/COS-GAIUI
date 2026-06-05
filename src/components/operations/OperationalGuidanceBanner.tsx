@@ -6,8 +6,8 @@ import type { ERPModule } from '@/types';
 const HINTS: Record<string, { title: string; body: string; cta?: { label: string; module: ERPModule } }> = {
   'sunday-prep': {
     title: 'Sunday preparation',
-    body: 'Open Sunday Mode for live run sheet timing, then Attendance for check-in. Use Home for cross-team visibility.',
-    cta: { label: 'Open Sunday Mode', module: 'sunday-mode' },
+    body: 'Open Sunday Service for live timing and teams, then Attendance for check-in. Use Home for cross-team visibility.',
+    cta: { label: 'Open Sunday Service', module: 'sunday-mode' },
   },
   'event-prep': {
     title: 'Event coordination',
@@ -16,7 +16,7 @@ const HINTS: Record<string, { title: string; body: string; cta?: { label: string
   },
   'volunteer-gap': {
     title: 'Volunteer coverage',
-    body: 'Events with fewer than two volunteers show as shortages. Assign roles from Volunteers or replace live in Sunday Mode.',
+    body: 'Events with fewer than two volunteers show as shortages. Assign roles from Volunteers or update teams in Sunday Service.',
     cta: { label: 'Volunteers', module: 'volunteers' },
   },
   'incident-recovery': {

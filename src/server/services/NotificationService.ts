@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma.js';
+import { broadcastToTenant } from '../realtime/socketHub.js';
 
 export class NotificationService {
   /**
@@ -21,7 +22,7 @@ export class NotificationService {
       ? new Date(Date.now() + data.expiresInDays * 24 * 60 * 60 * 1000) 
       : null;
 
-    return prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         tenantId: data.tenantId,
         type: data.type,
@@ -33,8 +34,22 @@ export class NotificationService {
         actionType: data.actionType || null,
         actionLink: data.actionLink || null,
         expiresAt,
-      }
+      },
     });
+
+    broadcastToTenant(data.tenantId, 'notification:new', {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      priority: notification.priority,
+      actionType: notification.actionType,
+      actionLink: notification.actionLink,
+      status: notification.status,
+      createdAt: notification.createdAt,
+    });
+
+    return notification;
   }
 
   static async getNotificationsForUser(tenantId: string, userId: string, userRole: string) {

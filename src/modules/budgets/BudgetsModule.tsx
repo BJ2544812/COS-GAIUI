@@ -1,7 +1,8 @@
 import React from 'react';
 import { CalendarClock, CircleDollarSign, CreditCard, Heart, PieChart, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ModuleHeader, ActionButton, FeedbackBanner, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, FeedbackBanner, PageLayout, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 import { ERPModule } from '@/types';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
@@ -107,7 +108,7 @@ export function BudgetsModule({
   }, [fundRows, budgetReport]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <PageLayout>
       <ModuleHeader
         title="Funds, Budgets & Event Finance"
         subtitle="Fund transparency, budget limits, and how events affect your finances."
@@ -123,21 +124,16 @@ export function BudgetsModule({
       />
 
       {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
-      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-fit">
-        {[
-          ['funds', 'Fund Dashboard'],
-          ['budgets', 'Budget Workspace'],
-          ['event-finance', 'Event Finance'],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id as any)}
-            className={`px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === id ? 'bg-white text-indigo-600' : 'text-slate-500'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={[
+          { id: 'funds', label: 'Fund dashboard' },
+          { id: 'budgets', label: 'Budget workspace' },
+          { id: 'event-finance', label: 'Event finance' },
+        ]}
+        activeId={tab}
+        onChange={(id) => setTab(id as typeof tab)}
+        aria-label="Budget sections"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard label="Restricted Funds" value={fmt(totals.restricted)} icon={Target} />
@@ -243,6 +239,6 @@ export function BudgetsModule({
           </div>
         </SectionCard>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -1,7 +1,9 @@
 import { Response } from 'express';
 import { TenantRequest } from '../middleware/tenant.middleware.js';
 import { SettingsService } from '../services/SettingsService.js';
-import { settingsPayloadSchema } from '../validation/settingsSchema.js';
+import { SETTINGS_SECTION_KEYS, settingsPayloadSchema } from '../validation/settingsSchema.js';
+import { getMergedPaymentGatewaySettings } from '../utils/mergeTenantSettings.js';
+import { pingCashfreeCredentials } from '../utils/cashfreeApi.js';
 import { DEFAULT_SETTINGS } from '../utils/settingsDefaults.js';
 import { AccountingService } from '../services/AccountingService.js';
 import { assertRazorpayKeyMatchesMode } from '../utils/razorpayMode.js';
@@ -35,20 +37,28 @@ export class SettingsController {
       }
 
       const payload = parsed.data;
-      if (payload.financial?.defaultAccounts) {
+      const sanitized = Object.fromEntries(
+        Object.entries(payload).filter(([k]) =>
+          (SETTINGS_SECTION_KEYS as readonly string[]).includes(k),
+        ),
+      ) as Record<string, unknown>;
+
+      const financial = sanitized.financial as { defaultAccounts?: Record<string, string> } | undefined;
+      if (financial?.defaultAccounts) {
         const da = {
           ...DEFAULT_SETTINGS.financial.defaultAccounts,
-          ...payload.financial.defaultAccounts,
+          ...financial.defaultAccounts,
         };
-        const hasId = [da.cash, da.bank, da.tithes, da.offerings].some((s) => s && String(s).trim() !== '');
+        const hasId = [da.cash, da.bank, da.gatewayClearing, da.tithes, da.offerings].some((s) => s && String(s).trim() !== '');
         if (hasId) {
           await AccountingService.validateDefaultAccountIds(tenantId, da);
         }
       }
-      if (payload.paymentGateway?.razorpayKeyId) {
-        assertRazorpayKeyMatchesMode(String(payload.paymentGateway.razorpayKeyId).trim() || null);
+      const paymentGateway = sanitized.paymentGateway as { razorpayKeyId?: string } | undefined;
+      if (paymentGateway?.razorpayKeyId) {
+        assertRazorpayKeyMatchesMode(String(paymentGateway.razorpayKeyId).trim() || null);
       }
-      await SettingsService.upsertAllSettings(tenantId, payload);
+      await SettingsService.upsertAllSettings(tenantId, sanitized);
 
       res.status(200).json({ status: 'success', message: 'Settings saved atomically.' });
     } catch (error: unknown) {
@@ -95,6 +105,7 @@ export class SettingsController {
         paymentGateway: { ...DEFAULT_SETTINGS.paymentGateway, ...(structured.paymentGateway || {}) },
         documents:      { ...DEFAULT_SETTINGS.documents,      ...(structured.documents      || {}) },
         system:         { ...DEFAULT_SETTINGS.system,         ...(structured.system         || {}) },
+        operational:    { ...DEFAULT_SETTINGS.operational,    ...(structured.operational    || {}) },
         _meta: {
           version: 1,
           updatedAt: rawSettings.length > 0
@@ -130,6 +141,37 @@ export class SettingsController {
       res.status(200).json({ status: 'success', data: setting });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  }
+
+  /** POST /settings/test-cashfree — validate Cashfree credentials without saving. */
+  static async testCashfree(req: TenantRequest, res: Response) {
+    try {
+      const tenantId = req.tenantId!;
+      const body = req.body as {
+        cashfreeAppId?: string;
+        cashfreeSecretKey?: string;
+        cashfreeEnvironment?: 'sandbox' | 'production';
+      } | undefined;
+
+      const merged = await getMergedPaymentGatewaySettings(tenantId);
+      const appId = String(body?.cashfreeAppId ?? merged.cashfreeAppId ?? '').trim();
+      const secretKey = String(body?.cashfreeSecretKey ?? merged.cashfreeSecretKey ?? '').trim();
+      const environment = (body?.cashfreeEnvironment ?? merged.cashfreeEnvironment ?? 'sandbox') as
+        | 'sandbox'
+        | 'production';
+
+      if (!appId || !secretKey) {
+        return res.status(400).json({ error: 'Cashfree App ID and Secret Key are required' });
+      }
+
+      await pingCashfreeCredentials({ appId, secretKey, environment });
+      res.status(200).json({ status: 'success', message: 'Cashfree credentials verified.' });
+    } catch (error: unknown) {
+      if (error instanceof CodedError) {
+        return res.status(400).json({ error: toErrorResponse(error) });
+      }
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Cashfree test failed' });
     }
   }
 

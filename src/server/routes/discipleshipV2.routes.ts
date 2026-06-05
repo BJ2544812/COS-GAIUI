@@ -16,6 +16,7 @@ discipleshipV2Router.get('/test', (req, res) => {
 // --- Tasks ---
 discipleshipV2Router.post('/tasks', DiscipleshipV2Controller.createTask);
 discipleshipV2Router.get('/tasks/my-tasks', DiscipleshipV2Controller.getMyTasks);
+discipleshipV2Router.get('/tasks/operational', DiscipleshipV2Controller.getOperationalTasks);
 discipleshipV2Router.post('/tasks/:id/complete', DiscipleshipV2Controller.completeTask);
 discipleshipV2Router.post('/tasks/:id/cancel', DiscipleshipV2Controller.cancelTask);
 discipleshipV2Router.post('/tasks/:id/reassign', DiscipleshipV2Controller.reassignTask);

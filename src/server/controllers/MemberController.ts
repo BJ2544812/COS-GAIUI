@@ -17,7 +17,10 @@ export class MemberController {
   static async getMembers(req: TenantRequest, res: Response) {
     try {
       const tenantId = req.tenantId!;
-      const members = await MemberService.getMembers(tenantId);
+      const familyId = typeof req.query.familyId === 'string' && req.query.familyId.trim()
+        ? req.query.familyId.trim()
+        : undefined;
+      const members = await MemberService.getMembers(tenantId, familyId);
       const data = (members as any[]).map((m) => {
         const { memberResponsibilities, ...rest } = m;
         return {
@@ -84,6 +87,17 @@ export class MemberController {
         responsibilities: memberResponsibilities ?? [],
       };
       res.status(200).json({ status: 'success', data });
+    } catch (error: unknown) {
+      res.status(400).json({ error: toErrorResponse(error) });
+    }
+  }
+
+  static async importMembers(req: TenantRequest, res: Response) {
+    try {
+      const tenantId = req.tenantId!;
+      const { rows } = req.body as { rows?: unknown[] };
+      const result = await MemberService.importMembers(tenantId, rows ?? []);
+      res.status(200).json({ status: 'success', data: result });
     } catch (error: unknown) {
       res.status(400).json({ error: toErrorResponse(error) });
     }

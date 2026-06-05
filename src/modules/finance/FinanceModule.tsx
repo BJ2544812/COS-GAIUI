@@ -29,7 +29,8 @@ import { ApiError, apiDownloadBlob, apiRequest, formatApiError, openBlobInNewTab
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
 import { ERPModule } from '@/types';
-import { ActionButton, EmptyState, FeedbackBanner, ModuleHeader, ResponsiveTableWrap, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { ActionButton, EmptyState, FeedbackBanner, ModuleHeader, PageLayout, ResponsiveTableWrap, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 import { GatewaySettlementPanel } from '@/components/finance/GatewaySettlementPanel';
 import { BankReconciliationPanel } from '@/components/finance/BankReconciliationPanel';
 import { consumeFinanceTabIntent, type FinanceWorkspaceTab } from '@/lib/financeNavigation';
@@ -382,7 +383,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <PageLayout className="space-y-6">
       {banner && (
         <FeedbackBanner tone={banner.tone}>{banner.message}</FeedbackBanner>
       )}
@@ -415,31 +416,23 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
         }}
       />
 
-      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-full max-w-full overflow-x-auto">
-        {[
-          ['dashboard', 'Dashboard'],
-          ['vouchers', 'Vouchers'],
-          ['receipts', 'Receipts'],
-          ['settlements', 'Settlements'],
-          ['reconciliation', 'Reconciliation'],
-          ['reports', 'Reports'],
-          ['approvals', 'Approvals'],
-          ['documents', 'Document Registry'],
-          ['years', 'Financial Years'],
-          ['accounts', 'Accounts'],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id as FinanceTab)}
-            className={cn(
-              'rounded-lg px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-colors',
-              tab === id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={[
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'vouchers', label: 'Vouchers' },
+          { id: 'receipts', label: 'Receipts' },
+          { id: 'settlements', label: 'Settlements' },
+          { id: 'reconciliation', label: 'Reconciliation' },
+          { id: 'reports', label: 'Reports' },
+          { id: 'approvals', label: 'Approvals' },
+          { id: 'documents', label: 'Document registry' },
+          { id: 'years', label: 'Financial years' },
+          { id: 'accounts', label: 'Accounts' },
+        ]}
+        activeId={tab}
+        onChange={(id) => setTab(id as FinanceTab)}
+        aria-label="Finance sections"
+      />
 
       {loading ? (
         <div className="space-y-6 animate-pulse">
@@ -959,7 +952,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
         </div>
       )}
 
-    </div>
+    </PageLayout>
   );
 }
 

@@ -1,0 +1,1145 @@
+{
+  "format": "kingdom-os-backup-v1",
+  "exportedAt": "2026-05-21T14:47:59.754Z",
+  "tenantId": "default-tenant-id",
+  "tenant": {
+    "id": "default-tenant-id",
+    "name": "HIF Eco Park Church",
+    "domain": "hifecopark.local",
+    "createdAt": "2026-05-20T06:49:36.694Z",
+    "updatedAt": "2026-05-20T12:20:32.414Z"
+  },
+  "settings": [
+    {
+      "id": "fb7fce99-f093-45b6-8cdf-94b5f546b9d3",
+      "tenantId": "default-tenant-id",
+      "key": "seed.expanded_demo_v4",
+      "value": "1779259777038"
+    },
+    {
+      "id": "216410e5-7023-4daf-9112-078b6fb2e37f",
+      "tenantId": "default-tenant-id",
+      "key": "seed.serving_demo_v1",
+      "value": "2026-05-20T06:49:39.737Z"
+    },
+    {
+      "id": "d1029af0-e701-40c6-9fc6-896ded419c4f",
+      "tenantId": "default-tenant-id",
+      "key": "organization",
+      "value": "{\"name\":\"Zero-State QA 1779374846115\",\"tagline\":\"\",\"logo\":\"\",\"address\":\"\",\"phone\":\"\",\"email\":\"\",\"registrationNumber\":\"\",\"taxId\":\"\"}"
+    },
+    {
+      "id": "105e1ba2-1234-44e0-acaa-bab64f5a62ff",
+      "tenantId": "default-tenant-id",
+      "key": "backup.last_run_at",
+      "value": "2026-05-20T17:27:46.368Z"
+    },
+    {
+      "id": "4290a00b-2d14-49df-88a3-3d111893d504",
+      "tenantId": "default-tenant-id",
+      "key": "backup.last_size_bytes",
+      "value": "42970"
+    },
+    {
+      "id": "cc092ba9-f7ca-400a-ba46-25c004e379cf",
+      "tenantId": "default-tenant-id",
+      "key": "operational_incidents",
+      "value": "[{\"id\":\"inc_1779374586831_uy7k5hi\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-21T14:43:06.831Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779374582432_kr54ew2\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-21T14:43:02.432Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779300804807_5w8vrwt\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T18:13:24.807Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779300800746_rcpjucv\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T18:13:20.746Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779299660521_b5e1srg\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T17:54:20.521Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779299656324_vapyft3\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T17:54:16.324Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779298114797_xzq5scf\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T17:28:34.797Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779298109521_af334hi\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T17:28:29.521Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779296041168_4hbetnf\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T16:54:01.168Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779296036422_v0fw1qs\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T16:53:56.422Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779279755300_vffsqt6\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T12:22:35.300Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779279751398_kgypvpx\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T12:22:31.398Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779275928479_8z7oqjf\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T11:18:48.479Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779275924473_lxujes2\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T11:18:44.473Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779275552092_ssm1tji\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T11:12:32.092Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779275548115_0qszdap\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T11:12:28.115Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779272798856_33v1n6x\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T10:26:38.856Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779272580973_vzoc3cx\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T10:23:00.973Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779270771265_d6zf9th\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T09:52:51.265Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779262056919_z4g7atj\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T07:27:36.919Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"},{\"id\":\"inc_1779259975199_ia72rai\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T06:52:55.199Z\",\"severity\":\"warning\",\"category\":\"redis\",\"title\":\"Redis not configured\",\"detail\":\"Background queue runs synchronously — not ideal for production scale\"},{\"id\":\"inc_1779259869974_4goj9rq\",\"tenantId\":\"default-tenant-id\",\"status\":\"open\",\"createdAt\":\"2026-05-20T06:51:09.974Z\",\"severity\":\"info\",\"category\":\"workflow_replay\",\"title\":\"Failed workflows replay initiated\",\"detail\":\"Requeued 0 domain events\"}]"
+    },
+    {
+      "id": "250af5d3-2094-4b8c-84d7-04fd3f1de46f",
+      "tenantId": "default-tenant-id",
+      "key": "operational",
+      "value": "{\"notificationDelivery\":\"in_app\",\"defaultConfidentiality\":\"PUBLIC\",\"autoAssignCareCases\":false,\"requireFollowUpApproval\":true}"
+    },
+    {
+      "id": "aad2fbc4-cdcc-4f2d-8853-8bb1e0a9dcec",
+      "tenantId": "default-tenant-id",
+      "key": "branding",
+      "value": "{\"primaryColor\":\"#1E3A5F\",\"secondaryColor\":\"#C9A227\",\"themeMode\":\"light\",\"emailHeaderLogo\":\"\",\"emailFooterText\":\"\",\"publicTagline\":\"Welcome home — worship, grow, serve\",\"favicon\":\"\"}"
+    },
+    {
+      "id": "d820b562-6603-47d7-a73e-f27bdedd61ce",
+      "tenantId": "default-tenant-id",
+      "key": "demo_mode",
+      "value": "true"
+    },
+    {
+      "id": "c5d5bba2-2d93-4a7e-aa53-85e4c3bb9b99",
+      "tenantId": "default-tenant-id",
+      "key": "paymentGateway",
+      "value": "{\"onlineGivingEnabled\":true,\"primaryGateway\":\"cashfree\",\"cashfreeEnvironment\":\"sandbox\",\"cashfreeAppId\":\"\",\"cashfreeSecretKey\":\"\",\"cashfreeWebhookSecret\":\"\",\"thankYouMessage\":\"\",\"donorConfirmationEmail\":true,\"recurringGivingEnabled\":false,\"razorpayKeyId\":\"\",\"razorpayKeySecret\":\"\",\"razorpayWebhookSecret\":\"\"}"
+    },
+    {
+      "id": "243769a3-ae15-4c31-a33b-acd13a47b5d3",
+      "tenantId": "default-tenant-id",
+      "key": "system",
+      "value": "{\"timezone\":\"Asia/Kolkata\",\"dateFormat\":\"DD/MM/YYYY\",\"language\":\"en\",\"auditLogging\":true,\"dataRetentionDays\":365}"
+    },
+    {
+      "id": "e91b8aff-c8ec-4d4d-889d-d3b65602d8c4",
+      "tenantId": "default-tenant-id",
+      "key": "license_entitlements",
+      "value": "{\"plan\":\"pilot-ministry\",\"modules\":[\"members\",\"events\",\"attendance\",\"giving\",\"finance\",\"website\",\"operations\",\"communication\"],\"issuedTo\":\"HIF Eco Park Church\",\"validThrough\":\"2027-12-31\"}"
+    }
+  ],
+  "members": [
+    {
+      "id": "05e6bcf1-3d05-4bc0-9019-f612c5dea737",
+      "name": "CareFirst1779262120692 CareLast1779262120692",
+      "email": "pw.care.1779262120692@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "08433f56-2ce1-48c3-949d-ec87509dcdbe",
+      "name": "HR Sim Staff 1779297885381",
+      "email": "hr-sim.staff.1779297885381@grace.local",
+      "phone": "+91 90000 00001",
+      "status": "Active",
+      "growthStage": "Staff"
+    },
+    {
+      "id": "088407ab-2061-439f-824f-209c5e6fe9dc",
+      "name": "Meera Thomas",
+      "email": "hif-ecopark-sim.meera@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Leader"
+    },
+    {
+      "id": "08fafbd6-285c-4b4a-b9d4-0edce7c34521",
+      "name": "Arjun Patel",
+      "email": "arjunpatel11@members.grace.local",
+      "phone": "+15552010011",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "0e7855c1-e24d-4bfe-a750-f137064628ed",
+      "name": "Rachel Thompson",
+      "email": "rachelthompson6@members.grace.local",
+      "phone": "+15552010006",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "1123e00f-6a65-4e2e-baff-74fdace3fe37",
+      "name": "CareFirst1779260871160 CareLast1779260871160",
+      "email": "pw.care.1779260871160@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "14bf9867-357d-46f3-8203-1eee5e129153",
+      "name": "CareFirst1779275808239 CareLast1779275808239",
+      "email": "pw.care.1779275808239@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "1b54d681-9526-4421-9648-eae426a8a982",
+      "name": "Sofia Reyes",
+      "email": "sofiareyes14@members.grace.local",
+      "phone": "+15552010014",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "23af6d78-3128-4130-bfba-bfd50618de8c",
+      "name": "PWFirst1779259978592 PWLast1779259978592",
+      "email": "pw.member.1779259978592@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "27a56c7f-1bd1-467b-8b06-3290519a6f9b",
+      "name": "PathFirst1779262100157 PathLast1779262100157",
+      "email": "pw.path.1779262100157@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "28362ed7-c283-4ccb-b966-4e18bf313120",
+      "name": "Priya Nair",
+      "email": "hif-ecopark-sim.priya@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "2ad34cf4-a3e3-40f2-8436-7ed668803986",
+      "name": "Ravi Nair",
+      "email": "hif-ecopark-sim.ravi@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "2ee2973e-3dbb-418c-aea4-ee39724f9478",
+      "name": "PathFirst1779300959635 PathLast1779300959635",
+      "email": "pw.path.1779300959635@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "32dd462a-1938-4468-a4e1-638640fad0e7",
+      "name": "Linh Nguyen",
+      "email": "linhnguyen8@members.grace.local",
+      "phone": "+15552010008",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "352be535-1722-4f5a-a659-09943ac51095",
+      "name": "CareFirst1779300982225 CareLast1779300982225",
+      "email": "pw.care.1779300982225@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "3591fe28-b233-4e86-abc0-f5728369e2a1",
+      "name": "Church Secretary",
+      "email": "secretary@grace.local",
+      "phone": "+91 90000 00002",
+      "status": "Active",
+      "growthStage": "Staff"
+    },
+    {
+      "id": "35c29c25-08e9-495d-b1ee-f29a8316d929",
+      "name": "Jordan Brooks",
+      "email": "jordanbrooks15@members.grace.local",
+      "phone": "+15552010015",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "37673a99-f166-4702-8df3-91aea41f1dcc",
+      "name": "PWFirst1779275760621 PWLast1779275760621",
+      "email": "pw.member.1779275760621@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "3e6ca72a-5085-4bb7-9116-e992efa10b27",
+      "name": "Priya Patel",
+      "email": "priyapatel10@members.grace.local",
+      "phone": "+15552010010",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "3ff916c5-e8c6-4e9f-baef-b233545a9e0f",
+      "name": "CareFirst1779374793851 CareLast1779374793851",
+      "email": "pw.care.1779374793851@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "403a03ca-341c-42b4-b013-e6a7a891cbfe",
+      "name": "Tanya Collins",
+      "email": "tanyacollins13@members.grace.local",
+      "phone": "+15552010013",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "4867b73b-742d-4675-983e-994381643be9",
+      "name": "James Thompson",
+      "email": "jamesthompson5@members.grace.local",
+      "phone": "+15552010005",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "4b6dab00-d55c-466f-a49e-d261f4c87570",
+      "name": "Amara Lewis",
+      "email": "amaralewis19@members.grace.local",
+      "phone": "+15552010019",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "4b707156-1f9a-4bb9-9d89-03d8a0ddeaf1",
+      "name": "Noah Thompson",
+      "email": "noahthompson7@members.grace.local",
+      "phone": "+15552010007",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "4d3af43e-2590-43f1-bb70-ec00793629b8",
+      "name": "PWFirst1779261176438 PWLast1779261176438",
+      "email": "pw.member.1779261176438@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "512da348-0a31-4f5a-968a-17d471f5cbf3",
+      "name": "VolFirst1779300970330 VolLast1779300970330",
+      "email": "pw.vol.1779300970330@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "5a79ac10-43f9-4f3b-9a88-9a56d9fc684b",
+      "name": "HR Sim Staff 1779298021072",
+      "email": "hr-sim.staff.1779298021072@grace.local",
+      "phone": "+91 90000 00001",
+      "status": "Active",
+      "growthStage": "Staff"
+    },
+    {
+      "id": "5ab36650-61da-4ddb-b9a2-a832166fc45e",
+      "name": "Minh Nguyen",
+      "email": "minhnguyen9@members.grace.local",
+      "phone": "+15552010009",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "5af4bd77-f5c1-4e6a-9495-a300f0080523",
+      "name": "PathFirst1779261192989 PathLast1779261192989",
+      "email": "pw.path.1779261192989@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "60ae1a9e-9c4b-463a-b265-a2ffc9a8fb08",
+      "name": "PathFirst1779259994667 PathLast1779259994667",
+      "email": "pw.path.1779259994667@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "60d89616-69d3-48c2-8889-7c3c6db310c2",
+      "name": "PathFirst1779260850281 PathLast1779260850281",
+      "email": "pw.path.1779260850281@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "6d35bcde-b308-45c7-a1db-87e453d0101a",
+      "name": "VolFirst1779261202588 VolLast1779261202588",
+      "email": "pw.vol.1779261202588@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "6dc40e02-c1c0-41c9-9562-d36ca8d72b63",
+      "name": "HR Sim Staff 1779299374781",
+      "email": "hr-sim.staff.1779299374781@grace.local",
+      "phone": "+91 90000 00001",
+      "status": "Active",
+      "growthStage": "Staff"
+    },
+    {
+      "id": "7434384b-ba2d-4415-97a0-9830f720b153",
+      "name": "Sarah Mathew",
+      "email": "hif-ecopark-sim.worship@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Leader"
+    },
+    {
+      "id": "74d135ee-b8a7-4137-951a-dc4898ff4451",
+      "name": "David Bennett",
+      "email": "davidbennett0@members.grace.local",
+      "phone": "+15552010000",
+      "status": "Active",
+      "growthStage": "Leader"
+    },
+    {
+      "id": "7715c94b-5534-4d20-b763-ca49ea780b06",
+      "name": "VolFirst1779374779967 VolLast1779374779967",
+      "email": "pw.vol.1779374779967@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "8404911d-3139-4f4c-8e9b-cbd4e703ddf6",
+      "name": "Rosa Martinez",
+      "email": "rosamartinez4@members.grace.local",
+      "phone": "+15552010004",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "888cd8c0-3d5d-4ba4-a5de-26ff89501d26",
+      "name": "HR Sim Staff 1779297490292",
+      "email": "hr-sim.staff.1779297490292@grace.local",
+      "phone": "+91 90000 00001",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "8ac59352-f9cf-418e-b9c4-58a92722ecdc",
+      "name": "VolFirst1779275793122 VolLast1779275793122",
+      "email": "pw.vol.1779275793122@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "8dfde6d6-b543-4718-8911-f42aefe8233b",
+      "name": "PWFirst1779260833777 PWLast1779260833777",
+      "email": "pw.member.1779260833777@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "957bc638-6ec7-4c1a-b343-de8fb625ccd4",
+      "name": "CareFirst1779260015731 CareLast1779260015731",
+      "email": "pw.care.1779260015731@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "98e9b4a4-b430-423e-96e3-bf9dcc771238",
+      "name": "PWFirst1779374749624 PWLast1779374749624",
+      "email": "pw.member.1779374749624@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "9e033035-6ca2-4706-b10b-a3cd015f5b00",
+      "name": "Theo Ramirez",
+      "email": "theoramirez20@members.grace.local",
+      "phone": "+15552010020",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "9f3474dd-7ea9-4ec0-a568-d9a413d30c1c",
+      "name": "PWFirst1779262083769 PWLast1779262083769",
+      "email": "pw.member.1779262083769@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "a2facb1d-d19e-4689-92a1-4dc7f850bb69",
+      "name": "Eleanor Scott",
+      "email": "eleanorscott17@members.grace.local",
+      "phone": "+15552010017",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "a3695171-a8ec-4bab-8e6c-e8420e194dfa",
+      "name": "Marcus Collins",
+      "email": "marcuscollins12@members.grace.local",
+      "phone": "+15552010012",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "a3dc0b17-df27-4313-8d6c-c1f2c4d8c72b",
+      "name": "Arjun Nair",
+      "email": "hif-ecopark-sim.arjun@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "aba4e66d-faf2-4418-b913-292e621cccfa",
+      "name": "E2E Test Member",
+      "email": "e2e-1779272584403@test.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "b6e8d402-2717-45e6-8de3-5a708f2fec98",
+      "name": "James Paul",
+      "email": "hif-ecopark-sim.campus@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Leader"
+    },
+    {
+      "id": "bf88f9d5-6934-4ccb-9a14-72a70ffd18af",
+      "name": "Casey Brooks",
+      "email": "caseybrooks16@members.grace.local",
+      "phone": "+15552010016",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "d0095111-4f2f-4d13-acf6-c83b356c3d0a",
+      "name": "Carlos Martinez",
+      "email": "carlosmartinez3@members.grace.local",
+      "phone": "+15552010003",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "d99ad09a-3c1b-4fa9-bbb5-8b8154354d3c",
+      "name": "VolFirst1779262109544 VolLast1779262109544",
+      "email": "pw.vol.1779262109544@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "e1cd4a3a-1425-463f-9a8e-9e4f0bfdd25b",
+      "name": "CareFirst1779261215058 CareLast1779261215058",
+      "email": "pw.care.1779261215058@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "ede36984-078e-4d72-ad15-f55dd44bfa99",
+      "name": "VolFirst1779260004009 VolLast1779260004009",
+      "email": "pw.vol.1779260004009@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "ef0995b5-4816-42a4-83ab-fc65fe29a6ee",
+      "name": "PWFirst1779300941483 PWLast1779300941483",
+      "email": "pw.member.1779300941483@example.com",
+      "phone": "",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "efec78ed-a3ce-4306-aa5d-a78cb7dc4439",
+      "name": "Emily Bennett",
+      "email": "emilybennett2@members.grace.local",
+      "phone": "+15552010002",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "f0b8a548-5dcb-4bc6-bcbe-86bfd9a952d0",
+      "name": "VolFirst1779260859968 VolLast1779260859968",
+      "email": "pw.vol.1779260859968@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "f13407e2-1aea-4523-b5ed-e6f58fd6d368",
+      "name": "Vincent Price",
+      "email": "vincentprice18@members.grace.local",
+      "phone": "+15552010018",
+      "status": "Active",
+      "growthStage": "Visitor"
+    },
+    {
+      "id": "f1c66b29-be4b-41ae-8e1b-a707a2cb8893",
+      "name": "Susan Bennett",
+      "email": "susanbennett1@members.grace.local",
+      "phone": "+15552010001",
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "f92dc6d1-359f-4a0b-be00-9dca7fdda1d0",
+      "name": "PathFirst1779374769083 PathLast1779374769083",
+      "email": "pw.path.1779374769083@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "f9bf29fd-f47a-45c9-a4c9-444805fd44f9",
+      "name": "PathFirst1779275780562 PathLast1779275780562",
+      "email": "pw.path.1779275780562@example.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Member"
+    },
+    {
+      "id": "fcee9106-d08e-4903-a84c-6f146128179d",
+      "name": "David Kurian",
+      "email": "hif-ecopark-sim.finance@hifecopark.org",
+      "phone": "+91 98765 43210",
+      "status": "Active",
+      "growthStage": "Leader"
+    },
+    {
+      "id": "fed7e035-15f4-4917-bfb0-621794b2ff20",
+      "name": "E2E Test Member",
+      "email": "e2e-1779259872327@test.com",
+      "phone": null,
+      "status": "Active",
+      "growthStage": "Visitor"
+    }
+  ],
+  "events": [
+    {
+      "id": "0a74d41c-acc9-4c04-85e8-c441bd2fbd2f",
+      "name": "PW Event 1779260025223",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "2c047430-6dc6-42e2-8214-1c1f16879ba1",
+      "name": "PW Event 1779262130305",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "3acb7748-9a47-46b3-85f2-eee6013453d2",
+      "name": "Sunday Worship Gathering",
+      "type": "Service",
+      "date": "2026-04-19T05:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "42c437db-2f87-4d09-b053-154fef8ae63b",
+      "name": "PW Event 1779261225073",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "466084e6-7a94-41a7-8013-bf9bc4d04faf",
+      "name": "PW Event 1779260881318",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "4d70e679-e546-4ae8-a41f-de99a1b66881",
+      "name": "Youth Service",
+      "type": "SmallGroup",
+      "date": "2026-05-14T13:15:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "6753a8ca-6589-47c2-98e6-76e1cdaa3c00",
+      "name": "hif-ecopark-sim Youth Alive Night",
+      "type": "Youth",
+      "date": "2026-06-03T12:18:34.850Z",
+      "status": "DRAFT",
+      "location": "HIF Eco Park Main Auditorium"
+    },
+    {
+      "id": "6efbdb4b-71f5-41f0-b6e1-f83a93eb5577",
+      "name": "Sunday Service",
+      "type": "Service",
+      "date": "2026-05-10T05:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "6f6c210e-8f02-4ab3-a810-0e42f7f25e2d",
+      "name": "hif-ecopark-sim Sunday Worship Gathering",
+      "type": "Service",
+      "date": "2026-05-27T12:18:34.761Z",
+      "status": "DRAFT",
+      "location": "HIF Eco Park Main Auditorium"
+    },
+    {
+      "id": "8c3b63d9-cbf6-4f12-9b6d-376fd675e256",
+      "name": "E2E Test Event",
+      "type": "Special",
+      "date": "2026-05-20T10:23:04.467Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "980b9401-6f4c-4474-9430-e99f116cec53",
+      "name": "Sunday Worship Gathering",
+      "type": "Service",
+      "date": "2026-05-03T05:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "9c37bd90-be9f-41a6-b809-1b2aba76fda3",
+      "name": "PW Event 1779300994027",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "9deac610-3103-4c8a-9c2d-09b799050791",
+      "name": "Community Thanksgiving Dinner",
+      "type": "Special",
+      "date": "2026-06-01T11:30:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "a193778a-0b79-4eb9-b38d-e54b1be1108c",
+      "name": "Wednesday Bible Study",
+      "type": "SmallGroup",
+      "date": "2026-05-16T13:30:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "a2ae4317-c5d7-479e-915c-78b9c9aea44d",
+      "name": "Sunday Service",
+      "type": "Service",
+      "date": "2026-04-26T05:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "aba11e20-8b0d-4a99-bfca-f1bd9ca7f991",
+      "name": "hif-ecopark-sim Friday Worship Night",
+      "type": "Worship",
+      "date": "2026-05-25T12:18:34.808Z",
+      "status": "DRAFT",
+      "location": "HIF Eco Park Main Auditorium"
+    },
+    {
+      "id": "ca5d6d7d-bcfd-417c-ad66-e1c917a08c35",
+      "name": "PW Event 1779374806224",
+      "type": "Service",
+      "date": "2026-05-21T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "d3ddde00-7e4e-4549-acce-626849cc57c0",
+      "name": "hif-ecopark-sim Kingdom Conference 2026",
+      "type": "Conference",
+      "date": "2026-07-04T12:18:34.885Z",
+      "status": "DRAFT",
+      "location": "HIF Eco Park Main Auditorium"
+    },
+    {
+      "id": "d45d96a6-1138-4640-955b-ef26504c58dd",
+      "name": "E2E Test Event",
+      "type": "Special",
+      "date": "2026-05-20T06:51:12.420Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "e4ef3078-8c8d-40b9-b292-f08bd4a6f470",
+      "name": "PW Event 1779275820723",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "f26b75ad-3748-4ed2-bcef-b7b714c34d52",
+      "name": "PW Event 1779260226990",
+      "type": "Service",
+      "date": "2026-05-20T00:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    },
+    {
+      "id": "fe0522ba-9060-4327-a10b-bc5879de005b",
+      "name": "Guest Speaker Night",
+      "type": "Special",
+      "date": "2026-05-25T13:00:00.000Z",
+      "status": "DRAFT",
+      "location": null
+    }
+  ],
+  "pageData": [
+    {
+      "id": "8c5c6398-18f3-406d-acf8-d507b787d0df",
+      "tenantId": "default-tenant-id",
+      "slug": "about",
+      "title": "About",
+      "content": "[{\"id\":\"f3115644-f985-49b4-a291-3c64c41f5106\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Kingdom smoke 1779374827480\",\"subtitle\":\"A legacy of faith, anchored in the truth of the Gospel and the power of the Spirit.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"90798e11-1193-4026-9fd4-b0376bb9c0ac\",\"type\":\"timeline\",\"config\":{\"title\":\"The Journey\",\"events\":[]},\"isVisible\":true,\"order\":171},{\"id\":\"200daa50-c3d1-4e45-b4b5-321d253b6dc5\",\"type\":\"values\",\"config\":{\"title\":\"The Kingdom DNA\",\"values\":[]},\"isVisible\":true,\"order\":182},{\"id\":\"6d172407-f73b-434c-9661-313b96ff0026\",\"type\":\"leadership_grid\",\"config\":{\"title\":\"The Team\",\"widgetType\":\"leadership_grid\"},\"isVisible\":true,\"order\":93},{\"id\":\"d86afbe9-322b-4e64-be3a-2516aa535d43\",\"type\":\"pastoral_note\",\"config\":{\"title\":\"Come As You Are\",\"message\":\"We are a church of second chances and new beginnings. You don't have to have it all figured out to be a part of what God is doing here.\",\"author\":\"Pastoral Team\"},\"isVisible\":true,\"order\":214}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.621Z",
+      "updatedAt": "2026-05-21T14:47:07.926Z"
+    },
+    {
+      "id": "25f7186c-87e2-45eb-9ea1-c03f45bc3c8b",
+      "tenantId": "default-tenant-id",
+      "slug": "ministries",
+      "title": "Ministries",
+      "content": "[{\"id\":\"612336e7-96e7-46b0-a973-8cba173f1e9e\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Connect & Serve\",\"subtitle\":\"Discover a place where you can grow, belong, and use your unique gifts for His glory.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1493225255756-d9584f8606e9?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"193c80f8-ed03-4332-967c-3f986199a450\",\"type\":\"ministry_highlight\",\"config\":{\"title\":\"Grace Kids\",\"subtitle\":\"A safe, high-energy environment where your children can discover the love of Jesus through play and biblical teaching.\",\"imageUrl\":\"https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=1000\",\"reversed\":false},\"isVisible\":true,\"order\":201},{\"id\":\"67507cd0-33ac-408f-acfa-cc2391362af8\",\"type\":\"ministry_grid\",\"config\":{\"title\":\"Opportunities\",\"widgetType\":\"ministry_grid\"},\"isVisible\":true,\"order\":82},{\"id\":\"f800178c-8e52-4e6e-ae61-21f8d6b13681\",\"type\":\"ministry_highlight\",\"config\":{\"title\":\"The Collective\",\"subtitle\":\"Empowering the next generation to live with influence through authentic discipleship and community.\",\"imageUrl\":\"https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=1000\",\"reversed\":true},\"isVisible\":true,\"order\":203},{\"id\":\"d8d7f380-acb5-482c-878c-3f45145b8fa4\",\"type\":\"next_steps\",\"config\":{\"title\":\"Find Your Next Step\",\"steps\":[]},\"isVisible\":true,\"order\":154}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.622Z",
+      "updatedAt": "2026-05-20T06:49:39.622Z"
+    },
+    {
+      "id": "49271abb-3705-411d-82a0-0e0922ae219f",
+      "tenantId": "default-tenant-id",
+      "slug": "sermons",
+      "title": "Sermons",
+      "content": "[{\"id\":\"8c26836a-3e02-45c3-acd6-6d255915bd54\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"The Message\",\"subtitle\":\"Explore teachings centered on the timeless truth of Scripture and the person of Jesus.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"aab6d824-bc42-4ed8-a769-fb94e1d81d36\",\"type\":\"worship\",\"config\":{\"title\":\"Atmosphere of Praise\",\"imageUrl\":\"\"},\"isVisible\":true,\"order\":161},{\"id\":\"cff6dfa9-0999-4520-bc2a-46903b6ba953\",\"type\":\"sermon_list\",\"config\":{\"title\":\"Watch Latest\",\"limit\":12,\"widgetType\":\"latest_sermons\"},\"isVisible\":true,\"order\":32}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.623Z",
+      "updatedAt": "2026-05-20T06:49:39.623Z"
+    },
+    {
+      "id": "dc5b56ac-f2aa-4312-83b5-e9fa8e006981",
+      "tenantId": "default-tenant-id",
+      "slug": "events",
+      "title": "Events",
+      "content": "[{\"id\":\"93d221fb-77ee-48d3-ac29-f1be26f4eaf3\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Gatherings\",\"subtitle\":\"Life happens in community. Join us for what's next in the life of our church.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"9cb7701b-e6b8-4a73-95e3-19087bc750da\",\"type\":\"event_list\",\"config\":{\"title\":\"Full Calendar\",\"limit\":20,\"widgetType\":\"featured_events\"},\"isVisible\":true,\"order\":41},{\"id\":\"de38b322-31f3-445e-8f52-9540bff5b95c\",\"type\":\"faq\",\"config\":{\"title\":\"Event FAQs\",\"items\":[]},\"isVisible\":true,\"order\":192}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.624Z",
+      "updatedAt": "2026-05-20T06:49:39.624Z"
+    },
+    {
+      "id": "64dbddfc-3517-47b8-96e5-8fdaa6ff6bd8",
+      "tenantId": "default-tenant-id",
+      "slug": "giving",
+      "title": "Giving",
+      "content": "[{\"id\":\"b7e6df8a-33af-4965-87ea-2681451d80fb\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Radical Generosity\",\"subtitle\":\"Join us in fueling a movement of grace through faithful and visionary stewardship.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"5cb5d1dd-7a94-4750-b0b0-f54919d2d83c\",\"type\":\"text\",\"config\":{\"title\":\"The Heart of Giving\",\"content\":\"We believe giving is an response to the grace we have received. Your partnership enables every outreach, mission, and moment of transformation.\",\"alignment\":\"center\"},\"isVisible\":true,\"order\":11},{\"id\":\"3646caf0-76db-450e-bb23-d701971c6530\",\"type\":\"giving_impact\",\"config\":{\"title\":\"Collective Impact\",\"widgetType\":\"giving_campaigns\",\"campaigns\":[{\"title\":\"Local Care Hub\",\"progress\":65,\"target\":\"$25,000\",\"current\":\"$16,250\",\"desc\":\"Expanding our reach to serve underprivileged families in our neighborhood.\"},{\"title\":\"Global Mission Partners\",\"progress\":80,\"target\":\"$40,000\",\"current\":\"$32,000\",\"desc\":\"Supporting sustainable gospel work across our international partner networks.\"}]},\"isVisible\":true,\"order\":112},{\"id\":\"0068b280-0292-4fb6-ac34-4143ca798226\",\"type\":\"qr_payment\",\"config\":{\"title\":\"Quick & Secure\",\"fundName\":\"Vision Fund\"},\"isVisible\":true,\"order\":123},{\"id\":\"cd8bb5ed-f8c1-49e0-afb9-be098f9db2ef\",\"type\":\"giving_cta\",\"config\":{\"title\":\"Partner With Us\",\"description\":\"Your generosity fuels ministry and outreach in our community.\",\"buttonText\":\"Give Online\"},\"isVisible\":true,\"order\":54}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.625Z",
+      "updatedAt": "2026-05-20T06:49:39.625Z"
+    },
+    {
+      "id": "f4099bc5-0655-4683-b9d4-00c6aab78a7a",
+      "tenantId": "default-tenant-id",
+      "slug": "prayer",
+      "title": "Prayer",
+      "content": "[{\"id\":\"8cbd2608-830f-4480-98b7-8865c62d4216\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Stand Together\",\"subtitle\":\"We believe in the power of persistent prayer and the active presence of God.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1444491741275-3747c53c99b4?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"9c7e754c-6e6c-47cc-ba29-b52718e5a604\",\"type\":\"text\",\"config\":{\"title\":\"Pastoral Encouragement\",\"content\":\"\\\"Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.\\\" — Philippians 4:6\",\"alignment\":\"center\"},\"isVisible\":true,\"order\":11},{\"id\":\"8eb918e5-1833-498e-b882-2316dbc90e28\",\"type\":\"pastoral_note\",\"config\":{\"title\":\"We Pray For You\",\"message\":\"Our pastoral team and intercessors are dedicated to standing in the gap for you with honor and faith.\",\"author\":\"Grace Prayer Team\"},\"isVisible\":true,\"order\":212},{\"id\":\"2b760ae2-0c5c-4793-9f45-b4045f0c135a\",\"type\":\"testimonials\",\"config\":{\"title\":\"Testimonies of Faith\",\"items\":[]},\"isVisible\":true,\"order\":103},{\"id\":\"14abac38-1aec-40fc-bf49-f10df04909e1\",\"type\":\"prayer_cta\",\"config\":{\"title\":\"How Can We Pray?\",\"subtitle\":\"Share your heart with our private and confidential prayer team.\"},\"isVisible\":true,\"order\":144}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.626Z",
+      "updatedAt": "2026-05-20T06:49:39.626Z"
+    },
+    {
+      "id": "24b2ceed-1988-4c7c-9362-87381697a3e9",
+      "tenantId": "default-tenant-id",
+      "slug": "next-steps",
+      "title": "Next Steps",
+      "content": "[{\"id\":\"27b3d7ca-a5e8-4bd5-965b-80b7744e1d13\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Your Journey\",\"subtitle\":\"Finding your place in God's story and walking with purpose in community.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"d54deb5f-f6f3-4ee1-90e4-746fe14777ad\",\"type\":\"next_steps\",\"config\":{\"title\":\"Discover Your Path\",\"steps\":[{\"title\":\"New to Faith\",\"desc\":\"A guided introduction to the radical love and message of Jesus Christ.\",\"icon\":\"Sparkles\"},{\"title\":\"Public Baptism\",\"desc\":\"Declare your faith publicly and join the family through baptism.\",\"icon\":\"Video\"},{\"title\":\"Covenant Membership\",\"desc\":\"Commit to the vision and find your unique place in the community.\",\"icon\":\"Users\"},{\"title\":\"Ministry Serve\",\"desc\":\"Use your God-given gifts to build the Kingdom and serve others.\",\"icon\":\"Heart\"}]},\"isVisible\":true,\"order\":151},{\"id\":\"51b52dd8-3a06-4b6b-b863-1314d47ad5a8\",\"type\":\"vision_statement\",\"config\":{\"title\":\"Follow Him\",\"subtitle\":\"Helping people far from God discover their identity and purpose in Christ.\"},\"isVisible\":true,\"order\":222}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.628Z",
+      "updatedAt": "2026-05-20T06:49:39.628Z"
+    },
+    {
+      "id": "ab78a1d6-db74-4d88-bed0-0a10759ec936",
+      "tenantId": "default-tenant-id",
+      "slug": "leadership",
+      "title": "Leadership",
+      "content": "[{\"id\":\"7d485f61-e08d-4fa4-9cce-5b13f250dc33\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"The Stewards\",\"subtitle\":\"A team dedicated to serving God and His people with integrity and pastoral vision.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"2246c341-084d-43a9-abc9-11e6cffc1cc8\",\"type\":\"leadership_grid\",\"config\":{\"title\":\"Pastoral Team\",\"widgetType\":\"leadership_grid\",\"staff\":[{\"name\":\"Pastors David & Sarah Chen\",\"role\":\"Lead Visionaries\",\"bio\":\"David and Sarah lead Grace Community with a focus on radical grace and biblical truth.\",\"quote\":\"Our joy is seeing people discover their God-given potential.\"},{\"name\":\"Marcus Wright\",\"role\":\"Worship Director\",\"bio\":\"Marcus leads our creative teams in crafting atmospheres of praise and devotion.\",\"quote\":\"Worship is our lifestyle, not just our Sunday morning.\"},{\"name\":\"Jessica Miller\",\"role\":\"Executive Pastor\",\"bio\":\"Jessica oversees the operations and discipleship pathways of our church family.\",\"quote\":\"Excellence in ministry honors God and inspires people.\"}]},\"isVisible\":true,\"order\":91},{\"id\":\"050aff58-e00c-4b95-a491-64bf208658fe\",\"type\":\"pastoral_note\",\"config\":{\"title\":\"Built to Serve\",\"message\":\"We lead by serving. Our greatest honor is walking alongside you in your journey of faith.\",\"author\":\"Senior Leadership\"},\"isVisible\":true,\"order\":212}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.628Z",
+      "updatedAt": "2026-05-20T06:49:39.628Z"
+    },
+    {
+      "id": "44cae3f1-8699-4df5-8952-bb9db9cbb22a",
+      "tenantId": "default-tenant-id",
+      "slug": "contact",
+      "title": "Contact",
+      "content": "[{\"id\":\"6b99b5b5-6190-46c9-a198-86c470fcf723\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Get In Touch\",\"subtitle\":\"Connect with our team digitally or join us at our campus this weekend.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"31ec8c6a-eae3-4c2e-a7d9-2b3b471f8464\",\"type\":\"contact_form\",\"config\":{\"title\":\"Reach Out\",\"widgetType\":\"campus_locations\",\"subtitle\":\"General inquiries, baptism interest, or pastoral needs.\",\"address\":\"\",\"email\":\"\",\"phone\":\"\"},\"isVisible\":true,\"order\":61},{\"id\":\"df7a5fc0-8120-4bac-bd84-7ce8e92614c5\",\"type\":\"faq\",\"config\":{\"title\":\"Got Questions?\",\"items\":[]},\"isVisible\":true,\"order\":192}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.629Z",
+      "updatedAt": "2026-05-20T06:49:39.629Z"
+    },
+    {
+      "id": "2ebe3607-7248-4e0f-ab1c-d5c498c4aa4a",
+      "tenantId": "default-tenant-id",
+      "slug": "portal",
+      "title": "Portal",
+      "content": "[{\"id\":\"ddb42859-acb2-4de9-902c-eb1d4ef9cf38\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Church Portal\",\"subtitle\":\"Continue to the Kingdom OS portal for members, teams, and ministry operations.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4},\"isVisible\":true,\"order\":0},{\"id\":\"7bd51377-dc50-4820-bd6a-5215cf831fa5\",\"type\":\"next_steps\",\"config\":{\"title\":\"Portal Access Steps\",\"steps\":[{\"title\":\"Member Login\",\"desc\":\"Use your church credentials to access your dashboard.\",\"icon\":\"Users\"},{\"title\":\"Team Workspace\",\"desc\":\"Serve teams can review schedules, tasks, and updates.\",\"icon\":\"Layout\"},{\"title\":\"Need Help?\",\"desc\":\"Contact the office if you need login support.\",\"icon\":\"Heart\"},{\"title\":\"Open Platform\",\"desc\":\"Launch Kingdom OS securely.\",\"icon\":\"ArrowRight\"}]},\"isVisible\":true,\"order\":151}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.630Z",
+      "updatedAt": "2026-05-20T06:49:39.630Z"
+    },
+    {
+      "id": "3e5860fd-072e-4f7f-8dfc-0245b1ea1e66",
+      "tenantId": "default-tenant-id",
+      "slug": "home",
+      "title": "Home",
+      "content": "[{\"id\":\"d058202f-2dcd-4584-8a7b-7c2f99985bcc\",\"type\":\"hero\",\"config\":{\"variant\":\"centered\",\"title\":\"Kingdom smoke 1779261144048\",\"subtitle\":\"A community centered on the radical love of Jesus and the pursuit of His purpose.\",\"buttonText\":\"Plan Your Visit\",\"overlayOpacity\":0.4,\"imageUrl\":\"https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=2000\"},\"isVisible\":true,\"order\":0},{\"id\":\"84d84b6e-0d54-4245-b76b-0692b5d449fa\",\"type\":\"text\",\"config\":{\"title\":\"Gather With Us\",\"content\":\"Sunday Services: 9:00 AM • 11:00 AM • 5:00 PM\\nExperience the presence of God through music, prayer, and authentic community.\",\"alignment\":\"center\"},\"isVisible\":true,\"order\":11},{\"id\":\"f6ca8019-81e5-4c66-9bfc-ecaa1751ce12\",\"type\":\"vision_statement\",\"config\":{\"title\":\"Built for Glory\",\"subtitle\":\"To reach people far from God and teach them how to follow Jesus step by radical step.\"},\"isVisible\":true,\"order\":222},{\"id\":\"30c54917-aad4-4885-a9b4-9074ad76bd15\",\"type\":\"pastoral_note\",\"config\":{\"title\":\"A Message from Our Pastors\",\"message\":\"We believe that church isn't just a building you visit, but a family where you truly belong and are deeply loved.\",\"author\":\"Pastors David & Sarah Chen\"},\"isVisible\":true,\"order\":213},{\"id\":\"bf7ca660-1f04-4dba-922e-989c66dd2010\",\"type\":\"ministry_grid\",\"config\":{\"title\":\"Find Your Tribe\",\"widgetType\":\"ministry_grid\"},\"isVisible\":true,\"order\":84},{\"id\":\"497a55af-ee26-4316-bde5-69b994877976\",\"type\":\"event_list\",\"config\":{\"title\":\"Featured Gatherings\",\"limit\":2,\"widgetType\":\"featured_events\"},\"isVisible\":true,\"order\":45},{\"id\":\"f4c0763c-70d9-4bca-a030-850bff322a8f\",\"type\":\"sermon_list\",\"config\":{\"title\":\"Latest Message\",\"limit\":1,\"widgetType\":\"latest_sermons\"},\"isVisible\":true,\"order\":36},{\"id\":\"8740c9ac-36c9-443b-a613-ae01e533586e\",\"type\":\"giving_cta\",\"config\":{\"title\":\"Support the Vision\",\"description\":\"Your generosity enables us to serve our city and share the message of Jesus globally.\",\"buttonText\":\"Give Online\"},\"isVisible\":true,\"order\":57}]",
+      "isPublished": true,
+      "createdAt": "2026-05-20T06:49:39.619Z",
+      "updatedAt": "2026-05-20T07:12:24.505Z"
+    }
+  ],
+  "sermons": [
+    {
+      "id": "08ab74e5-a8d3-4beb-8dc9-dfd19d8c8c89",
+      "tenantId": "default-tenant-id",
+      "title": "Hope for the City",
+      "speaker": "Elder Michael",
+      "date": "2026-04-29T06:49:37.392Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": "Sunday message — demo archive.",
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T06:49:37.392Z",
+      "updatedAt": "2026-05-20T06:49:37.392Z"
+    },
+    {
+      "id": "0c3d8bfe-82bc-414a-9401-249c031fb74d",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779260891919 edited",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T07:08:12.326Z",
+      "updatedAt": "2026-05-20T07:08:12.845Z"
+    },
+    {
+      "id": "312b2f27-fb23-413f-bc9b-796ce4e80bd7",
+      "tenantId": "default-tenant-id",
+      "title": "Generous Hearts",
+      "speaker": "Pastor Rachel",
+      "date": "2026-05-06T06:49:37.390Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": "Sunday message — demo archive.",
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T06:49:37.390Z",
+      "updatedAt": "2026-05-20T06:49:37.390Z"
+    },
+    {
+      "id": "8023362e-0c03-49c2-9c43-e228c7f4b13e",
+      "tenantId": "default-tenant-id",
+      "title": "Walking in Faith",
+      "speaker": "Pastor David",
+      "date": "2026-05-13T06:49:37.385Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": "Sunday message — demo archive.",
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T06:49:37.386Z",
+      "updatedAt": "2026-05-20T06:49:37.386Z"
+    },
+    {
+      "id": "85b9e916-51ea-4933-8d74-15fbf381316e",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779301006092",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T18:16:46.419Z",
+      "updatedAt": "2026-05-20T18:16:46.419Z"
+    },
+    {
+      "id": "85ce3a61-eb0c-46c0-b933-13dd6e8e3ae7",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779260052952 edited",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T06:54:13.528Z",
+      "updatedAt": "2026-05-20T06:54:14.190Z"
+    },
+    {
+      "id": "b6fcac00-af13-4c2d-90bf-77896c37a0b6",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779262141565 edited",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T07:29:01.992Z",
+      "updatedAt": "2026-05-20T07:29:02.364Z"
+    },
+    {
+      "id": "c0c5310a-c94a-4432-b268-61e14e01b293",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779261235117 edited",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T07:13:55.542Z",
+      "updatedAt": "2026-05-20T07:13:55.969Z"
+    },
+    {
+      "id": "c54b9272-ced9-4f3b-9f11-0ad01dc539a9",
+      "tenantId": "default-tenant-id",
+      "title": "The Good Shepherd",
+      "speaker": "Pastor David",
+      "date": "2026-04-22T06:49:37.393Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": "Sunday message — demo archive.",
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T06:49:37.394Z",
+      "updatedAt": "2026-05-20T06:49:37.394Z"
+    },
+    {
+      "id": "cca8f927-6bef-4963-b276-d0752085123b",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779275834382 edited",
+      "speaker": null,
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-20T11:17:14.711Z",
+      "updatedAt": "2026-05-20T11:17:15.339Z"
+    },
+    {
+      "id": "dae1554a-bcaa-47c2-ab11-901d8919d753",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779374819778 edited",
+      "speaker": null,
+      "date": "2026-05-21T00:00:00.000Z",
+      "videoUrl": null,
+      "audioUrl": null,
+      "description": null,
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": false,
+      "createdAt": "2026-05-21T14:47:00.102Z",
+      "updatedAt": "2026-05-21T14:47:01.183Z"
+    },
+    {
+      "id": "eaf9d71f-f905-4309-ad2e-cb4e9a62d304",
+      "tenantId": "default-tenant-id",
+      "title": "PW Sermon 1779301006092 edited",
+      "speaker": "Pastor Ravi Nair",
+      "date": "2026-05-20T00:00:00.000Z",
+      "videoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "audioUrl": null,
+      "description": "Message from Sunday worship at HIF Eco Park.",
+      "thumbnail": null,
+      "scripture": null,
+      "isPublished": true,
+      "createdAt": "2026-05-20T12:20:33.998Z",
+      "updatedAt": "2026-05-20T18:16:46.993Z"
+    }
+  ],
+  "funds": [],
+  "campuses": [
+    {
+      "id": "33a7c5a0-6fe6-485c-84c3-845d8877dd0a",
+      "tenantId": "default-tenant-id",
+      "name": "Main Campus",
+      "type": "Primary",
+      "leader": "74d135ee-b8a7-4137-951a-dc4898ff4451",
+      "address": null,
+      "upiId": null,
+      "bankInfo": null,
+      "departments": [],
+      "createdAt": "2026-05-20T06:49:37.076Z",
+      "updatedAt": "2026-05-20T06:49:39.717Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "2171aec2-aaa9-4e2e-93a0-5ca100fd8518",
+      "username": "hradmin",
+      "email": "hradmin@grace.local",
+      "roleId": "812ba713-bd63-4b90-82f7-bafadb7562ca",
+      "status": "Active"
+    },
+    {
+      "id": "4273b5d7-fb93-468c-98e5-a210e1de2e00",
+      "username": "volunteers",
+      "email": "volunteers@grace.local",
+      "roleId": "9a77dbc1-bfbf-4aee-bd7d-c58145fa3ade",
+      "status": "Active"
+    },
+    {
+      "id": "665bc25b-4b9f-45ff-a1ad-9b488ce25b66",
+      "username": "secretary",
+      "email": "secretary@grace.local",
+      "roleId": "3c93fe58-3b7a-4729-a633-cb512e800f0b",
+      "status": "Active"
+    },
+    {
+      "id": "6e66cb8e-b39e-45e7-95b8-92eb5d02686f",
+      "username": "worship",
+      "email": "worship@grace.local",
+      "roleId": "014a79f4-f90a-4009-b04f-c2dc01fb2f98",
+      "status": "Active"
+    },
+    {
+      "id": "a52e6a22-c58e-4c31-b423-50653b8a0fc7",
+      "username": "campus",
+      "email": "campus@grace.local",
+      "roleId": "a03c3663-9908-40f8-bcbd-1bdc0f027d57",
+      "status": "Active"
+    },
+    {
+      "id": "c79a9a13-3ddb-456c-b730-f67a21263f0c",
+      "username": "pastor",
+      "email": "pastor@grace.local",
+      "roleId": "72598d6e-7f36-478d-85e0-d58b2fa817f9",
+      "status": "Active"
+    },
+    {
+      "id": "c9837d18-95f2-45b4-8f9d-bed0a4a93350",
+      "username": "events",
+      "email": "events@grace.local",
+      "roleId": "1d562f89-fd1f-4431-bac1-811cfd97589b",
+      "status": "Active"
+    },
+    {
+      "id": "cbf6a56e-b0a1-45da-bdd3-5518b14ab417",
+      "username": "admin",
+      "email": "admin@grace.local",
+      "roleId": "f7dfe6bf-12ac-475f-906e-5c77fc864d98",
+      "status": "Active"
+    },
+    {
+      "id": "d65d1880-665a-4ebe-96da-66970a528820",
+      "username": "finance",
+      "email": "finance@grace.local",
+      "roleId": "c2b8c6c6-82b2-4952-8694-3b33d2ff41c4",
+      "status": "Active"
+    }
+  ]
+}

@@ -24,3 +24,9 @@ Optional dev cleanup (duplicate members by email, same tenant): `ALLOW_DEV_DB_NO
 3. Run: `npm run test:pw`
 
 CI (starts servers automatically): `CI=1 npm run test:pw`
+
+## Version 1.0
+
+- **Sign-off report:** [V1_SIGN_OFF_REPORT.md](V1_SIGN_OFF_REPORT.md)
+- **Documentation index:** [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+- **Production gate:** `npm run verify:v1` (requires API on port 4002 with full route set)

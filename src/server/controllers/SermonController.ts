@@ -25,6 +25,19 @@ export class SermonController {
     }
   }
 
+  static async getPublicSermonById(req: TenantRequest, res: Response) {
+    try {
+      const sermon = await SermonService.getSermonById(req.tenantId!, req.params.id as string);
+      if (!sermon || !sermon.isPublished) {
+        return res.status(404).json({ status: 'error', message: 'Sermon not found' });
+      }
+      res.json({ status: 'success', data: sermon });
+    } catch (error) {
+      console.error('[SermonController.getPublicSermonById]', error);
+      res.status(500).json({ status: 'error', message: 'Failed to fetch sermon' });
+    }
+  }
+
   static async createSermon(req: TenantRequest, res: Response) {
     try {
       const body = { ...req.body } as Record<string, unknown>;

@@ -32,24 +32,50 @@ model Tenant {
   attendanceSessions AttendanceSession[]
   accounts            Account[]
   vouchers            Voucher[]
+  financialReceipts   FinancialReceipt[]
   voucherFySequences  VoucherFySequence[]
+  receiptFySequences  ReceiptFySequence[]
   journalEntries      JournalEntry[]
   settings            Setting[]
   careNotes         CareNote[]
   donations         Donation[]
   campaigns         Campaign[]
+  vendors           Vendor[]
+  payableBills      PayableBill[]
+  payablePayments   PayablePayment[]
+  bankReconciliationSessions BankReconciliationSession[]
+  bankStatementLines BankStatementLine[]
+  payrollRuns       PayrollRun[]
+  payrollLines      PayrollLine[]
+  approvalRules     ApprovalRule[]
+  approvalRequests  ApprovalRequest[]
+  approvalDecisions ApprovalDecision[]
+  exportLogs        ExportLog[]
+  yearCloseRuns     YearCloseRun[]
+  assetDepreciationEntries AssetDepreciationEntry[]
   assets            Asset[]
   contacts          Contact[]
   communicationLogs CommunicationLog[]
+  communicationCampaigns CommunicationCampaign[]
+  communicationDeliveries CommunicationDelivery[]
+  outreachFollowUps OutreachFollowUp[]
+  operationalDigests OperationalDigest[]
+  backupRuns BackupRun[]
   documents         Document[]
   pageData          PageData[]
   sermons           Sermon[]
   idempotencyKeys  IdempotencyKey[]
   processedRazorpayEvents ProcessedRazorpayEvent[]
+  processedCashfreeEvents ProcessedCashfreeEvent[]
+  gatewayPaymentOrders GatewayPaymentOrder[]
+  gatewaySettlements GatewaySettlement[]
+  serviceCollectionSessions ServiceCollectionSession[]
   eventLogs         EventLog[]
   analyticsEvents   AnalyticsEvent[]
   funds             Fund[]
   costCenters       CostCenter[]
+  voucherAttachments VoucherAttachment[]
+  financialAuditLogs FinancialAuditLog[]
   financialYears    FinancialYear[]
   budgets           Budget[]
   notifications     Notification[]
@@ -68,6 +94,17 @@ model Tenant {
   tasks             Task[]
   memberEngagementSnapshots MemberEngagementSnapshot[]
   assetMaintenanceLogs AssetMaintenanceLog[]
+
+  employmentProfiles EmploymentProfile[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  payrollStructures PayrollStructure[]
+  reimbursementRequests ReimbursementRequest[]
+  staffDocuments    StaffDocument[]
+  performanceReviews PerformanceReview[]
+  trainingRecords   TrainingRecord[]
+  recruitmentPipelines RecruitmentPipeline[]
+  onboardingTasks   OnboardingTask[]
 }
 
 model User {
@@ -151,6 +188,14 @@ model Family {
   tenantId  String
   name      String
   imageUrl  String?  // Family/household group photo
+  addressLine1 String?
+  addressLine2 String?
+  city          String?
+  stateRegion   String?
+  postalCode    String?
+  country       String?  @default("India")
+  latitude      Float?
+  longitude     Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -171,9 +216,21 @@ model Member {
   membershipDate DateTime?
   status         String    @default("Active")
   growthStage    String    @default("Visitor") // Visitor, Member, Leader
+  /// staff | volunteer | pastor | contractor | intern | missionary | ministry_leader
+  workforceClass String?
+  employmentType String?
+  department     String?
   gender         String?   // Male, Female, Other
   aadhaar        String?   // Identity number
   pan            String?   // Identity number
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  stateRegion    String?
+  postalCode     String?
+  country        String?   @default("India")
+  latitude       Float?
+  longitude      Float?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -199,6 +256,22 @@ model Member {
   assignedTasks     Task[] @relation("AssignedMember")
   engagementSnapshots MemberEngagementSnapshot[]
   assignedAssets    Asset[] @relation("AssetAssignment")
+  payrollLines      PayrollLine[]
+
+  reportingManagerId String?
+  reportingManager   Member? @relation("ReportingLines", fields: [reportingManagerId], references: [id])
+  subordinates       Member[] @relation("ReportingLines")
+
+  employmentProfile EmploymentProfile?
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  payrollStructure  PayrollStructure?
+  reimbursementRequests ReimbursementRequest[]
+  staffDocuments    StaffDocument[]
+  reviewsAsReviewee PerformanceReview[] @relation("RevieweeRelation")
+  reviewsAsReviewer PerformanceReview[] @relation("ReviewerRelation")
+  trainingRecords   TrainingRecord[]
+  onboardingTasks   OnboardingTask[]
 
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
@@ -264,6 +337,8 @@ model MemberResponsibility {
 
   @@index([memberId])
   @@index([tenantId, role])
+  @@index([tenantId, status, role])
+  @@index([tenantId, entityType, entityId, status, role])
 }
 
 model Campus {
@@ -310,12 +385,22 @@ model Event {
   name      String
   type      String // Service, SmallGroup, Special
   date      DateTime
+  /// DRAFT | REVIEW | APPROVED | REGISTRATION_OPEN | REGISTRATION_CLOSED | ACTIVE | COMPLETED | ARCHIVED | CANCELLED
+  status         String   @default("DRAFT")
+  registrationOpen Boolean  @default(false)
   /// Venue or room label for operational run sheets
   location       String?
   /// Staff-only follow-up / pastoral notes (not public website)
   internalNotes  String?
   /// Optional recurrence hint, e.g. RRULE or `WEEKLY:SUNDAY` — interpreted by clients
   recurringRule  String?
+  /// Service/worship run sheet segments (time, item, owner, cues)
+  runSheet       Json?
+  /// Budget caps, sponsors, registration form config, follow-up flags
+  opsConfig      Json?
+  cancelledAt    DateTime?
+  completedAt    DateTime?
+  archivedAt     DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -323,6 +408,10 @@ model Event {
   campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
 
   attendanceSessions AttendanceSession[]
+  donations          Donation[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, campusId, date])
 }
 
 model AttendanceSession {
@@ -343,6 +432,8 @@ model AttendanceSession {
   attendances Attendance[]
 
   @@index([tenantId, date])
+  @@index([tenantId, campusId, date])
+  @@index([eventId])
 }
 
 model Attendance {
@@ -363,6 +454,8 @@ model Attendance {
 
   @@index([tenantId, sessionId])
   @@index([memberId])
+  @@index([sessionId, checkInTime])
+  @@index([tenantId, memberId, checkInTime])
 }
 
 // ---------------------------------------------------------
@@ -386,6 +479,8 @@ model Account {
   children  Account[] @relation("AccountHierarchy")
 
   journalEntries JournalEntry[]
+  bankReconciliationSessions BankReconciliationSession[]
+  bankStatementLines BankStatementLine[]
 
   @@unique([tenantId, code])
 }
@@ -394,7 +489,7 @@ model Fund {
   id          String   @id @default(uuid())
   tenantId    String
   name        String   // General, Missions, Building
-  type        String   // Restricted, Unrestricted
+  type        String   // Restricted, Unrestricted, BoardDesignated
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -403,6 +498,13 @@ model Fund {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
   budgets Budget[]
+  campaigns Campaign[]
+  donations Donation[]
+  financialReceipts FinancialReceipt[]
+  payableBills PayableBill[]
+  payablePayments PayablePayment[]
+
+  @@unique([tenantId, name])
 }
 
 model CostCenter {
@@ -417,6 +519,8 @@ model CostCenter {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
   budgets Budget[]
+  payableBills PayableBill[]
+  payablePayments PayablePayment[]
 }
 
 model Voucher {
@@ -440,6 +544,10 @@ model Voucher {
   /** donation | manual | reversal | import — traceability, not a workflow gate */
   source      String?
   sourceRefId String?
+  /** Canonical source tracking for integrations and immutable provenance. */
+  sourceType  String?   // manual, donation, gateway, import, reversal, payroll, reimbursement, etc.
+  sourceId    String?
+  sourceMetadata Json?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -449,6 +557,21 @@ model Voucher {
   postedByUser  User? @relation("VoucherPostedBy", fields: [postedByUserId], references: [id], onDelete: SetNull)
 
   journalEntries  JournalEntry[]
+  attachments     VoucherAttachment[]
+  donations       Donation[]
+  donationReversals Donation[] @relation("DonationReversalVoucher")
+  donationFeeVouchers Donation[] @relation("DonationFeeVoucher")
+  donationSettlementVouchers Donation[] @relation("DonationSettlementVoucher")
+  financialReceipts FinancialReceipt[]
+  payableBills    PayableBill[]
+  payablePayments PayablePayment[]
+  matchedBankStatementLines BankStatementLine[]
+  payrollPayableRuns PayrollRun[] @relation("PayrollPayableVoucher")
+  payrollPaymentRuns PayrollRun[] @relation("PayrollPaymentVoucher")
+  yearCloseRuns    YearCloseRun[]
+  assetDepreciationEntries AssetDepreciationEntry[] @relation("DepreciationVoucher")
+  assetDisposals   Asset[] @relation("AssetDisposalVoucher")
+  assetCapitalizations Asset[] @relation("AssetCapitalizationVoucher")
   originalVoucher   Voucher?  @relation("VoucherReversal", fields: [reversesVoucherId], references: [id], onDelete: SetNull)
   reversalVoucher  Voucher?  @relation("VoucherReversal")
 
@@ -456,6 +579,47 @@ model Voucher {
   @@index([tenantId, status])
   @@index([tenantId, date])
   @@index([tenantId, source])
+  @@index([tenantId, sourceType, sourceId])
+}
+
+model VoucherAttachment {
+  id          String   @id @default(uuid())
+  tenantId    String
+  voucherId   String
+  documentId  String?
+  fileUrl     String?
+  title       String?
+  mimeType    String?
+  checksumSha256 String?
+  sizeBytes   Int?
+  notes       String?
+  createdByUserId String?
+  createdAt   DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, voucherId, createdAt])
+}
+
+model FinancialAuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  action      String
+  entityType  String
+  entityId    String
+  actorUserId String?
+  beforeJson  Json?
+  afterJson   Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, action])
 }
 
 /// Per-tenant, per–FY-start-year sequential counter for posted voucher numbers (PREFIX-YYYY-#####).
@@ -485,6 +649,7 @@ model FinancialYear {
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   periods FinancialPeriod[]
   budgets Budget[]
+  yearCloseRuns YearCloseRun[]
 }
 
 model FinancialPeriod {
@@ -539,6 +704,25 @@ model ProcessedRazorpayEvent {
   eventId      String
   paymentId     String?
   /** sha256 hex of raw body for audit */
+  signatureHash String?
+  donationId    String?
+  voucherId     String?
+  createdAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eventId])
+  @@index([tenantId, createdAt])
+}
+
+/// Cashfree webhook event id — prevents replay after successful handling.
+model ProcessedCashfreeEvent {
+  id            String   @id @default(uuid())
+  tenantId      String
+  eventId       String
+  eventType     String?
+  orderId       String?
+  paymentId     String?
   signatureHash String?
   donationId    String?
   voucherId     String?
@@ -614,11 +798,14 @@ model Campaign {
   goal      Float?
   startDate DateTime?
   endDate   DateTime?
+  defaultFundId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  defaultFund Fund?    @relation(fields: [defaultFundId], references: [id], onDelete: SetNull)
   donations Donation[]
+  financialReceipts FinancialReceipt[]
 }
 
 model Donation {
@@ -626,21 +813,459 @@ model Donation {
   tenantId   String
   donorId    String?
   campaignId String?
+  fundId     String?
+  eventId    String?
+  voucherId  String?
+  reversalVoucherId String?
+  feeVoucherId String?
+  settlementVoucherId String?
+  gatewayPaymentOrderId String?
+  gatewaySettlementId String?
+  serviceCollectionSessionId String?
   amount     Decimal  @db.Decimal(18, 2)
+  /** Amount charged at gateway (may include donor-covered fee). */
+  grossAmount Decimal? @db.Decimal(18, 2)
+  netSettlementAmount Decimal? @db.Decimal(18, 2)
+  gatewayFeeAmount Decimal? @db.Decimal(18, 2)
+  donorCoveredFee Decimal? @db.Decimal(18, 2)
   date       DateTime @default(now())
-  method     String // Cash, Card, Bank Transfer
+  method     String // Cash, Card, UPI, ONLINE, etc.
   reference  String?
-  /** e.g. user | gateway | razorpay_webhook */
+  donationCategory String?
+  isAnonymous Boolean @default(false)
+  /** e.g. user | gateway | cashfree_webhook */
   source     String?
-  sourceRefId String? // e.g. pay_… from gateway
+  sourceRefId String?
+  gateway     String?
+  gatewayOrderId String?
+  gatewayPaymentId String?
+  settlementStatus String @default("n_a")
+  reconciliationState String @default("unmatched")
+  notes      String?
+  status     String   @default("Recorded")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   donor    Member?   @relation(fields: [donorId], references: [id], onDelete: SetNull)
   campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  fund     Fund?     @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  event    Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  voucher  Voucher?  @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  reversalVoucher Voucher? @relation("DonationReversalVoucher", fields: [reversalVoucherId], references: [id], onDelete: SetNull)
+  feeVoucher Voucher? @relation("DonationFeeVoucher", fields: [feeVoucherId], references: [id], onDelete: SetNull)
+  settlementVoucher Voucher? @relation("DonationSettlementVoucher", fields: [settlementVoucherId], references: [id], onDelete: SetNull)
+  gatewayPaymentOrder GatewayPaymentOrder? @relation(fields: [gatewayPaymentOrderId], references: [id], onDelete: SetNull)
+  gatewaySettlement GatewaySettlement? @relation(fields: [gatewaySettlementId], references: [id], onDelete: SetNull)
+  serviceCollectionSession ServiceCollectionSession? @relation(fields: [serviceCollectionSessionId], references: [id], onDelete: SetNull)
+  receipt  FinancialReceipt?
+  settlementLines GatewaySettlementLine[]
 
   @@index([tenantId, date])
+  @@index([tenantId, fundId, date])
+  @@index([tenantId, voucherId])
+  @@index([tenantId, reversalVoucherId])
+  @@index([tenantId, settlementStatus])
+  @@index([tenantId, gatewaySettlementId])
+  @@index([tenantId, serviceCollectionSessionId])
+  @@unique([tenantId, gatewayPaymentId])
+}
+
+/// Pending/completed gateway checkout order (Cashfree/Razorpay).
+model GatewayPaymentOrder {
+  id              String   @id @default(uuid())
+  tenantId        String
+  gateway         String
+  externalOrderId String
+  status          String   @default("created")
+  donationAmount  Decimal  @db.Decimal(18, 2)
+  grossAmount     Decimal  @db.Decimal(18, 2)
+  gatewayFeeAmount Decimal @default(0) @db.Decimal(18, 2)
+  donorCoveredFee Boolean  @default(false)
+  currency        String   @default("INR")
+  donorName       String?
+  donorPhone      String?
+  donorEmail      String?
+  donorId         String?
+  donationCategory String?
+  fundId          String?
+  campaignId      String?
+  eventId         String?
+  serviceCollectionSessionId String?
+  isAnonymous     Boolean  @default(false)
+  metadataJson    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  donations Donation[]
+
+  @@unique([tenantId, gateway, externalOrderId])
+  @@index([tenantId, status])
+}
+
+/// Cashfree (or gateway) settlement batch imported for reconciliation.
+model GatewaySettlement {
+  id                String   @id @default(uuid())
+  tenantId          String
+  gateway           String
+  externalSettlementId String
+  settlementDate    DateTime
+  grossAmount       Decimal  @db.Decimal(18, 2)
+  feeAmount         Decimal  @default(0) @db.Decimal(18, 2)
+  netAmount         Decimal  @db.Decimal(18, 2)
+  bankReference     String?
+  status            String   @default("imported")
+  settlementVoucherId String?
+  feeVoucherId      String?
+  importedAt        DateTime @default(now())
+  reconciledAt      DateTime?
+  notes             String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines  GatewaySettlementLine[]
+  donations Donation[]
+
+  @@unique([tenantId, gateway, externalSettlementId])
+  @@index([tenantId, settlementDate])
+}
+
+model GatewaySettlementLine {
+  id           String   @id @default(uuid())
+  tenantId     String
+  settlementId String
+  donationId   String?
+  externalPaymentId String?
+  amount       Decimal  @db.Decimal(18, 2)
+  feeAmount    Decimal  @default(0) @db.Decimal(18, 2)
+  matchStatus  String   @default("unmatched")
+
+  settlement GatewaySettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  donation   Donation? @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, settlementId])
+  @@index([donationId])
+}
+
+/// Sunday / service offering collection window (e.g. 9AM service).
+model ServiceCollectionSession {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  serviceDate DateTime
+  status      String   @default("open")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  donations Donation[]
+
+  @@index([tenantId, serviceDate])
+}
+
+model Vendor {
+  id           String   @id @default(uuid())
+  tenantId     String
+  name         String
+  category     String?
+  contactName  String?
+  email        String?
+  phone        String?
+  gstin        String?
+  pan          String?
+  address      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bills        PayableBill[]
+  payments     PayablePayment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+}
+
+model PayableBill {
+  id              String   @id @default(uuid())
+  tenantId        String
+  vendorId        String
+  billNo          String
+  billDate        DateTime
+  dueDate         DateTime?
+  amount          Decimal  @db.Decimal(18, 2)
+  outstanding     Decimal  @db.Decimal(18, 2)
+  expenseAccountId String
+  payableAccountId String
+  fundId          String?
+  costCenterId    String?
+  status          String   @default("Pending") // Pending, PartiallyPaid, Paid, Cancelled
+  description     String?
+  sourceType      String?  // vendor_bill, import
+  sourceId        String?
+  sourceMetadata  Json?
+  billVoucherId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  fund            Fund?    @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  costCenter      CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  billVoucher     Voucher? @relation(fields: [billVoucherId], references: [id], onDelete: SetNull)
+  payments        PayablePayment[]
+
+  @@unique([tenantId, billNo])
+  @@index([tenantId, vendorId, status])
+}
+
+model PayablePayment {
+  id               String   @id @default(uuid())
+  tenantId         String
+  vendorId         String
+  billId           String
+  paymentDate      DateTime
+  amount           Decimal  @db.Decimal(18, 2)
+  paymentAccountId String
+  payableAccountId String
+  fundId           String?
+  costCenterId     String?
+  notes            String?
+  sourceType       String?  // vendor_payment, import
+  sourceId         String?
+  paymentVoucherId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  bill             PayableBill @relation(fields: [billId], references: [id], onDelete: Restrict)
+  fund             Fund?    @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  costCenter       CostCenter? @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+  paymentVoucher   Voucher? @relation(fields: [paymentVoucherId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, vendorId, paymentDate])
+  @@index([tenantId, billId])
+}
+
+model FinancialReceipt {
+  id          String   @id @default(uuid())
+  tenantId    String
+  receiptNo   String
+  donationId  String   @unique
+  voucherId   String?
+  issueDate   DateTime @default(now())
+  amount      Decimal  @db.Decimal(18, 2)
+  donorName   String
+  donorEmail  String?
+  donorPhone  String?
+  fundId      String?
+  campaignId  String?
+  eightyGEligible Boolean @default(false)
+  pdfUrl      String?
+  pdfChecksumSha256 String?
+  regeneratedCount Int @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  donation  Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  voucher   Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  fund      Fund?    @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  campaign  Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, receiptNo])
+  @@index([tenantId, issueDate])
+}
+
+model ReceiptFySequence {
+  id          String   @id @default(uuid())
+  tenantId    String
+  fyStartYear Int
+  lastSeq     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, fyStartYear])
+}
+
+model BankReconciliationSession {
+  id          String   @id @default(uuid())
+  tenantId    String
+  accountId   String
+  fromDate    DateTime
+  toDate      DateTime
+  status      String   @default("Open") // Open, Closed
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  statementLines BankStatementLine[]
+
+  @@index([tenantId, accountId, fromDate, toDate])
+}
+
+model BankStatementLine {
+  id                String   @id @default(uuid())
+  tenantId          String
+  sessionId         String
+  accountId         String
+  txnDate           DateTime
+  amount            Decimal  @db.Decimal(18, 2)
+  direction         String   // Debit | Credit
+  reference         String?
+  description       String?
+  isMatched         Boolean  @default(false)
+  matchedVoucherId  String?
+  matchedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session           BankReconciliationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  matchedVoucher    Voucher? @relation(fields: [matchedVoucherId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sessionId, txnDate])
+  @@index([tenantId, accountId, isMatched])
+}
+
+model PayrollRun {
+  id              String   @id @default(uuid())
+  tenantId        String
+  periodYear      Int
+  periodMonth     Int
+  status          String   @default("Draft") // Draft, Posted, Closed
+  totalGross      Decimal  @db.Decimal(18,2) @default(0)
+  totalDeductions Decimal  @db.Decimal(18,2) @default(0)
+  totalNet        Decimal  @db.Decimal(18,2) @default(0)
+  payableVoucherId String?
+  paymentVoucherId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payableVoucher  Voucher? @relation("PayrollPayableVoucher", fields: [payableVoucherId], references: [id], onDelete: SetNull)
+  paymentVoucher  Voucher? @relation("PayrollPaymentVoucher", fields: [paymentVoucherId], references: [id], onDelete: SetNull)
+  lines           PayrollLine[]
+
+  @@unique([tenantId, periodYear, periodMonth])
+  @@index([tenantId, status])
+}
+
+model PayrollLine {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  runId               String
+  memberId            String
+  grossAmount         Decimal  @db.Decimal(18,2)
+  deductionAmount     Decimal  @db.Decimal(18,2) @default(0)
+  netAmount           Decimal  @db.Decimal(18,2)
+  salaryExpenseAccountId String
+  payrollPayableAccountId String
+  payslipNo           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  run                 PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  member              Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, runId])
+  @@index([tenantId, memberId])
+}
+
+model ApprovalRule {
+  id          String   @id @default(uuid())
+  tenantId    String
+  entityType  String   // Voucher, PayrollRun
+  minAmount   Decimal? @db.Decimal(18,2)
+  moduleKey   String?
+  approverRoleId String?
+  level       Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, isActive])
+}
+
+model ApprovalRequest {
+  id            String   @id @default(uuid())
+  tenantId      String
+  entityType    String
+  entityId      String
+  requestedByUserId String?
+  status        String   @default("Pending") // Pending, Approved, Rejected
+  currentLevel  Int      @default(1)
+  minRequiredLevel Int   @default(1)
+  amount        Decimal? @db.Decimal(18,2)
+  moduleKey     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  decisions     ApprovalDecision[]
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, status, currentLevel])
+}
+
+model ApprovalDecision {
+  id            String   @id @default(uuid())
+  tenantId      String
+  approvalRequestId String
+  level         Int
+  decision      String   // Approved, Rejected
+  actorUserId   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, approvalRequestId, level])
+}
+
+model ExportLog {
+  id            String   @id @default(uuid())
+  tenantId      String
+  exportType    String
+  filtersJson   Json?
+  rowCount      Int?
+  checksumSha256 String?
+  generatedByUserId String?
+  generatedAt   DateTime @default(now())
+  sourceEntityType String?
+  sourceEntityId String?
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId, exportType, generatedAt])
+}
+
+model YearCloseRun {
+  id            String   @id @default(uuid())
+  tenantId      String
+  financialYearId String
+  status        String   @default("Completed")
+  closingVoucherId String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear @relation(fields: [financialYearId], references: [id], onDelete: Cascade)
+  closingVoucher Voucher? @relation(fields: [closingVoucherId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, financialYearId, createdAt])
 }
 
 // ---------------------------------------------------------
@@ -661,13 +1286,24 @@ model Asset {
   imageUrl     String?
   notes        String?
   assignedToId String?   // Member ID if assigned
+  capitalizationVoucherId String?
+  disposalVoucherId String?
+  residualValue Float?   @default(0)
+  usefulLifeMonths Int?  @default(60)
+  depreciationMethod String? @default("SLM") // SLM
+  accumulatedDepreciation Float @default(0)
+  lastDepreciationDate DateTime?
+  disposedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedTo Member? @relation("AssetAssignment", fields: [assignedToId], references: [id], onDelete: SetNull)
+  capitalizationVoucher Voucher? @relation("AssetCapitalizationVoucher", fields: [capitalizationVoucherId], references: [id], onDelete: SetNull)
+  disposalVoucher Voucher? @relation("AssetDisposalVoucher", fields: [disposalVoucherId], references: [id], onDelete: SetNull)
 
   maintenanceLogs AssetMaintenanceLog[]
+  depreciationEntries AssetDepreciationEntry[]
 }
 
 model AssetMaintenanceLog {
@@ -690,22 +1326,49 @@ model AssetMaintenanceLog {
   @@index([tenantId, assetId])
 }
 
+model AssetDepreciationEntry {
+  id          String   @id @default(uuid())
+  tenantId    String
+  assetId     String
+  periodDate  DateTime
+  amount      Decimal  @db.Decimal(18, 2)
+  accumulatedAfter Decimal @db.Decimal(18, 2)
+  voucherId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  voucher     Voucher? @relation("DepreciationVoucher", fields: [voucherId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, assetId, periodDate])
+}
+
 // ---------------------------------------------------------
 // Outreach & Missions
 // ---------------------------------------------------------
 
 model Contact {
-  id        String   @id @default(uuid())
-  tenantId  String
-  name      String
-  email     String?
-  phone     String?
-  status    String   @default("New") // New, Contacted, Converted
-  source    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(uuid())
+  tenantId        String
+  name            String
+  email           String?
+  phone           String?
+  status          String    @default("New") // New, Contacted, Converted
+  source          String?
+  memberId        String?
+  visitCount      Int       @default(1)
+  lastVisitAt     DateTime?
+  assignedUserId  String?
+  isFirstVisit    Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  followUps      OutreachFollowUp[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, lastVisitAt])
 }
 
 // ---------------------------------------------------------
@@ -725,6 +1388,95 @@ model CommunicationLog {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
+model CommunicationCampaign {
+  id             String    @id @default(uuid())
+  tenantId       String
+  title          String
+  body           String
+  channels       String    // JSON: ["in_app","email","sms","whatsapp"]
+  audienceFilter String    // JSON audience criteria
+  status         String    @default("draft") // draft, scheduled, sending, sent, cancelled
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries CommunicationDelivery[]
+
+  @@index([tenantId, status])
+}
+
+model CommunicationDelivery {
+  id           String    @id @default(uuid())
+  tenantId     String
+  campaignId   String
+  channel      String
+  recipientKey String
+  memberId     String?
+  userId       String?
+  status       String    @default("pending")
+  openedAt     DateTime?
+  deliveredAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign CommunicationCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, campaignId, channel])
+  @@index([tenantId, status])
+}
+
+model OutreachFollowUp {
+  id             String    @id @default(uuid())
+  tenantId       String
+  contactId      String?
+  memberId       String?
+  type           String
+  status         String    @default("pending")
+  assignedUserId String?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, assignedUserId])
+}
+
+model OperationalDigest {
+  id          String   @id @default(uuid())
+  tenantId    String
+  digestType  String
+  payload     String
+  generatedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, digestType, generatedAt])
+}
+
+model BackupRun {
+  id          String    @id @default(uuid())
+  tenantId    String
+  status      String
+  storageKey  String?
+  sizeBytes   Int?
+  verified    Boolean   @default(false)
+  errorDetail String?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
 // ---------------------------------------------------------
 // Documents
 // ---------------------------------------------------------
@@ -740,6 +1492,7 @@ model Document {
   updatedAt  DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voucherAttachments VoucherAttachment[]
 }
 
 // ---------------------------------------------------------
@@ -802,6 +1555,8 @@ model EventLog {
 
   @@index([tenantId, status])
   @@index([tenantId, occurredAt])
+  @@index([tenantId, eventName])
+  @@index([tenantId, entityType, entityId])
 }
 
 // ---------------------------------------------------------
@@ -829,6 +1584,7 @@ model Notification {
 
   @@index([tenantId, userId, status])
   @@index([tenantId, targetRole, status])
+  @@index([tenantId, createdAt])
 }
 
 model AnalyticsEvent {
@@ -855,6 +1611,7 @@ enum TaskTargetType {
   CARE_CASE
   SMALL_GROUP
   PRAYER_REQUEST
+  EVENT
 }
 
 enum TaskStatus {
@@ -999,21 +1756,26 @@ model CareLog {
 }
 
 model PrayerRequest {
-  id          String               @id @default(uuid())
-  tenantId    String
-  requesterId String?
-  content     String
-  visibility  ConfidentialityLevel @default(PUBLIC)
-  status      String               @default("Active")
-  createdById String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  id             String               @id @default(uuid())
+  tenantId       String
+  requesterId    String?
+  content        String
+  visibility     ConfidentialityLevel @default(PUBLIC)
+  status         String               @default("Active")
+  urgency        TaskPriority         @default(MEDIUM)
+  category       String               @default("general")
+  assignedUserId String?
+  testimony      String?
+  createdById    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   requester Member? @relation("PrayerRequester", fields: [requesterId], references: [id], onDelete: SetNull)
   createdBy User?   @relation("PrayerRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, requesterId, status])
+  @@index([tenantId, assignedUserId, status])
 }
 
 // ---------------------------------------------------------
@@ -1126,4 +1888,182 @@ model MemberEngagementSnapshot {
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, memberId, calculatedAt])
+}
+
+// =========================================================
+// Enterprise HR & Staff Operations System Models
+// =========================================================
+
+model EmploymentProfile {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String   @unique
+  startDate       DateTime @default(now())
+  endDate         DateTime?
+  status          String   @default("Active") // Active, Terminated, Resigned, Suspended
+  jobTitle        String?
+  emergencyContact Json?    // { name: string, relation: string, phone: string }
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, updatedAt(sort: Desc)])
+}
+
+model LeaveRequest {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  leaveType       String   // Annual, Sick, Spiritual, Casual, etc.
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  status          String   @default("Pending") // Pending, Approved, Rejected, Cancelled
+  approvedByUserId String?
+  notes           String?
+  /// Ministry/event conflict intelligence snapshot at submit or approval
+  conflictSnapshot Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model LeaveBalance {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  leaveType       String   // Annual, Sick, Spiritual, etc.
+  year            Int
+  allocated       Int      @default(0)
+  used            Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, memberId, leaveType, year])
+}
+
+model PayrollStructure {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String   @unique
+  baseSalary      Decimal  @db.Decimal(18, 2)
+  allowances      Decimal  @default(0) @db.Decimal(18, 2)
+  deductions      Decimal  @default(0) @db.Decimal(18, 2)
+  salaryExpenseAccountId String
+  payrollPayableAccountId String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model ReimbursementRequest {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  amount          Decimal  @db.Decimal(18, 2)
+  category        String   // Travel, Ministry, Medical, Other
+  description     String?
+  status          String   @default("Pending") // Pending, Approved, Rejected, Paid
+  receiptUrl      String?
+  voucherId       String?
+  approvedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model StaffDocument {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  title           String
+  category        String   // Contract, Policy, Identification, Other
+  fileUrl         String
+  uploadedBy      String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model PerformanceReview {
+  id              String   @id @default(uuid())
+  tenantId        String
+  revieweeId      String
+  reviewerId      String
+  reviewDate      DateTime @default(now())
+  rating          Int?     // 1 to 5
+  feedback        String?
+  goals           String?
+  status          String   @default("Draft") // Draft, Submitted
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reviewee Member @relation("RevieweeRelation", fields: [revieweeId], references: [id], onDelete: Cascade)
+  reviewer Member @relation("ReviewerRelation", fields: [reviewerId], references: [id], onDelete: Cascade)
+}
+
+model TrainingRecord {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  courseName      String
+  provider        String?
+  completionDate  DateTime?
+  certificationNo String?
+  status          String   @default("Completed") // InProgress, Completed, Expired
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model RecruitmentPipeline {
+  id              String   @id @default(uuid())
+  tenantId        String
+  candidateName   String
+  email           String
+  phone           String?
+  appliedRole     String
+  stage           String   @default("Applied") // Applied, Screened, Interviewed, Offered, Hired, Rejected
+  resumeUrl       String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model OnboardingTask {
+  id              String   @id @default(uuid())
+  tenantId        String
+  memberId        String
+  taskName        String
+  dueDate         DateTime?
+  isCompleted     Boolean  @default(false)
+  completedAt     DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }

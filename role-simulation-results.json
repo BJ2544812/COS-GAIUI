@@ -1,0 +1,485 @@
+{
+  "generatedAt": "2026-06-01T16:17:46.340Z",
+  "roles": [
+    {
+      "key": "Admin",
+      "username": "admin",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=dashboard",
+      "landingModule": "dashboard",
+      "visibleNav": [
+        "nav-dashboard",
+        "nav-settings",
+        "nav-members",
+        "nav-analytics",
+        "nav-academy",
+        "nav-audit-logs",
+        "nav-workflow-monitor",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-events",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-outreach",
+        "nav-structure",
+        "nav-giving",
+        "nav-finance",
+        "nav-budgets",
+        "nav-vendors",
+        "nav-assets",
+        "nav-documents",
+        "nav-sermons",
+        "nav-communication",
+        "nav-notifications",
+        "nav-website",
+        "nav-admin-center",
+        "nav-permissions"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "dashboard": "ok",
+        "members": "ok",
+        "finance": "ok",
+        "settings": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Senior Pastor",
+      "username": "pastor",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=dashboard",
+      "landingModule": "dashboard",
+      "visibleNav": [
+        "nav-dashboard",
+        "nav-discipleship",
+        "nav-members",
+        "nav-giving",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-analytics",
+        "nav-academy",
+        "nav-events",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-outreach",
+        "nav-sermons",
+        "nav-communication",
+        "nav-notifications"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "dashboard": "ok",
+        "discipleship": "ok",
+        "members": "ok",
+        "analytics": "ok",
+        "giving": "ok",
+        "outreach": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Church Administrator",
+      "username": "churchadmin",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=dashboard",
+      "landingModule": "dashboard",
+      "visibleNav": [
+        "nav-dashboard",
+        "nav-events",
+        "nav-members",
+        "nav-settings",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-outreach",
+        "nav-structure",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-analytics",
+        "nav-academy",
+        "nav-audit-logs",
+        "nav-workflow-monitor",
+        "nav-sermons",
+        "nav-communication",
+        "nav-notifications",
+        "nav-website",
+        "nav-admin-center",
+        "nav-permissions"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "dashboard": "ok",
+        "members": "ok",
+        "families": "ok",
+        "events": "ok",
+        "attendance": "ok",
+        "volunteers": "ok",
+        "communication": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Associate Pastor",
+      "username": "associate",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=dashboard",
+      "landingModule": "dashboard",
+      "visibleNav": [
+        "nav-discipleship",
+        "nav-members",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-events",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-sermons"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "dashboard": "ok",
+        "discipleship": "ok",
+        "members": "ok",
+        "events": "ok",
+        "attendance": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Youth Pastor",
+      "username": "youth",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=sunday-mode",
+      "landingModule": "sunday-mode",
+      "visibleNav": [
+        "nav-events",
+        "nav-attendance",
+        "nav-sunday-mode",
+        "nav-worship",
+        "nav-members",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-sermons",
+        "nav-dashboard",
+        "nav-academy"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "sunday-mode": "ok",
+        "events": "ok",
+        "attendance": "ok",
+        "members": "ok",
+        "discipleship": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Worship Pastor",
+      "username": "worship",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=sunday-mode",
+      "landingModule": "sunday-mode",
+      "visibleNav": [
+        "nav-sunday-mode",
+        "nav-events",
+        "nav-attendance",
+        "nav-worship",
+        "nav-sermons",
+        "nav-dashboard",
+        "nav-academy"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "sunday-mode": "ok",
+        "events": "ok",
+        "attendance": "ok",
+        "worship": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Finance Manager",
+      "username": "finance",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=finance&tab=vouchers",
+      "landingModule": "finance",
+      "visibleNav": [
+        "nav-finance",
+        "nav-giving",
+        "nav-budgets",
+        "nav-vendors",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-hr"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "giving": "ok",
+        "finance": "ok",
+        "budgets": "ok",
+        "vendors": "ok",
+        "assets": "ok",
+        "analytics": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Accountant",
+      "username": "accountant",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=finance&tab=vouchers",
+      "landingModule": "finance",
+      "visibleNav": [
+        "nav-finance",
+        "nav-giving",
+        "nav-budgets",
+        "nav-vendors",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-hr"
+      ],
+      "hiddenExpectedNav": [
+        "nav-hr"
+      ],
+      "moduleProbes": {
+        "finance": "ok",
+        "giving": "ok",
+        "budgets": "ok"
+      },
+      "apiErrors": [],
+      "notes": [
+        "Should not see nav: nav-hr"
+      ]
+    },
+    {
+      "key": "HR Manager",
+      "username": "hradmin",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=hr",
+      "landingModule": "hr",
+      "visibleNav": [
+        "nav-hr",
+        "nav-members",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-finance",
+        "nav-budgets",
+        "nav-vendors",
+        "nav-dashboard",
+        "nav-academy"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "hr": "ok",
+        "workforce": "ok",
+        "members": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Volunteer Coordinator",
+      "username": "volunteers",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=volunteers",
+      "landingModule": "volunteers",
+      "visibleNav": [
+        "nav-volunteers",
+        "nav-events",
+        "nav-members",
+        "nav-families",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-sermons"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "volunteers": "ok",
+        "events": "ok",
+        "attendance": "ok",
+        "sunday-mode": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Communications Manager",
+      "username": "secretary",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=communication",
+      "landingModule": "communication",
+      "visibleNav": [
+        "nav-communication",
+        "nav-notifications",
+        "nav-members",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-outreach",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-documents"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "communication": "ok",
+        "notifications": "ok",
+        "website": "ok",
+        "outreach": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Ministry Leader",
+      "username": "events",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=sunday-mode",
+      "landingModule": "sunday-mode",
+      "visibleNav": [
+        "nav-events",
+        "nav-sunday-mode",
+        "nav-attendance",
+        "nav-worship",
+        "nav-sermons",
+        "nav-dashboard",
+        "nav-academy"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "events": "ok",
+        "attendance": "ok",
+        "sunday-mode": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Small Group Leader",
+      "username": "groupleader",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=small-groups",
+      "landingModule": "small-groups",
+      "visibleNav": [
+        "nav-small-groups",
+        "nav-members",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-attendance",
+        "nav-dashboard",
+        "nav-academy"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "small-groups": "empty",
+        "members": "ok",
+        "attendance": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Staff",
+      "username": "staffdesk",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/admin?module=dashboard",
+      "landingModule": "dashboard",
+      "visibleNav": [
+        "nav-members",
+        "nav-events",
+        "nav-dashboard",
+        "nav-academy",
+        "nav-families",
+        "nav-volunteers",
+        "nav-workforce",
+        "nav-hr",
+        "nav-small-groups",
+        "nav-pathways",
+        "nav-discipleship",
+        "nav-sunday-mode",
+        "nav-worship",
+        "nav-sermons"
+      ],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "dashboard": "empty",
+        "members": "ok",
+        "events": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    },
+    {
+      "key": "Member",
+      "username": "member",
+      "loginOk": true,
+      "landingUrl": "http://127.0.0.1:50779/portal",
+      "landingModule": "portal",
+      "visibleNav": [],
+      "hiddenExpectedNav": [],
+      "moduleProbes": {
+        "Prayer requests": "ok",
+        "My groups": "ok",
+        "Giving history": "ok",
+        "Recent sermons": "ok"
+      },
+      "apiErrors": [],
+      "notes": []
+    }
+  ]
+}

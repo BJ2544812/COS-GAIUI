@@ -67,9 +67,15 @@ export function formatVoucherNoForPost(
   return `${typeStr}-${fyStartYear}-${num}`;
 }
 
-const DEFAULT_ACCOUNT_TYPE: Record<'cash' | 'bank' | 'tithes' | 'offerings', string> = {
+const DEFAULT_ACCOUNT_TYPE: Record<
+  'cash' | 'bank' | 'gatewayClearing' | 'gatewayRecoveryIncome' | 'gatewayChargesExpense' | 'tithes' | 'offerings',
+  string
+> = {
   cash: 'Asset',
   bank: 'Asset',
+  gatewayClearing: 'Asset',
+  gatewayRecoveryIncome: 'Revenue',
+  gatewayChargesExpense: 'Expense',
   tithes: 'Revenue',
   offerings: 'Revenue',
 };
@@ -78,7 +84,15 @@ const DEFAULT_ACCOUNT_TYPE: Record<'cash' | 'bank' | 'tithes' | 'offerings', str
  * Verifies each non-empty default account id exists, belongs to tenant, and has expected type.
  */
 export function assertDefaultAccounts(
-  accountsByKey: { cash: string; bank: string; tithes: string; offerings: string },
+  accountsByKey: {
+    cash: string;
+    bank: string;
+    gatewayClearing: string;
+    gatewayRecoveryIncome: string;
+    gatewayChargesExpense: string;
+    tithes: string;
+    offerings: string;
+  },
   loaded: Map<string, Account>
 ): void {
   for (const key of Object.keys(accountsByKey) as (keyof typeof accountsByKey)[]) {

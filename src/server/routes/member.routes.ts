@@ -14,6 +14,7 @@ router.use(authenticateToken);
 
 // --- Core Member CRUD ---
 router.post('/', requirePermission('manage_members'), MemberController.createMember as any);
+router.post('/import', requirePermission('manage_members'), MemberController.importMembers as any);
 router.get('/', requirePermission('manage_members'), MemberController.getMembers as any);
 router.get('/:id', requirePermission('manage_members'), MemberController.getMemberById as any);
 router.put('/:id', requirePermission('manage_members'), MemberController.updateMember as any);

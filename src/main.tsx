@@ -6,6 +6,9 @@ import './index.css';
 // Stability Lock Verified
 
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { installRuntimeApiGuard } from './lib/runtimeApiGuard.ts';
+
+installRuntimeApiGuard();
 
 try {
   document.title = 'Kingdom OS';

@@ -1,4 +1,27 @@
-export type SectionType = 'hero' | 'text' | 'image' | 'sermon_list' | 'event_list' | 'giving_cta' | 'contact_form';
+export type SectionType = 
+  | 'hero' 
+  | 'text' 
+  | 'image' 
+  | 'sermon_list' 
+  | 'event_list' 
+  | 'giving_cta' 
+  | 'contact_form'
+  | 'welcome_vision'
+  | 'ministry_grid'
+  | 'leadership_grid'
+  | 'testimonials'
+  | 'giving_impact'
+  | 'qr_payment'
+  | 'prayer_cta'
+  | 'next_steps'
+  | 'worship'
+  | 'stats_bar'
+  | 'timeline'
+  | 'values'
+  | 'faq'
+  | 'ministry_highlight'
+  | 'pastoral_note'
+  | 'vision_statement';
 
 export interface PageSection {
   id: string;
@@ -19,6 +42,166 @@ export interface WebsiteTemplate {
 }
 
 export const WEBSITE_TEMPLATES: WebsiteTemplate[] = [
+  {
+    id: 'flagship-v2',
+    name: 'Premium Ministry',
+    description: 'The definitive 10-page Kingdom OS experience. Fully integrated with ERP modules, cinematic design, and intentional discipleship pathways.',
+    pages: [
+      {
+        slug: 'home',
+        title: 'Home',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Welcome Home', subtitle: 'A community centered on the radical love of Jesus and the pursuit of His purpose.', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'text', config: { alignment: 'center', title: 'Gather With Us', content: 'Sunday Services: 9:00 AM • 11:00 AM • 5:00 PM\nExperience the presence of God through music, prayer, and authentic community.' } },
+          { type: 'vision_statement', config: { title: 'Built for Glory', subtitle: 'To reach people far from God and teach them how to follow Jesus step by radical step.' } },
+          { type: 'pastoral_note', config: { title: 'A Message from Our Pastors', author: 'Pastors David & Sarah Chen', message: 'We believe that church isn\'t just a building you visit, but a family where you truly belong and are deeply loved.' } },
+          { type: 'ministry_grid', config: { title: 'Find Your Tribe' } },
+          { type: 'event_list', config: { title: 'Featured Gatherings', limit: 2 } },
+          { type: 'sermon_list', config: { title: 'Latest Message', limit: 1 } },
+          { type: 'giving_cta', config: { title: 'Support the Vision', buttonText: 'Give Online', description: 'Your generosity enables us to serve our city and share the message of Jesus globally.' } }
+        ]
+      },
+      {
+        slug: 'about',
+        title: 'About',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Our Heritage', subtitle: 'A legacy of faith, anchored in the truth of the Gospel and the power of the Spirit.', imageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'timeline', config: { title: 'The Journey' } },
+          { type: 'values', config: { title: 'The Kingdom DNA' } },
+          { type: 'leadership_grid', config: { title: 'The Team' } },
+          { type: 'pastoral_note', config: { title: 'Come As You Are', message: 'We are a church of second chances and new beginnings. You don\'t have to have it all figured out to be a part of what God is doing here.', author: 'Pastoral Team' } }
+        ]
+      },
+      {
+        slug: 'ministries',
+        title: 'Ministries',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Connect & Serve', subtitle: 'Discover a place where you can grow, belong, and use your unique gifts for His glory.', imageUrl: 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'ministry_highlight', config: { title: 'Grace Kids', subtitle: 'A safe, high-energy environment where your children can discover the love of Jesus through play and biblical teaching.', imageUrl: 'https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&q=80&w=1000' } },
+          { type: 'ministry_grid', config: { title: 'Opportunities' } },
+          { type: 'ministry_highlight', config: { title: 'The Collective', subtitle: 'Empowering the next generation to live with influence through authentic discipleship and community.', imageUrl: 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=1000', reversed: true } },
+          { type: 'next_steps', config: { title: 'Find Your Next Step' } }
+        ]
+      },
+      {
+        slug: 'sermons',
+        title: 'Sermons',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'The Message', subtitle: 'Explore teachings centered on the timeless truth of Scripture and the person of Jesus.', imageUrl: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'worship', config: { title: 'Atmosphere of Praise' } },
+          { type: 'sermon_list', config: { title: 'Watch Latest', limit: 12 } }
+        ]
+      },
+      {
+        slug: 'events',
+        title: 'Events',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Gatherings', subtitle: 'Life happens in community. Join us for what\'s next in the life of our church.', imageUrl: 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'event_list', config: { title: 'Full Calendar', limit: 20 } },
+          { type: 'faq', config: { title: 'Event FAQs' } }
+        ]
+      },
+      {
+        slug: 'giving',
+        title: 'Giving',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Radical Generosity', subtitle: 'Join us in fueling a movement of grace through faithful and visionary stewardship.', imageUrl: 'https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'text', config: { alignment: 'center', title: 'The Heart of Giving', content: 'We believe giving is an response to the grace we have received. Your partnership enables every outreach, mission, and moment of transformation.' } },
+          { type: 'giving_impact', config: { title: 'Collective Impact', campaigns: [
+            { title: 'Local Care Hub', progress: 65, target: '$25,000', current: '$16,250', desc: 'Expanding our reach to serve underprivileged families in our neighborhood.' },
+            { title: 'Global Mission Partners', progress: 80, target: '$40,000', current: '$32,000', desc: 'Supporting sustainable gospel work across our international partner networks.' }
+          ] } },
+          { type: 'qr_payment', config: { title: 'Quick & Secure', fundName: 'Vision Fund' } },
+          { type: 'giving_cta', config: { title: 'Partner With Us', buttonText: 'Give Online' } }
+        ]
+      },
+      {
+        slug: 'prayer',
+        title: 'Prayer',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Stand Together', subtitle: 'We believe in the power of persistent prayer and the active presence of God.', imageUrl: 'https://images.unsplash.com/photo-1444491741275-3747c53c99b4?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'text', config: { alignment: 'center', title: 'Pastoral Encouragement', content: '"Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God." — Philippians 4:6' } },
+          { type: 'pastoral_note', config: { title: 'We Pray For You', message: 'Our pastoral team and intercessors are dedicated to standing in the gap for you with honor and faith.', author: 'Grace Prayer Team' } },
+          { type: 'testimonials', config: { title: 'Testimonies of Faith' } },
+          { type: 'prayer_cta', config: { title: 'How Can We Pray?', subtitle: 'Share your heart with our private and confidential prayer team.' } }
+        ]
+      },
+      {
+        slug: 'next-steps',
+        title: 'Next Steps',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Your Journey', subtitle: 'Finding your place in God\'s story and walking with purpose in community.', imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=2000' } },
+          { 
+            type: 'next_steps', 
+            config: { 
+              title: 'Discover Your Path',
+              steps: [
+                { title: 'New to Faith', desc: 'A guided introduction to the radical love and message of Jesus Christ.', icon: 'Sparkles' },
+                { title: 'Public Baptism', desc: 'Declare your faith publicly and join the family through baptism.', icon: 'Video' },
+                { title: 'Covenant Membership', desc: 'Commit to the vision and find your unique place in the community.', icon: 'Users' },
+                { title: 'Ministry Serve', desc: 'Use your God-given gifts to build the Kingdom and serve others.', icon: 'Heart' }
+              ]
+            } 
+          },
+          { type: 'vision_statement', config: { title: 'Follow Him', subtitle: 'Helping people far from God discover their identity and purpose in Christ.' } }
+        ]
+      },
+      {
+        slug: 'leadership',
+        title: 'Leadership',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'The Stewards', subtitle: 'A team dedicated to serving God and His people with integrity and pastoral vision.', imageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'leadership_grid', config: { title: 'Pastoral Team', staff: [
+            { name: 'Pastors David & Sarah Chen', role: 'Lead Visionaries', bio: 'David and Sarah lead Grace Community with a focus on radical grace and biblical truth.', quote: 'Our joy is seeing people discover their God-given potential.' },
+            { name: 'Marcus Wright', role: 'Worship Director', bio: 'Marcus leads our creative teams in crafting atmospheres of praise and devotion.', quote: 'Worship is our lifestyle, not just our Sunday morning.' },
+            { name: 'Jessica Miller', role: 'Executive Pastor', bio: 'Jessica oversees the operations and discipleship pathways of our church family.', quote: 'Excellence in ministry honors God and inspires people.' }
+          ] } },
+          { type: 'pastoral_note', config: { title: 'Built to Serve', message: 'We lead by serving. Our greatest honor is walking alongside you in your journey of faith.', author: 'Senior Leadership' } }
+        ]
+      },
+      {
+        slug: 'contact',
+        title: 'Contact',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Get In Touch', subtitle: 'Connect with our team digitally or join us at our campus this weekend.', imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=2000' } },
+          { type: 'contact_form', config: { title: 'Reach Out', subtitle: 'General inquiries, baptism interest, or pastoral needs.' } },
+          { type: 'faq', config: { title: 'Got Questions?' } }
+         ]
+      },
+      {
+        slug: 'portal',
+        title: 'Portal',
+        sections: [
+          { type: 'hero', config: { variant: 'centered', title: 'Church Portal', subtitle: 'Continue to the Kingdom OS portal for members, teams, and ministry operations.' } },
+          { type: 'next_steps', config: { title: 'Portal Access Steps', steps: [
+            { title: 'Member Login', desc: 'Use your church credentials to access your dashboard.', icon: 'Users' },
+            { title: 'Team Workspace', desc: 'Serve teams can review schedules, tasks, and updates.', icon: 'Layout' },
+            { title: 'Need Help?', desc: 'Contact the office if you need login support.', icon: 'Heart' },
+            { title: 'Open Platform', desc: 'Launch Kingdom OS securely.', icon: 'ArrowRight' }
+          ] } }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cinematic',
+    name: 'Showcase Cinema',
+    description: 'Max visual impact for modern ministry brands. Immersive imagery, glassmorphism, and cinematic storytelling.',
+    pages: [
+      {
+        slug: 'home',
+        title: 'Home',
+        sections: [
+          { type: 'hero', config: { variant: 'split', title: 'Pursue Your Purpose', subtitle: 'Join a community of faith and discovery.', imageUrl: 'cinematic_worship_hero_1778791392579.png' } },
+          { type: 'worship', config: { title: 'Experience the Presence', subtitle: 'Worship that engages the heart.', imageUrl: 'cinematic_worship_hero_1778791392579.png' } },
+          { type: 'text', config: { title: 'Our Culture', content: 'We are a church that loves God and loves people.', alignment: 'center' } },
+          { type: 'sermon_list', config: { title: 'The Library', limit: 3 } },
+          { type: 'giving_impact', config: { title: 'Transformation Stories' } },
+          { type: 'qr_payment', config: { title: 'Support the Vision' } }
+        ]
+      }
+    ]
+  },
   {
     id: 'classic',
     name: 'Classic Church',
@@ -105,203 +288,6 @@ export const WEBSITE_TEMPLATES: WebsiteTemplate[] = [
           { type: 'contact_form', config: { title: 'Get in Touch' } }
         ] 
       }
-    ]
-  },
-  {
-    id: 'modern',
-    name: 'Modern Worship',
-    description: 'Vibrant, high-energy design for contemporary worship and city-wide outreach.',
-    pages: [
-      {
-        slug: 'home',
-        title: 'Home',
-        sections: [
-          {
-            type: 'hero',
-            config: {
-              variant: 'split',
-              title: 'Find Your Purpose',
-              subtitle: 'Join a community passionate about Jesus, people, and making a real difference in the world.',
-              buttonText: 'Join the Movement',
-              serviceTimes: 'Sundays at 9 AM • 11 AM • 5 PM',
-              overlayOpacity: 0.5
-            }
-          },
-          {
-            type: 'text',
-            config: {
-              title: 'Our Mission',
-              content: 'We exist to reach the unreached, equip believers, and transform our city through authentic worship and radical generosity. Everyone is welcome here.',
-              alignment: 'center'
-            }
-          },
-          { type: 'event_list', config: { title: 'Get Involved', limit: 4 } },
-          { type: 'sermon_list', config: { title: 'Watch Latest', limit: 3 } },
-          {
-            type: 'giving_cta',
-            config: {
-              title: 'Invest in the Kingdom',
-              description: 'Partner with us as we reach our city with the message of hope and restoration.',
-              buttonText: 'Give Now'
-            }
-          },
-          {
-            type: 'contact_form',
-            config: {
-              title: 'Connect With Us'
-            }
-          }
-        ]
-      },
-      {
-        slug: 'about',
-        title: 'About',
-        sections: [
-          { type: 'hero', config: { variant: 'split', title: 'Our Passion', subtitle: 'Jesus. People. Purpose.' } },
-          { type: 'text', config: { title: 'The Vision', content: 'We exist to reach the unreached and build a community of fully devoted followers of Christ. Everything we do is about making the name of Jesus known in our city.' } }
-        ]
-      },
-      { slug: 'sermons', title: 'Watch', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Live & On-Demand', subtitle: 'Messages designed for your journey.' } }, { type: 'sermon_list', config: { title: 'Recent Series', limit: 12 } }] },
-      { slug: 'events', title: 'Events', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Next Steps', subtitle: 'Your place in the story starts here.' } }, { type: 'event_list', config: { title: 'Upcoming Events', limit: 15 } }] },
-      { slug: 'giving', title: 'Giving', sections: [{ type: 'hero', config: { variant: 'split', title: 'Make an Impact', subtitle: 'Your generosity changes lives.' } }, { type: 'giving_cta', config: { title: 'Fast & Secure', buttonText: 'Give Online' } }] },
-      { slug: 'contact', title: 'Connect', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Connect', subtitle: 'We are better together.' } }, { type: 'contact_form', config: { title: 'Say Hello' } }] }
-    ]
-  },
-  {
-    id: 'youth',
-    name: 'Youth Church',
-    description: 'Bold, dynamic design for students, active discipleship, and vibrant expression.',
-    pages: [
-      {
-        slug: 'home',
-        title: 'Home',
-        sections: [
-          {
-            type: 'hero',
-            config: {
-              variant: 'split',
-              title: 'BOLD FAITH. REAL COMMUNITY.',
-              subtitle: 'A place to be yourself, find your squad, and follow Jesus together.',
-              buttonText: 'I\'m New Here',
-              serviceTimes: 'Wednesdays 7 PM • Sundays 11 AM',
-              overlayOpacity: 0.4
-            }
-          },
-          {
-            type: 'text',
-            config: {
-              title: 'This Is Us',
-              content: 'We are a group of students and young adults chasing after Jesus and having a blast doing it. No perfect people allowed—just Christ followers who are real about the journey.',
-              alignment: 'center'
-            }
-          },
-          { type: 'event_list', config: { title: 'Camps & Hangouts', limit: 4 } },
-          { type: 'sermon_list', config: { title: 'Latest Talks', limit: 3 } },
-          {
-            type: 'giving_cta',
-            config: {
-              title: 'Support the Vision',
-              description: 'Help us empower the next generation with resources and mission opportunities.',
-              buttonText: 'Invest in Students'
-            }
-          },
-          {
-            type: 'contact_form',
-            config: {
-              title: 'Get Connected'
-            }
-          }
-        ]
-      },
-      { 
-        slug: 'about', 
-        title: 'About', 
-        sections: [
-          { type: 'hero', config: { variant: 'minimal', title: 'Our Vibe', subtitle: 'No perfect people allowed.' } },
-          { type: 'text', config: { title: 'The Crew', content: 'We are a group of students and leaders who are chasing after Jesus and having a ton of fun doing it. Whether you are a seeker or a long-time follower, you belong here.' } }
-        ]
-      },
-      { slug: 'sermons', title: 'Talks', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Real Talk', subtitle: 'Messages for your world.' } }, { type: 'sermon_list', config: { title: 'Archive', limit: 10 } }] },
-      { slug: 'events', title: 'Calendar', sections: [{ type: 'hero', config: { variant: 'centered', title: 'The Schedule', subtitle: 'Don\'t miss the next big thing.' } }, { type: 'event_list', config: { title: 'Upcoming', limit: 10 } }] },
-      { slug: 'giving', title: 'Support', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Fuel the Mission', subtitle: 'Help us make a difference.' } }, { type: 'giving_cta', config: { title: 'Support Youth', buttonText: 'Give' } }] },
-      { slug: 'contact', title: 'Connect', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Get Linked', subtitle: 'Send us a message or DM.' } }, { type: 'contact_form', config: { title: 'Contact Us' } }] }
-    ]
-  },
-  {
-    id: 'minimal',
-    name: 'Minimal Church',
-    description: 'Clean, typography-driven design for communities that value focus and quiet depth.',
-    pages: [
-      {
-        slug: 'home',
-        title: 'Home',
-        sections: [
-          {
-            type: 'hero',
-            config: {
-              variant: 'minimal',
-              title: 'Faith. Simplified.',
-              subtitle: 'Focusing on the essentials of worship, study, and loving our neighbors.',
-              buttonText: 'Visit Us',
-              serviceTimes: 'Sunday at 10 AM',
-              overlayOpacity: 0.6
-            }
-          },
-          {
-            type: 'text',
-            config: {
-              title: 'The Core',
-              content: 'We believe faith is a journey of quiet depth and active love. Our community centers on the simple teachings of Christ, stripped of unnecessary complexity.',
-              alignment: 'center'
-            }
-          },
-          { type: 'event_list', config: { title: 'Gatherings', limit: 3 } },
-          { type: 'sermon_list', config: { title: 'Weekly Reflections', limit: 3 } },
-          {
-            type: 'giving_cta',
-            config: {
-              title: 'Contribution',
-              description: 'Supporting our shared work in the neighborhood.',
-              buttonText: 'Contribute'
-            }
-          },
-          {
-            type: 'contact_form',
-            config: {
-              title: 'Reach Out'
-            }
-          }
-        ]
-      },
-      {
-        slug: 'about',
-        title: 'About',
-        sections: [
-          { type: 'hero', config: { variant: 'minimal', title: 'Our Story', subtitle: 'A simple path.' } },
-          { type: 'text', config: { title: 'Essentials', content: 'We value silence, scripture, and service. Our community is built on the belief that less is often more when it comes to experiencing the presence of God.' } }
-        ]
-      },
-      { slug: 'sermons', title: 'Teachings', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Sermons', subtitle: 'Weekly reflections.' } }, { type: 'sermon_list', config: { title: 'Recent', limit: 8 } }] },
-      { slug: 'events', title: 'Events', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Gatherings', subtitle: 'Quiet moments together.' } }, { type: 'event_list', config: { title: 'Upcoming', limit: 10 } }] },
-      { slug: 'giving', title: 'Support', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Support', subtitle: 'Contributing to the mission.' } }, { type: 'giving_cta', config: { title: 'Giving', buttonText: 'Support' } }] },
-      { slug: 'contact', title: 'Contact', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Inquiry', subtitle: 'Get in touch with our team.' } }, { type: 'contact_form', config: { title: 'Message Us' } }] }
-    ]
-  },
-  {
-    id: 'flagship-1',
-    name: 'Flagship Church',
-    description: 'A comprehensive 10-page experience for growing churches with ministries, leadership, and next steps.',
-    pages: [
-      { slug: 'home', title: 'Home', sections: [{ type: 'hero', config: { title: 'Welcome Home', subtitle: 'A community of faith and grace.', buttonText: 'Visit Us' } }, { type: 'text', config: { title: 'Our Mission', content: 'Transforming lives through the love of Christ.', alignment: 'center' } }, { type: 'event_list', config: { title: 'Upcoming Events' } }, { type: 'sermon_list', config: { title: 'Latest Sermons' } }, { type: 'giving_cta', config: { title: 'Support Our Work' } }] },
-      { slug: 'about', title: 'About', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Our Story' } }, { type: 'text', config: { title: 'Who We Are', content: 'We are a family-focused church dedicated to scripture and service.' } }] },
-      { slug: 'ministries', title: 'Ministries', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Our Ministries', subtitle: 'Find your place to serve and grow.' } }, { type: 'text', config: { title: 'Kids & Youth', content: 'Nurturing the next generation in faith.' } }, { type: 'text', config: { title: 'Adult Groups', content: 'Growing deeper together in small groups.' } }] },
-      { slug: 'sermons', title: 'Sermons', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Messages', subtitle: 'Watch and listen to our latest series.' } }, { type: 'sermon_list', config: { title: 'Video Archive' } }] },
-      { slug: 'events', title: 'Events', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Calendar', subtitle: 'Stay connected with our community.' } }, { type: 'event_list', config: { title: 'Full Schedule' } }] },
-      { slug: 'giving', title: 'Giving', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Generosity' } }, { type: 'giving_cta', config: { title: 'Secure Online Giving', description: 'Thank you for your faithful support.', buttonText: 'Give Now' } }] },
-      { slug: 'prayer', title: 'Prayer', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Prayer Requests' } }, { type: 'contact_form', config: { title: 'How can we pray for you?' } }] },
-      { slug: 'contact', title: 'Contact', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Contact Us' } }, { type: 'contact_form', config: { title: 'Get in Touch' } }] },
-      { slug: 'leadership', title: 'Leadership', sections: [{ type: 'hero', config: { variant: 'minimal', title: 'Our Team' } }, { type: 'text', config: { title: 'Pastoral Staff', content: 'Meet those who serve our congregation.' } }] },
-      { slug: 'next-steps', title: 'Next Steps', sections: [{ type: 'hero', config: { variant: 'centered', title: 'Next Steps', subtitle: 'New here? Here is how to get started.' } }, { type: 'text', config: { title: 'Growth Track', content: 'Learn more about our church and how to become a member.' } }] }
     ]
   }
 ];

@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS as LIB_DEFAULT_SETTINGS } from '@/lib/settingsDefaults
 export interface SystemSettings {
   organization: {
     name: string;
+    tagline?: string;
     logo: string;
     address: string;
     phone: string;
@@ -16,6 +17,10 @@ export interface SystemSettings {
     primaryColor: string;
     secondaryColor: string;
     themeMode: 'light' | 'dark' | 'system';
+    emailHeaderLogo?: string;
+    emailFooterText?: string;
+    publicTagline?: string;
+    favicon?: string;
   };
   financial: {
     currency: string;
@@ -23,18 +28,31 @@ export interface SystemSettings {
     defaultAccounts: {
       cash: string;
       bank: string;
+      gatewayClearing: string;
+      gatewayRecoveryIncome: string;
+      gatewayChargesExpense: string;
       tithes: string;
       offerings: string;
     };
     voucherPrefix: string;
     numberingFormat: string;
-    /** YYYY-MM-DD: posting blocked for dates on or before this day (inclusive). Empty = none. */
     lockedUntilDate: string;
+    gatewayFeePercent?: number;
+    gatewayFeeGstPercent?: number;
   };
   paymentGateway: {
+    onlineGivingEnabled?: boolean;
+    primaryGateway: 'cashfree' | 'razorpay';
+    cashfreeEnvironment: 'sandbox' | 'production';
+    cashfreeAppId: string;
+    cashfreeSecretKey: string;
+    cashfreeWebhookSecret: string;
     razorpayKeyId: string;
     razorpayKeySecret: string;
     razorpayWebhookSecret: string;
+    thankYouMessage?: string;
+    donorConfirmationEmail?: boolean;
+    recurringGivingEnabled?: boolean;
   };
   documents: {
     pastorSignature: string;

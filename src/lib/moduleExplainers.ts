@@ -1,0 +1,198 @@
+import type { ERPModule } from '@/types';
+
+export type ModuleExplainer = {
+  moduleId: ERPModule;
+  title: string;
+  whatIsThis: string;
+  whyUseIt: string;
+  whenUseIt: string;
+  whoUsesIt: string[];
+  examples: string[];
+};
+
+export const MODULE_EXPLAINERS: ModuleExplainer[] = [
+  {
+    moduleId: 'dashboard',
+    title: 'Home',
+    whatIsThis: 'Your church overview — people, giving, events, and what needs attention this week.',
+    whyUseIt: 'See church health at a glance without opening every module.',
+    whenUseIt: 'Start of the week, Monday staff meeting, or before Sunday.',
+    whoUsesIt: ['Pastors', 'Church administrators', 'Leadership'],
+    examples: ['Check volunteer gaps before Sunday', 'Review giving pace vs budget'],
+  },
+  {
+    moduleId: 'members',
+    title: 'Members',
+    whatIsThis: 'The people directory — visitors, members, leaders, and contact details.',
+    whyUseIt: 'One place to find anyone in your congregation and their journey stage.',
+    whenUseIt: 'Follow-up calls, visitor assimilation, or updating contact info.',
+    whoUsesIt: ['Pastors', 'Administrators', 'Small group leaders'],
+    examples: ['Find a family before a pastoral visit', 'Move someone from Visitor to Member'],
+  },
+  {
+    moduleId: 'families',
+    title: 'Families',
+    whatIsThis: 'Household groupings linked to member profiles.',
+    whyUseIt: 'Pastoral care and communication often happen at the family level.',
+    whenUseIt: 'When registering couples, children, or updating household address.',
+    whoUsesIt: ['Administrators', 'Pastors'],
+    examples: ['See the Nair family before a home visit'],
+  },
+  {
+    moduleId: 'volunteers',
+    title: 'Volunteers',
+    whatIsThis: 'Who serves where — roles on events, ministries, and Sunday teams.',
+    whyUseIt: 'Coordinate teams without spreadsheets that go out of date.',
+    whenUseIt: 'Planning Sunday, filling event rosters, or finding a substitute.',
+    whoUsesIt: ['Volunteer coordinators', 'Worship leaders', 'Administrators'],
+    examples: ['Assign greeters for 9 AM service', 'See who is confirmed for youth night'],
+  },
+  {
+    moduleId: 'hr',
+    title: 'HR & Staff',
+    whatIsThis: 'Church employees — job records, leave, payroll setup, and staff documents.',
+    whyUseIt: 'Separate paid staff workflows from general congregation members.',
+    whenUseIt: 'Hiring, leave approval, or month-end payroll with finance.',
+    whoUsesIt: ['HR managers', 'Administrators', 'Finance (payroll)'],
+    examples: ['Approve associate pastor leave', 'Review worship leader employment profile'],
+  },
+  {
+    moduleId: 'discipleship',
+    title: 'Pastoral Care',
+    whatIsThis: 'Care cases, follow-ups, and pastoral notes for people in need.',
+    whyUseIt: 'Nothing falls through the cracks when multiple pastors share care load.',
+    whenUseIt: 'After counseling requests, hospital visits, or benevolence needs.',
+    whoUsesIt: ['Pastors', 'Care team', 'Small group leaders (limited)'],
+    examples: ['Track a hospital visit follow-up', 'Assign care case to associate pastor'],
+  },
+  {
+    moduleId: 'small-groups',
+    title: 'Small Groups',
+    whatIsThis: 'Home groups and discipleship communities — rosters and meeting rhythm.',
+    whyUseIt: 'Mid-week community is where much discipleship happens.',
+    whenUseIt: 'Launching a group season, recording attendance, or leader changes.',
+    whoUsesIt: ['Small group leaders', 'Discipleship pastors'],
+    examples: ['Open Anna Nagar home group roster', 'See who met this Thursday'],
+  },
+  {
+    moduleId: 'events',
+    title: 'Events',
+    whatIsThis: 'Everything on the calendar — services, conferences, classes, and outreach.',
+    whyUseIt: 'Events drive volunteers, attendance, and communications in one record.',
+    whenUseIt: 'Planning VBS, a marriage seminar, or weekly worship services.',
+    whoUsesIt: ['Administrators', 'Ministry leaders', 'Worship team'],
+    examples: ['Create Vacation Bible School', 'Open Sunday 9 AM service workspace'],
+  },
+  {
+    moduleId: 'sunday-mode',
+    title: 'Sunday Service',
+    whatIsThis: 'Live-service control center for the worship gathering in progress.',
+    whyUseIt: 'Run the service flow, monitor teams, attendance, and issues in one screen.',
+    whenUseIt: 'Sunday morning during worship — not for week-ahead planning.',
+    whoUsesIt: ['Pastors', 'Worship leaders', 'Volunteer coordinators'],
+    examples: ['Advance worship segments during 9 AM service', 'See media and team alerts'],
+  },
+  {
+    moduleId: 'attendance',
+    title: 'Attendance',
+    whatIsThis: 'Check-in sessions and headcounts for services and groups.',
+    whyUseIt: 'Know who gathered and measure engagement over time.',
+    whenUseIt: 'During or after Sunday, youth night, or small group meetings.',
+    whoUsesIt: ['Counters', 'Volunteer coordinators', 'Group leaders'],
+    examples: ['Run Sunday 9 AM check-in', 'Close session and review count'],
+  },
+  {
+    moduleId: 'giving',
+    title: 'Giving',
+    whatIsThis: 'Donations, pledges, and donor receipts.',
+    whyUseIt: 'Stewardship records tie to finance and pastoral thank-you calls.',
+    whenUseIt: 'Recording offerings, building fund gifts, or event registrations paid as gifts.',
+    whoUsesIt: ['Finance staff', 'Counters', 'Pastors (view)'],
+    examples: ['Record Sunday cash offering', 'Issue annual giving statement'],
+  },
+  {
+    moduleId: 'finance',
+    title: 'Finance',
+    whatIsThis: 'Accounting desk — vouchers, ledger, reconciliation, and financial reports.',
+    whyUseIt: 'Official books and audit trail for treasurers and accountants.',
+    whenUseIt: 'Daily expenses, month-end close, or auditor questions.',
+    whoUsesIt: ['Treasurers', 'Finance staff', 'Accountants'],
+    examples: ['Create and approve a utilities voucher', 'Reconcile bank statement'],
+  },
+  {
+    moduleId: 'budgets',
+    title: 'Budgets',
+    whatIsThis: 'Funds, annual budgets, and budget vs actual by ministry.',
+    whyUseIt: 'Leadership sees whether spending matches intent.',
+    whenUseIt: 'Annual planning or quarterly board reviews.',
+    whoUsesIt: ['Treasurers', 'Finance managers', 'Pastors (view)'],
+    examples: ['Review building fund vs actual', 'Check youth ministry spend'],
+  },
+  {
+    moduleId: 'communication',
+    title: 'Communications',
+    whatIsThis: 'Email/SMS campaigns, prayer wall, and delivery history.',
+    whyUseIt: 'Reach the church without personal email lists.',
+    whenUseIt: 'Event reminders, prayer updates, or all-church announcements.',
+    whoUsesIt: ['Communications staff', 'Administrators', 'Pastors'],
+    examples: ['Send Easter service invite', 'Review prayer requests'],
+  },
+  {
+    moduleId: 'website',
+    title: 'Website',
+    whatIsThis: 'Public church website — pages, forms, media, and giving links.',
+    whyUseIt: 'Visitors discover service times and connect online.',
+    whenUseIt: 'Updating sermon series, service times, or a new landing page.',
+    whoUsesIt: ['Communications', 'Administrators'],
+    examples: ['Update hero banner for Christmas', 'Publish new visitor form'],
+  },
+  {
+    moduleId: 'analytics',
+    title: 'Reports',
+    whatIsThis: 'Charts and exports across people, giving, and attendance.',
+    whyUseIt: 'Board meetings and leadership need trends, not single screens.',
+    whenUseIt: 'Monthly leadership meeting or annual report.',
+    whoUsesIt: ['Pastors', 'Treasurers', 'Administrators'],
+    examples: ['Export attendance trend', 'Review giving by fund'],
+  },
+  {
+    moduleId: 'worship',
+    title: 'Worship Planning',
+    whatIsThis: 'Calendar view linking worship planning to church events.',
+    whyUseIt: 'Jump to service plans and run sheets tied to real event records.',
+    whenUseIt: 'Mid-week worship prep (order of service lives under Events).',
+    whoUsesIt: ['Worship leaders', 'Production team'],
+    examples: ['Open run sheet for Sunday 9 AM'],
+  },
+  {
+    moduleId: 'outreach',
+    title: 'Visitors & Outreach',
+    whatIsThis: 'Guest follow-up and outreach initiatives.',
+    whyUseIt: 'Move visitors toward membership intentionally.',
+    whenUseIt: 'After guest Sunday or community outreach events.',
+    whoUsesIt: ['Assimilation team', 'Outreach pastors'],
+    examples: ['Log follow-up call with new visitor'],
+  },
+  {
+    moduleId: 'settings',
+    title: 'Settings',
+    whatIsThis: 'Church profile, branding, finance defaults, and system preferences.',
+    whyUseIt: 'Configure how the whole platform behaves for your church.',
+    whenUseIt: 'Initial setup or when leadership changes fiscal year.',
+    whoUsesIt: ['Administrators', 'Super admins'],
+    examples: ['Update church address on receipts', 'Set default income accounts'],
+  },
+  {
+    moduleId: 'academy',
+    title: 'Academy & guided learning',
+    whatIsThis: 'Explore the product by role, test checklists, and module explainers.',
+    whyUseIt: 'Learn Ultimate Church OS without reading a large manual.',
+    whenUseIt: 'First week on the platform or training a new staff member.',
+    whoUsesIt: ['Everyone (staff)', 'Evaluators', 'Trainers'],
+    examples: ['Run Senior Pastor 5-minute tour', 'Complete TEST_MY_CHURCH_OS checklist'],
+  },
+];
+
+export function getModuleExplainer(moduleId: ERPModule): ModuleExplainer | undefined {
+  return MODULE_EXPLAINERS.find((m) => m.moduleId === moduleId);
+}

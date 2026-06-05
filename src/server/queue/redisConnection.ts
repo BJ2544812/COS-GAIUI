@@ -14,7 +14,15 @@ export function getRedisOptional(): IORedis | undefined {
   }
   if (!client) {
     try {
-      client = new IORedis(url, { maxRetriesPerRequest: null });
+      client = new IORedis(url, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+        retryStrategy: (times) => Math.min(times * 200, 5000),
+        reconnectOnError: (err) => {
+          const msg = err.message || '';
+          return msg.includes('READONLY') || msg.includes('ECONNRESET');
+        },
+      });
     } catch (e) {
       initFailed = true;
       console.warn('[redis] Invalid REDIS_URL; Razorpay webhooks will run synchronously.', e);

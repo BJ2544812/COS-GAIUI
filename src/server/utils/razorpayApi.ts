@@ -5,6 +5,8 @@ export type RazorpayPaymentEntity = {
   status: string;
   amount: number;
   currency?: string;
+  order_id?: string;
+  notes?: Record<string, string>;
 };
 
 export type RazorpayPaymentListItem = {
@@ -72,4 +74,36 @@ export async function listRazorpayPaymentsInWindow(
   }
   const data = (await res.json()) as { items?: RazorpayPaymentListItem[] };
   return data.items ?? [];
+}
+
+/**
+ * Creates a Razorpay Order to initiate the payment flow.
+ */
+export async function createRazorpayOrder(
+  keyId: string,
+  keySecret: string,
+  options: { amountPaise: number; currency: string; receipt?: string; notes?: Record<string, string> }
+): Promise<{ id: string; amount: number; currency: string }> {
+  if (!keyId || !keySecret) {
+    throw new CodedError('RAZORPAY_NOT_CONFIGURED', 'Razorpay API keys are not configured.');
+  }
+  const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  const res = await fetch('https://api.razorpay.com/v1/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${auth}`,
+    },
+    body: JSON.stringify({
+      amount: options.amountPaise,
+      currency: options.currency,
+      receipt: options.receipt,
+      notes: options.notes,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new CodedError('RAZORPAY_API', `Order creation failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  return (await res.json()) as { id: string; amount: number; currency: string };
 }

@@ -16,7 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, PageLayout, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
 import { cn } from '@/lib/utils';
@@ -72,7 +72,7 @@ export function WorkflowMonitoringModule({ onModuleChange }: WorkflowMonitoringM
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       <ModuleHeader
         title="Activity log"
         subtitle="Background tasks for your church — see what ran, what is waiting, and retry if something failed."
@@ -107,13 +107,43 @@ export function WorkflowMonitoringModule({ onModuleChange }: WorkflowMonitoringM
         </div>
       )}
 
-      {/* Real-time Health Pulse */}
+      {/* Background task summary (from EventBus stats API) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
          {[
-            { label: 'System Uptime', value: '99.98%', icon: Server, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-            { label: 'Event Throughput', value: '1.2k/hr', icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'Avg Latency', value: '42ms', icon: Cpu, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Queue Health', value: 'Optimal', icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            {
+              label: 'Pending Tasks',
+              value: loading ? '—' : String(stats?.pending ?? 0),
+              icon: Clock,
+              color: 'text-amber-600',
+              bg: 'bg-amber-50',
+            },
+            {
+              label: 'Processed',
+              value: loading ? '—' : String(stats?.processed ?? 0),
+              icon: Zap,
+              color: 'text-emerald-600',
+              bg: 'bg-emerald-50',
+            },
+            {
+              label: 'Failed',
+              value: loading ? '—' : String(stats?.failed ?? 0),
+              icon: AlertTriangle,
+              color: 'text-rose-600',
+              bg: 'bg-rose-50',
+            },
+            {
+              label: 'Queue Health',
+              value: loading
+                ? '—'
+                : (stats?.failed ?? 0) > 0
+                  ? 'Needs attention'
+                  : (stats?.pending ?? 0) > 50
+                    ? 'Busy'
+                    : 'Healthy',
+              icon: ShieldCheck,
+              color: 'text-indigo-600',
+              bg: 'bg-indigo-50',
+            },
          ].map((h) => (
             <Card key={h.label} className="border-none shadow-sm rounded-3xl bg-white p-6">
                <div className="flex items-center gap-4">
@@ -242,7 +272,7 @@ export function WorkflowMonitoringModule({ onModuleChange }: WorkflowMonitoringM
            </Card>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 

@@ -4,16 +4,65 @@
  */
 import '../utils/loadEnv.ts';
 import { prisma } from '../utils/prisma.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const API = (process.env.RUNTIME_VERIFY_API_BASE || 'http://localhost:4002/api/v1').replace(/\/$/, '');
-const UI = (process.env.RUNTIME_VERIFY_UI_BASE || 'http://localhost:3001').replace(/\/$/, '');
+function normalizeVerifyApiBase(url: string): string {
+  const u = url.replace(/\/$/, '');
+  if (/\/api$/i.test(u)) return `${u}/v1`;
+  if (!/\/api\//i.test(u)) return `${u}/api/v1`;
+  return u;
+}
+const API = normalizeVerifyApiBase(process.env.RUNTIME_VERIFY_API_BASE || 'http://127.0.0.1:4002/api/v1');
+const UI = (process.env.RUNTIME_VERIFY_UI_BASE || 'http://127.0.0.1:3001').replace(/\/$/, '');
+
+type CountRow = { label: string; count: number };
+type PlaceholderSurface = { module: string; file: string };
+
+function discoverPlaceholderSurfaces(): PlaceholderSurface[] {
+  const modulesDir = path.resolve(process.cwd(), 'src', 'modules');
+  if (!fs.existsSync(modulesDir)) return [];
+
+  const out: PlaceholderSurface[] = [];
+  const stack = [modulesDir];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const e of entries) {
+      const abs = path.join(current, e.name);
+      if (e.isDirectory()) {
+        stack.push(abs);
+        continue;
+      }
+      if (!e.isFile() || !e.name.endsWith('Module.tsx')) continue;
+      const body = fs.readFileSync(abs, 'utf8');
+      if (!body.includes('PlaceholderModule')) continue;
+      const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
+      out.push({
+        file: rel,
+        module: e.name.replace(/Module\.tsx$/, ''),
+      });
+    }
+  }
+  return out.sort((a, b) => a.file.localeCompare(b.file));
+}
+
+function loopbackFallback(url: string): string | null {
+  if (url.includes('127.0.0.1')) return url.replace('127.0.0.1', 'localhost');
+  if (url.includes('localhost')) return url.replace('localhost', '127.0.0.1');
+  return null;
+}
 
 async function resolveTenantId(): Promise<string> {
-  const fromEnv = process.env.VITE_TENANT_ID?.trim() || process.env.E2E_TENANT_ID?.trim();
+  const fromEnv =
+    process.env.TENANT_ID?.trim() ||
+    process.env.VITE_TENANT_ID?.trim() ||
+    process.env.E2E_TENANT_ID?.trim();
   if (fromEnv) return fromEnv;
   const admin = await prisma.user.findFirst({
     where: { username: 'admin' },
     select: { tenantId: true },
+    orderBy: { createdAt: 'asc' },
   });
   if (!admin?.tenantId) {
     throw new Error('No admin user in DB — seed (e.g. npx tsx src/server/seed.ts) and set VITE_TENANT_ID if needed.');
@@ -41,6 +90,7 @@ async function http(
 
 async function main() {
   const results: { step: string; ok: boolean; detail: string }[] = [];
+  const warnings: string[] = [];
 
   const healthUrl = 'http://localhost:4002/health';
   const health = await http('GET', healthUrl, {});
@@ -84,6 +134,17 @@ async function main() {
     'x-tenant-id': tenantId,
   });
 
+  const meRes = await fetch(`${API}/auth/me`, { headers: auth() });
+  if (meRes.ok) {
+    const meJson = (await meRes.json()) as { user?: { tenantId?: string } };
+    const authTenant = meJson.user?.tenantId?.trim();
+    if (authTenant && authTenant !== tenantId) {
+      warnings.push(
+        `Tenant mismatch: login requested tenant "${tenantId}" but auth/me resolved "${authTenant}".`,
+      );
+    }
+  }
+
   const checks: { step: string; path: string }[] = [
     { step: 'auth/me (session)', path: '/auth/me' },
     { step: 'Dashboard: analytics/members', path: '/analytics/members' },
@@ -103,6 +164,8 @@ async function main() {
     { step: 'Structure campuses', path: '/structure/campuses' },
     { step: 'Giving campaigns', path: '/giving/campaigns' },
     { step: 'Accounting accounts', path: '/finance/accounts' },
+    { step: 'Finance document registry', path: '/finance/documents/registry?limit=5&docType=all' },
+    { step: 'Finance receipts list', path: '/finance/receipts?limit=5' },
     { step: 'Assets', path: '/assets' },
     { step: 'Documents', path: '/documents' },
     { step: 'Sermons', path: '/website/sermons' },
@@ -122,11 +185,131 @@ async function main() {
     }
   }
 
-  const uiGet = await http('GET', `${UI}/`, {});
-  results.push({ step: `GET UI ${UI}/`, ok: uiGet.ok, detail: `${uiGet.status}` });
+  // Deep tenant safety check: permission roles payload must not include foreign tenant rows.
+  try {
+    const rolesRes = await fetch(`${API}/permissions/roles`, { headers: auth() });
+    if (rolesRes.ok) {
+      const rolesPayload = (await rolesRes.json()) as {
+        status?: string;
+        data?: Array<{ tenantId?: string | null; id?: string; name?: string }>;
+      };
+      const roles = Array.isArray(rolesPayload.data) ? rolesPayload.data : [];
+      const leakedRoles = roles.filter(
+        (r) => r.tenantId != null && String(r.tenantId).trim() !== tenantId,
+      );
+      if (leakedRoles.length > 0) {
+        warnings.push(
+          `Permissions roles payload contains ${leakedRoles.length} foreign-tenant row(s): ${leakedRoles
+            .map((r) => `${r.name ?? r.id}@${r.tenantId}`)
+            .join(', ')}`,
+        );
+      }
+    } else {
+      warnings.push(`Permissions role integrity check skipped: /permissions/roles returned ${rolesRes.status}.`);
+    }
+  } catch (err) {
+    warnings.push(`Permissions role integrity check failed to execute: ${String(err)}`);
+  }
+
+  let uiGet: { ok: boolean; status: number; snippet: string } | null = null;
+  let uiBaseUsed = UI;
+  try {
+    uiGet = await http('GET', `${UI}/`, {});
+  } catch (err) {
+    const fallback = loopbackFallback(UI);
+    if (!fallback) throw err;
+    uiBaseUsed = fallback;
+    uiGet = await http('GET', `${fallback}/`, {});
+    warnings.push(`UI base ${UI} unreachable; fell back to ${fallback}.`);
+  }
+  results.push({ step: `GET UI ${uiBaseUsed}/`, ok: uiGet.ok, detail: `${uiGet.status}` });
+
+  const [memberCount, familyCount, eventCount, attendanceCount, donationCount, sermonCount] = await Promise.all([
+    prisma.member.count({ where: { tenantId } }),
+    prisma.family.count({ where: { tenantId } }),
+    prisma.event.count({ where: { tenantId } }),
+    prisma.attendance.count({ where: { tenantId } }),
+    prisma.donation.count({ where: { tenantId } }),
+    prisma.sermon.count({ where: { tenantId } }),
+  ]);
+  const dataCompleteness: CountRow[] = [
+    { label: 'members', count: memberCount },
+    { label: 'families', count: familyCount },
+    { label: 'events', count: eventCount },
+    { label: 'attendance', count: attendanceCount },
+    { label: 'donations', count: donationCount },
+    { label: 'sermons', count: sermonCount },
+  ];
+  if (memberCount === 0) warnings.push('No members found for tenant.');
+  if (eventCount === 0) warnings.push('No events found for tenant.');
+  if (donationCount === 0) warnings.push('No donations found for tenant.');
+
+  const [roleTenantDriftRows, orphanCareNotesRows, duplicateEmailsRows] = await Promise.all([
+    prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "User" u
+      JOIN "Role" r ON r.id = u."roleId"
+      WHERE u."tenantId" = ${tenantId}
+        AND r."tenantId" IS NOT NULL
+        AND r."tenantId" <> u."tenantId"
+    `,
+    prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "CareNote" cn
+      LEFT JOIN "User" u ON u.id = cn."authorId"
+      WHERE cn."tenantId" = ${tenantId}
+        AND u.id IS NULL
+    `,
+    prisma.$queryRaw<{ duplicates: bigint }[]>`
+      SELECT COUNT(*)::bigint AS duplicates
+      FROM (
+        SELECT lower(trim(email)) AS normalized_email
+        FROM "Member"
+        WHERE "tenantId" = ${tenantId}
+          AND email IS NOT NULL
+          AND trim(email) <> ''
+        GROUP BY lower(trim(email))
+        HAVING COUNT(*) > 1
+      ) d
+    `,
+  ]);
+
+  const roleTenantDrift = Number(roleTenantDriftRows[0]?.count ?? 0n);
+  const orphanCareNotes = Number(orphanCareNotesRows[0]?.count ?? 0n);
+  const duplicateMemberEmailBuckets = Number(duplicateEmailsRows[0]?.duplicates ?? 0n);
+
+  if (roleTenantDrift > 0) {
+    warnings.push(`Found ${roleTenantDrift} user->role tenant mismatch row(s).`);
+  }
+  if (orphanCareNotes > 0) {
+    warnings.push(`Found ${orphanCareNotes} care notes with missing author user.`);
+  }
+  if (duplicateMemberEmailBuckets > 0) {
+    warnings.push(`Found ${duplicateMemberEmailBuckets} duplicate member email bucket(s).`);
+  }
+
+  const placeholderSurfaces = discoverPlaceholderSurfaces();
 
   const failed = results.filter((x) => !x.ok);
-  console.log(JSON.stringify({ tenantId, passed: failed.length === 0, results }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        tenantId,
+        passed: failed.length === 0,
+        warnings,
+        results,
+        dataCompleteness,
+        integrity: {
+          roleTenantDrift,
+          orphanCareNotes,
+          duplicateMemberEmailBuckets,
+        },
+        placeholderSurfaces,
+      },
+      null,
+      2,
+    ),
+  );
   if (failed.length) process.exit(1);
 }
 

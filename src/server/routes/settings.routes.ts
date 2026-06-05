@@ -10,6 +10,7 @@ router.use(tenantMiddleware);
 router.use(authenticateToken);
 
 router.post('/', requirePermission('manage_settings'), SettingsController.upsertSetting as any);
+router.post('/test-cashfree', requirePermission('manage_settings'), SettingsController.testCashfree as any);
 router.get('/', requirePermission('manage_settings'), SettingsController.getSettings as any);
 router.get('/:key', requirePermission('manage_settings'), SettingsController.getSettingByKey as any);
 router.delete('/:key', requirePermission('manage_settings'), SettingsController.deleteSetting as any);

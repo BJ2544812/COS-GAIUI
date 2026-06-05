@@ -31,7 +31,9 @@ import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { SettingsModule } from '@/modules/settings/SettingsModule';
 import { PermissionsModule } from '@/modules/permissions/PermissionsModule';
 import { ERPModule } from '@/types';
-import { ModuleHeader, ActionButton, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, StatCard, SectionCard, PageLayout } from '@/components/modules/ModuleHeader';
+import { SubpageHeader } from '@/components/modules/SubpageHeader';
+import { ds } from '@/lib/designSystem';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { isUuid, servingTierForRole } from '@/lib/servingRoles';
@@ -290,7 +292,7 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
               </div>
               <div className="space-y-3 flex-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">{selectedCampus.name}</h1>
+                  <h1 className={ds.pageTitle}>{selectedCampus.name}</h1>
                   <Badge className="bg-indigo-50 text-indigo-700 border-none rounded-lg font-black text-[9px] uppercase tracking-widest">{selectedCampus.type}</Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-6 text-slate-500 font-bold uppercase tracking-widest text-[10px]">
@@ -507,7 +509,7 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <PageLayout>
       <ModuleHeader
         title="Church Structure"
         subtitle="Manage campuses, ministries, and organizational hierarchy."
@@ -619,6 +621,6 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -15,7 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { ModuleHeader } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 import { apiRequest, formatApiError, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
 import type { ERPModule } from '@/types';
@@ -332,7 +333,7 @@ export function SystemAdminCenterModule({
   ];
 
   return (
-    <div className="space-y-8">
+    <PageLayout>
       <ModuleHeader
         title="Church admin"
         subtitle="System status, backups, activity history, and data exports for your church"
@@ -776,6 +777,6 @@ export function SystemAdminCenterModule({
           setConfirmReplay(false);
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

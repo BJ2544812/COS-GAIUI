@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { RAZORPAY_WEBHOOK_QUEUE_NAME } from '../queue/razorpayWebhookQueue.js';
 import { getRedisOptional } from '../queue/redisConnection.js';
+import { registerWorker } from '../utils/workerRegistry.js';
 import { GivingService } from '../services/GivingService.js';
 import { triggerWebhookFailureAlert } from '../utils/alerting.js';
 
@@ -32,6 +33,8 @@ export function startRazorpayWebhookWorker(): void {
     console.error('[razorpay worker] could not start BullMQ worker; webhooks will use sync mode.', e);
     return;
   }
+  registerWorker(worker);
+
   worker.on('failed', (job, err) => {
     if (!job) return;
     const max = (job.opts.attempts as number) ?? DEFAULT_ATTEMPTS;

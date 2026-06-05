@@ -19,10 +19,14 @@ export const authenticateToken = (req: TenantRequest, res: Response, next: NextF
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     
-    // Ensure the token's tenant matches the requested tenant
-    if (decoded.tenantId !== req.tenantId) {
-      console.error(`[AUTH DEBUG] Tenant mismatch. Token: ${decoded.tenantId}, Req: ${req.tenantId}`);
-      return res.status(403).json({ error: 'Tenant mismatch in token' });
+    // JWT tenant is authoritative; repair stale x-tenant-id from outdated env/localStorage
+    if (decoded.tenantId && req.tenantId && decoded.tenantId !== req.tenantId) {
+      console.warn(
+        `[auth] x-tenant-id (${req.tenantId}) mismatches JWT (${decoded.tenantId}); using JWT tenant.`,
+      );
+      req.tenantId = decoded.tenantId;
+    } else if (decoded.tenantId && !req.tenantId) {
+      req.tenantId = decoded.tenantId;
     }
 
     try {
@@ -44,6 +48,10 @@ export const authenticateToken = (req: TenantRequest, res: Response, next: NextF
         return res.status(401).json({ error: 'User is inactive or not found' });
       }
 
+      if (decoded.tenantId && user.tenantId !== decoded.tenantId) {
+        return res.status(401).json({ error: 'Session invalid for this account. Please sign in again.' });
+      }
+
       if (!user.role) {
         console.error('[AUTH] User has no role row (orphaned roleId or DB inconsistency):', user.id, user.roleId);
         return res.status(401).json({
@@ -61,6 +69,29 @@ export const authenticateToken = (req: TenantRequest, res: Response, next: NextF
         role: user.role.name,
         permissions
       };
+
+      if (!permissions.includes('manage_settings') && req.tenantId) {
+        const maintRow = await prisma.setting.findUnique({
+          where: { tenantId_key: { tenantId: req.tenantId, key: 'tenant_maintenance_mode' } },
+        });
+        if (maintRow?.value) {
+          let maint: { enabled?: boolean; message?: string } = {};
+          try {
+            maint = JSON.parse(maintRow.value) as { enabled?: boolean; message?: string };
+          } catch {
+            maint = { enabled: maintRow.value === 'true' };
+          }
+          if (maint.enabled) {
+            return res.status(503).json({
+              status: 'error',
+              error: 'maintenance_mode',
+              message:
+                maint.message ??
+                'This church workspace is temporarily in maintenance. Please try again shortly.',
+            });
+          }
+        }
+      }
       
       console.log("[AUTH DEBUG] User authenticated:", {
         id: req.user.id,

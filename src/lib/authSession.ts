@@ -2,7 +2,7 @@
  * Central auth session: JWT + tenant for API access.
  * Keys: auth_token, auth_tenant_id
  */
-import { API_BASE_URL, VITE_TENANT_DEFAULT } from './apiConfig';
+import { resolveApiUrl, VITE_TENANT_DEFAULT } from './apiConfig';
 
 const TOKEN_KEY = 'auth_token';
 const TENANT_KEY = 'auth_tenant_id';
@@ -29,6 +29,45 @@ export function getTenantId(): string | null {
   } catch {
     return null;
   }
+}
+
+/** Decode tenant id from JWT payload (client-side hint only; server still verifies). */
+export function tenantIdFromJwt(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as { tenantId?: string };
+    return typeof json.tenantId === 'string' && json.tenantId.trim() ? json.tenantId.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Authoritative tenant for API calls: JWT first, then stored session, then env default.
+ * Repairs stale auth_tenant_id when it drifts from the active token.
+ */
+export function resolveActiveTenantId(): string {
+  const token = getToken();
+  const fromJwt = tenantIdFromJwt(token);
+  const stored = getTenantId()?.trim() || null;
+
+  if (fromJwt && stored && fromJwt !== stored) {
+    try {
+      localStorage.setItem(TENANT_KEY, fromJwt);
+    } catch {
+      /* ignore */
+    }
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[auth] Repaired tenant header: storage had "${stored}", JWT has "${fromJwt}".`,
+      );
+    }
+    return fromJwt;
+  }
+
+  return fromJwt || stored || VITE_TENANT_DEFAULT;
 }
 
 /**
@@ -77,6 +116,7 @@ export function clearToken(): void {
 
 export interface LoginResult {
   token: string;
+  tenantId: string;
   user: {
     id: string;
     username: string;
@@ -94,8 +134,7 @@ export async function loginWithCredentials(
   tenantId: string,
 ): Promise<LoginResult> {
   const u = String(username).trim();
-  const base = API_BASE_URL.replace(/\/$/, '');
-  const url = `${base}/auth/login`;
+  const url = resolveApiUrl('auth/login');
   let res: Response;
   try {
     res = await fetch(url, {
@@ -109,7 +148,7 @@ export async function loginWithCredentials(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(
-      `Cannot reach the API (${url}). Start the backend on port 4002 (e.g. npm run dev:server) and ensure Vite proxy matches. ${msg}`,
+      `Cannot reach the API (${url}). Start the backend on port 4002 (e.g. npm run dev:server) and open the UI on port 3001. ${msg}`,
     );
   }
   const text = await res.text();
@@ -135,8 +174,13 @@ export async function loginWithCredentials(
       typeof parsed.error === 'string' ? parsed.error : 'Invalid response from server',
     );
   }
+  const tenantFromApi = typeof parsed.tenantId === 'string' ? parsed.tenantId.trim() : '';
+  const tenantFromJwt = tenantIdFromJwt(parsed.token);
+  const resolvedTenantId =
+    tenantFromApi || tenantFromJwt || tenantId.trim() || VITE_TENANT_DEFAULT;
   return {
     token: parsed.token,
+    tenantId: resolvedTenantId,
     user: parsed.user as LoginResult['user'],
   };
 }

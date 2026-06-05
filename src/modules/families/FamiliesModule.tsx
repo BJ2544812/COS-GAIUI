@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { buildMemberProfilePath } from '@/lib/adminNavigation';
 import {
   Home, Users, Search, Plus, ChevronRight, Mail, Phone,
   UserCircle, Image as ImageIcon, Link2, ArrowLeft
@@ -6,9 +8,12 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
+import { createFamily, uploadFamilyImage } from '@/modules/members/memberApi';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard, EmptyState } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, EmptyState, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { cn } from '@/lib/utils';
@@ -36,13 +41,26 @@ interface Family {
 }
 
 export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
+  const navigate = useNavigate();
+  const openMemberProfile = React.useCallback(
+    (memberId: string) => navigate(buildMemberProfilePath(memberId)),
+    [navigate],
+  );
   const [families, setFamilies] = React.useState<Family[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const familyId = searchParams.get('familyId');
   const [search, setSearch] = React.useState('');
-  const [selectedFamily, setSelectedFamily] = React.useState<Family | null>(null);
   const [familyMembers, setFamilyMembers] = React.useState<FamilyMember[]>([]);
+  const selectedFamily = React.useMemo(() => families.find(f => f.id === familyId) || null, [families, familyId]);
   const [loadingMembers, setLoadingMembers] = React.useState(false);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [addName, setAddName] = React.useState('');
+  const [addSaving, setAddSaving] = React.useState(false);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
+  const familyPhotoRef = React.useRef<HTMLInputElement>(null);
 
   const refreshFamilies = React.useCallback(async () => {
     try {
@@ -70,10 +88,10 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
     return () => window.removeEventListener('kos:families-refresh', onRefresh);
   }, [refreshFamilies]);
 
-  const fetchFamilyMembers = async (familyId: string) => {
+  const fetchFamilyMembers = React.useCallback(async (fId: string) => {
     try {
       setLoadingMembers(true);
-      const res = await apiRequest(`members?familyId=${encodeURIComponent(familyId)}`);
+      const res = await apiRequest(`members?familyId=${encodeURIComponent(fId)}`);
       const data = parseApiResponse<FamilyMember[]>(res);
       if (data) setFamilyMembers(data);
     } catch {
@@ -81,17 +99,60 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
     } finally {
       setLoadingMembers(false);
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    if (familyId) {
+      void fetchFamilyMembers(familyId);
+    } else {
+      setFamilyMembers([]);
+    }
+  }, [familyId, fetchFamilyMembers]);
 
   const handleSelectFamily = (family: Family) => {
-    setSelectedFamily(family);
-    setFamilyMembers([]);
-    fetchFamilyMembers(family.id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('familyId', family.id);
+      return next;
+    });
   };
 
   const handleBack = () => {
-    setSelectedFamily(null);
-    setFamilyMembers([]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('familyId');
+      return next;
+    });
+  };
+
+  const handleCreateFamily = async () => {
+    const name = addName.trim();
+    if (!name) return;
+    try {
+      setAddSaving(true);
+      setAddError(null);
+      await createFamily({ name });
+      setAddOpen(false);
+      setAddName('');
+      await refreshFamilies();
+    } catch (e: any) {
+      setAddError(e?.message || 'Failed to create family');
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+  const handleFamilyPhoto = async (file: File) => {
+    if (!selectedFamily) return;
+    try {
+      setUploadingPhoto(true);
+      const url = await uploadFamilyImage(selectedFamily.id, file);
+      await refreshFamilies();
+    } catch {
+      /* ignore */
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const filteredFamilies = families.filter(f =>
@@ -118,15 +179,16 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
           {/* Family Card */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="h-36 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center relative overflow-hidden">
+              <div className="h-40 relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700">
                 {selectedFamily.imageUrl ? (
-                  <img src={`${SERVER_ROOT}${selectedFamily.imageUrl}`} alt={selectedFamily.name} className="w-full h-full object-cover" />
+                  <img src={`${SERVER_ROOT}${selectedFamily.imageUrl}`} alt="" className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
                   <>
                     <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
-                    <Home className="w-14 h-14 text-white/60" />
+                    <Home className="relative z-10 w-14 h-14 text-white/60" />
                   </>
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent pointer-events-none" />
               </div>
               <div className="p-5">
                 <h3 className="text-lg font-black text-slate-900">{selectedFamily.name}</h3>
@@ -141,8 +203,9 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
                       <span className="flex items-center gap-2"><UserCircle size={14} /> Add Member</span>
                       <ChevronRight size={14} />
                     </button>
-                    <button className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-indigo-50 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 transition-colors">
-                      <span className="flex items-center gap-2"><ImageIcon size={14} /> Update Photo</span>
+                    <input ref={familyPhotoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFamilyPhoto(f); e.target.value = ''; }} />
+                    <button type="button" disabled={uploadingPhoto} onClick={() => familyPhotoRef.current?.click()} className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-indigo-50 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 transition-colors">
+                      <span className="flex items-center gap-2"><ImageIcon size={14} /> {uploadingPhoto ? 'Uploading…' : 'Update Photo'}</span>
                       <ChevronRight size={14} />
                     </button>
                   </div>
@@ -184,7 +247,19 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
               ) : (
                 <div className="divide-y divide-slate-50">
                   {familyMembers.map((member) => (
-                    <div key={member.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
+                    <div
+                      key={member.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openMemberProfile(member.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openMemberProfile(member.id);
+                        }
+                      }}
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group cursor-pointer"
+                    >
                       <AppAvatar
                         src={member.profileImageUrl ? `${SERVER_ROOT}${member.profileImageUrl}` : undefined}
                         name={member.name}
@@ -227,16 +302,16 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
 
   // --- DIRECTORY VIEW ---
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <PageLayout>
       <ModuleHeader
         title="Families"
         subtitle="Household groups, family units, and relationship hierarchy"
-        status="partial"
         icon={Home}
         actions={
-          <Button className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] uppercase tracking-widest gap-2 shadow-sm" onClick={() => onModuleChange?.('members')}>
-            <Link2 size={14} /> Manage Members
-          </Button>
+          <>
+            <ActionButton label="Manage members" icon={Link2} variant="secondary" onClick={() => onModuleChange?.('members')} />
+            <ActionButton label="Add household" icon={Plus} variant="primary" onClick={() => { setAddError(null); setAddName(''); setAddOpen(true); }} />
+          </>
         }
       />
 
@@ -354,6 +429,25 @@ export function FamiliesModule({ onModuleChange }: FamiliesModuleProps) {
           </div>
         </div>
       )}
-    </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black">Create household</DialogTitle>
+            <DialogDescription className="text-xs font-medium">Add a family unit, then link members from their profiles.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Sharma Family" className="h-11 font-bold" />
+            {addError && <p className="text-sm font-bold text-rose-600">{addError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleCreateFamily()} disabled={addSaving || !addName.trim()} className="bg-indigo-600 text-white font-black">
+              {addSaving ? 'Saving…' : 'Create family'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageLayout>
   );
 }

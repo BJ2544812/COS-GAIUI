@@ -9,7 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard, SectionCard, EmptyState, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, SectionCard, EmptyState, PageLayout, ActionButton, FeedbackBanner } from '@/components/modules/ModuleHeader';
 import { AppAvatar } from '@/components/ui/app-avatar';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
@@ -814,6 +814,21 @@ export function WorkforceModule({ onModuleChange, initialTab }: WorkforceModuleP
           </>
         }
       />
+
+      {error && (
+        <div className="space-y-3">
+          <FeedbackBanner tone="error">{error}</FeedbackBanner>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl font-bold"
+            onClick={() => void loadAllHRData()}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry loading
+          </Button>
+        </div>
+      )}
 
       {/* --- PREMIUM METRICS BAR --- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -1660,13 +1675,9 @@ export function WorkforceModule({ onModuleChange, initialTab }: WorkforceModuleP
                             INR {(Number(s.baseSalary) + Number(s.allowances) - Number(s.deductions)).toLocaleString()}
                           </span>
                         </div>
-                        <Button
-                          onClick={() => alert('Payslip PDF export is planned for V1.5 — amounts are recorded in Finance payroll runs.')}
-                          size="sm"
-                          className="w-full h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-widest gap-2 mt-2"
-                        >
-                          <Download size={10} /> Download PDF Payslip
-                        </Button>
+                        <p className="text-[10px] text-slate-500 font-semibold mt-2 leading-relaxed">
+                          Payslip PDF export is not available in this release. Review posted amounts in Finance payroll runs.
+                        </p>
                       </>
                     ) : (
                       <p className="text-[11px] text-slate-500 font-semibold pt-2 border-t border-slate-200/50">

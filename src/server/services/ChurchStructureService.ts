@@ -1,5 +1,17 @@
 
 import { ChurchStructureRepository } from '../repositories/ChurchStructureRepository.js';
+import { MemberResponsibilityRepository } from '../repositories/MemberProfileRepository.js';
+import { prisma } from '../utils/prisma.js';
+import { isUuid, servingTierForRole } from '../utils/servingRoles.js';
+
+function mapCampusLeaderFields<T extends { leader?: string | null }>(campus: T) {
+  const leader = campus.leader ?? null;
+  return {
+    ...campus,
+    leaderId: leader && isUuid(leader) ? leader : null,
+    leaderLabel: leader && !isUuid(leader) ? leader : null,
+  };
+}
 
 export class ChurchStructureService {
   // --- Campuses ---
@@ -10,13 +22,14 @@ export class ChurchStructureService {
   }
 
   static async getCampuses(tenantId: string) {
-    return ChurchStructureRepository.getCampuses(tenantId);
+    const campuses = await ChurchStructureRepository.getCampuses(tenantId);
+    return campuses.map((c) => mapCampusLeaderFields(c));
   }
 
   static async getCampusHierarchy(tenantId: string, campusId: string) {
     const campus = await ChurchStructureRepository.getCampusById(tenantId, campusId);
     if (!campus) throw new Error('Campus not found');
-    return campus;
+    return mapCampusLeaderFields(campus);
   }
 
   static async updateCampus(tenantId: string, id: string, data: any) {
@@ -31,8 +44,70 @@ export class ChurchStructureService {
     return ChurchStructureRepository.createMinistry(tenantId, rest);
   }
 
-  static async getMinistries(tenantId: string, campusId?: string) {
-    return ChurchStructureRepository.getMinistries(tenantId, campusId);
+  static async getMinistries(tenantId: string, campusId?: string, enrichLeaders = true) {
+    const ministries = await ChurchStructureRepository.getMinistries(tenantId, campusId);
+    if (!enrichLeaders || ministries.length === 0) return ministries;
+
+    const ids = ministries.map((m) => m.id);
+    const assignments = await prisma.memberResponsibility.findMany({
+      where: {
+        tenantId,
+        entityType: 'Ministry',
+        entityId: { in: ids },
+        status: 'Active',
+      },
+      include: { member: { select: { id: true, name: true, profileImageUrl: true, role: true } } },
+    });
+
+    const byMinistry = new Map<string, typeof assignments>();
+    for (const a of assignments) {
+      if (!a.entityId) continue;
+      const list = byMinistry.get(a.entityId) ?? [];
+      list.push(a);
+      byMinistry.set(a.entityId, list);
+    }
+
+    return ministries.map((m) => {
+      const list = byMinistry.get(m.id) ?? [];
+      const sorted = [...list].sort((a, b) => {
+        const ta = servingTierForRole(a.role);
+        const tb = servingTierForRole(b.role);
+        if (ta !== tb) return ta.localeCompare(tb);
+        return a.role.localeCompare(b.role);
+      });
+      const lead = sorted.find((r) => servingTierForRole(r.role) !== 'Volunteer') ?? sorted[0];
+      return {
+        ...m,
+        leaderName: lead?.member?.name ?? null,
+        leaderRole: lead?.role ?? null,
+        leaderImageUrl: lead?.member?.profileImageUrl ?? null,
+        activeServingCount: list.length,
+      };
+    });
+  }
+
+  static async getMinistryRoster(tenantId: string, ministryId: string) {
+    const ministry = await prisma.ministry.findFirst({ where: { id: ministryId, tenantId } });
+    if (!ministry) throw new Error('Ministry not found');
+    const assignments = await MemberResponsibilityRepository.findByEntity(tenantId, 'Ministry', ministryId);
+    const roster = assignments.map((a) => ({
+      id: a.id,
+      memberId: a.memberId,
+      role: a.role,
+      entityType: a.entityType,
+      entityId: a.entityId,
+      status: a.status,
+      startDate: a.startDate,
+      endDate: a.endDate,
+      notes: a.notes,
+      tier: servingTierForRole(a.role),
+      member: (a as any).member,
+    }));
+    roster.sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'Active' ? -1 : 1;
+      return servingTierForRole(a.role).localeCompare(servingTierForRole(b.role));
+    });
+    return { ministry, roster };
   }
 
   static async updateMinistry(tenantId: string, id: string, data: any) {

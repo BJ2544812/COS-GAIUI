@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, PageLayout, FeedbackBanner } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 import { cn } from '@/lib/utils';
 
 type Tab = 'overview' | 'members' | 'giving';
@@ -119,37 +120,21 @@ export function AnalyticsModule({ onModuleChange }: { onModuleChange?: (module: 
   ];
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 text-left pb-16">
+    <PageLayout>
       <ModuleHeader
         title="Reports"
         subtitle="Member, giving, and attendance summaries your leadership team can read at a glance."
-        status="partial"
         icon={BarChart3}
       />
 
-      {loadError && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 font-medium" role="status">
-          {loadError}
-        </div>
-      )}
+      {loadError && <FeedbackBanner tone="warning">{loadError}</FeedbackBanner>}
 
-      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-[1.5rem] w-fit">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={cn(
-              'px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-              tab === t.id
-                ? 'bg-white text-indigo-600 shadow-md shadow-indigo-100/50'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-white/60',
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={tabs}
+        activeId={tab}
+        onChange={(id) => setTab(id as typeof tab)}
+        aria-label="Report sections"
+      />
 
       {tab === 'overview' && (
         <div className="space-y-8">
@@ -467,6 +452,6 @@ export function AnalyticsModule({ onModuleChange }: { onModuleChange?: (module: 
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -40,7 +40,14 @@ export class AuthController {
       res.status(200).json({
         status: 'success',
         token,
-        user: { id: user.id, username: user.username, role: user.role.name, permissions }
+        tenantId,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role.name,
+          permissions,
+          tenantId,
+        },
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -122,6 +129,13 @@ export class AuthController {
 
   static async setupTenant(req: TenantRequest, res: Response) {
     try {
+      const existing = await prisma.tenant.count();
+      if (existing > 0) {
+        return res.status(409).json({
+          error: 'A tenant already exists. Use the login screen or run migrations on an existing deployment.',
+        });
+      }
+
       const { tenantName, adminUsername, adminPassword, adminEmail } = req.body;
 
       const tenant = await prisma.tenant.create({

@@ -19,10 +19,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
-import { SectionCard, EmptyState, LoadingSkeleton, ActionButton } from '@/components/modules/ModuleHeader';
+import { SectionCard, EmptyState, LoadingSkeleton, ActionButton, ModuleHeader, PageLayout, StatCard } from '@/components/modules/ModuleHeader';
 import { cn } from '@/lib/utils';
+import type { ERPModule } from '@/types';
+import { normalizeAdminModule } from '@/lib/adminNavigation';
+import { useOperationalSocket } from '@/hooks/useOperationalSocket';
 
-export function NotificationsModule() {
+function openNotificationAction(
+  n: { actionType?: string | null; actionLink?: string | null },
+  onNavigate?: (m: ERPModule, tab?: string) => void,
+) {
+  const link = (n.actionLink || '').trim();
+  if (!link) return;
+  const target = normalizeAdminModule(link);
+  onNavigate?.(target.module, target.tab);
+}
+
+export function NotificationsModule({ onModuleChange }: { onModuleChange?: (m: ERPModule, tab?: string) => void }) {
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState<'all' | 'unread'>('all');
@@ -37,6 +50,7 @@ export function NotificationsModule() {
   };
 
   React.useEffect(() => { load(); }, []);
+  useOperationalSocket(() => { void load(); });
 
   const markRead = async (id: string) => {
     await apiRequest(`notifications/${id}/read`, { method: 'POST' });
@@ -58,45 +72,40 @@ export function NotificationsModule() {
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
-            Notification Command
+    <PageLayout>
+      <ModuleHeader
+        title="Notifications"
+        subtitle="Delivery activity, unread items, and channel monitoring."
+        icon={Bell}
+        actions={
+          <>
+            <ActionButton label="Refresh" icon={RefreshCw} variant="secondary" onClick={load} />
             {unreadCount > 0 && (
-              <Badge className="bg-rose-500 text-white border-none px-3 py-1 text-xs font-black rounded-full animate-pulse">
-                {unreadCount} NEW
-              </Badge>
+              <ActionButton label={`Mark all read (${unreadCount})`} icon={CheckCircle2} variant="primary" onClick={markAllRead} />
             )}
-          </h1>
-          <p className="text-slate-500 font-medium mt-1">System-wide delivery analytics, unread activity, and channel monitoring.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ActionButton label="Refresh" icon={RefreshCw} variant="secondary" onClick={load} />
-          {unreadCount > 0 && <ActionButton label="Clear All" icon={CheckCircle2} variant="primary" onClick={markAllRead} />}
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {/* Analytics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         {[
-            { label: 'Push Notifications', value: '94%', icon: Smartphone, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-            { label: 'Email Delivery', value: '99.2%', icon: Mail, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'SMS Velocity', value: '42/min', icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Open Rate Avg', value: '68%', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-         ].map((stat) => (
-            <Card key={stat.label} className="border-none shadow-sm rounded-3xl bg-white p-6">
-               <div className="flex items-center gap-4">
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", stat.bg, stat.color)}>
-                     <stat.icon size={20} />
-                  </div>
-                  <div>
-                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
-                     <p className="text-xl font-black text-slate-900 tracking-tight">{stat.value}</p>
-                  </div>
-               </div>
-            </Card>
-         ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+         <StatCard label="Total" value={notifications.length} icon={Bell} loading={loading} />
+         <StatCard label="Unread" value={unreadCount} icon={Zap} iconColor="text-amber-600" iconBg="bg-amber-50" loading={loading} />
+         <StatCard
+           label="High priority"
+           value={notifications.filter((n) => n.priority === 'HIGH').length}
+           icon={AlertTriangle}
+           iconColor="text-rose-600"
+           iconBg="bg-rose-50"
+           loading={loading}
+         />
+         <StatCard
+           label="Actionable"
+           value={notifications.filter((n) => n.actionLink).length}
+           icon={CheckCircle2}
+           iconColor="text-emerald-600"
+           iconBg="bg-emerald-50"
+           loading={loading}
+         />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
@@ -160,7 +169,20 @@ export function NotificationsModule() {
                                        {new Date(n.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                                        {' · '}{n.type}
                                     </p>
-                                    <Badge className="bg-slate-100 text-slate-500 border-none text-[8px] font-black uppercase">Delivered</Badge>
+                                    {n.actionLink && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-[9px] font-black uppercase h-7"
+                                        onClick={() => {
+                                          void markRead(n.id);
+                                          openNotificationAction(n, onModuleChange);
+                                        }}
+                                      >
+                                        Open
+                                      </Button>
+                                    )}
                                  </div>
                               </div>
                            </div>
@@ -216,7 +238,7 @@ export function NotificationsModule() {
             </Card>
          </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, PageLayout } from '@/components/modules/ModuleHeader';
 import { cn } from '@/lib/utils';
 
 interface SermonsModuleProps {
@@ -131,7 +131,7 @@ export function SermonsModule({ onModuleChange }: SermonsModuleProps) {
   const librarySermons = sermons.slice(1);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 text-left">
+    <PageLayout>
       <ModuleHeader
         title="Sermons"
         subtitle="Create messages with video links, notes, scripture, and speaker — published items can surface on the public site when your website uses sermon sections."
@@ -360,6 +360,6 @@ export function SermonsModule({ onModuleChange }: SermonsModuleProps) {
           )}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

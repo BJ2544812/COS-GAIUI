@@ -21,12 +21,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { PageLayout, ModuleHeader } from '@/components/modules/ModuleHeader';
+import { ds } from '@/lib/designSystem';
 
 export function ProfileModule() {
   const { user, logout } = useAuth();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <PageLayout className="max-w-5xl mx-auto">
       {/* Hero Section */}
       <div className="relative">
         <div className="h-48 w-full bg-gradient-to-r from-indigo-600 to-indigo-900 rounded-[3rem] overflow-hidden shadow-xl shadow-indigo-100">
@@ -46,7 +48,7 @@ export function ProfileModule() {
           </div>
           
           <div className="pb-4 space-y-1">
-            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">{user?.username ?? 'User'}</h1>
+            <h1 className={ds.pageTitle}>{user?.username ?? 'User'}</h1>
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="bg-emerald-500 text-white border-none font-black text-[9px] uppercase tracking-widest px-3 py-1">Active Now</Badge>
               <span className="text-slate-400 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
@@ -140,26 +142,11 @@ export function ProfileModule() {
                  <Button variant="ghost" size="sm" className="font-black uppercase text-[10px] tracking-widest text-indigo-600">Full History</Button>
                </div>
              </CardHeader>
-             <CardContent className="p-0">
-                {[
-                  { action: 'System Login', details: 'Successful authentication from Chrome (Win)', date: '2 mins ago', icon: Lock, color: 'bg-emerald-50 text-emerald-600' },
-                  { action: 'Website Update', details: 'Published Home Page changes', date: '4 hours ago', icon: Activity, color: 'bg-blue-50 text-blue-600' },
-                  { action: 'Access review', details: 'Verified role settings for staff', date: 'Yesterday', icon: Shield, color: 'bg-indigo-50 text-indigo-600' },
-                  { action: 'Permissions updated', details: 'Church access settings refreshed', date: '1 day ago', icon: History, color: 'bg-amber-50 text-amber-600' },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-6 p-8 hover:bg-slate-50/50 transition-all border-b border-slate-50 last:border-0 group cursor-pointer">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105", item.color)}>
-                      <item.icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="font-black text-slate-800 text-sm tracking-tight group-hover:text-indigo-600 transition-colors uppercase">{item.action}</p>
-                      <p className="text-xs text-slate-500 font-medium">{item.details}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.date}</span>
-                    </div>
-                  </div>
-                ))}
+             <CardContent className="p-10">
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                  Recent sign-ins and changes will appear here when your church connects activity logging.
+                  Open <span className="font-bold text-slate-700">Change history</span> from the menu for full records.
+                </p>
              </CardContent>
            </Card>
 
@@ -185,6 +172,6 @@ export function ProfileModule() {
            </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

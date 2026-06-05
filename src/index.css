@@ -142,3 +142,18 @@
     @apply font-sans;
     }
 }
+
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ERP module page rhythm — used by PageLayout */
+  .module-page {
+    @apply min-w-0 max-w-[1600px] mx-auto w-full;
+  }
+
+  .erp-focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 focus-visible:ring-offset-2;
+  }
+}

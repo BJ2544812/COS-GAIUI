@@ -1,5 +1,7 @@
 import { AttendanceRepository } from '../repositories/AttendanceRepository.js';
 import { Prisma } from '@prisma/client';
+import { broadcastScoped } from '../realtime/socketHub.js';
+import { RT } from '../utils/realtimeEvents.js';
 
 export class AttendanceService {
   // Session Service
@@ -21,7 +23,17 @@ export class AttendanceService {
 
   // Attendance Service
   static async recordAttendance(tenantId: string, data: Omit<Prisma.AttendanceUncheckedCreateInput, 'tenant'>) {
-    return AttendanceRepository.recordAttendance(tenantId, data as any);
+    const record = await AttendanceRepository.recordAttendance(tenantId, data as any);
+    const sessionId = (data as { sessionId?: string }).sessionId;
+    if (sessionId) {
+      const session = await AttendanceRepository.getSessionById(tenantId, sessionId);
+      broadcastScoped(
+        { tenantId, eventId: session?.eventId ?? undefined },
+        RT.ATTENDANCE_UPDATE,
+        { sessionId, recordId: record.id },
+      );
+    }
+    return record;
   }
 
   static async getRecordsBySession(tenantId: string, sessionId: string) {

@@ -22,6 +22,8 @@ export default defineConfig(({mode}) => {
     },
     server: {
       port: 3001,
+      /** IPv4 loopback — avoids Windows dev-only [::1] bind where 127.0.0.1 refuses connection. */
+      host: '127.0.0.1',
       /**
        * Allow fallback if 3001 is taken during local dev. CI passes `--strictPort` on the CLI
        * (see playwright.config.ts) so automated runs still fail loudly on port conflict.
@@ -31,12 +33,12 @@ export default defineConfig(({mode}) => {
        * When HMR is off (Playwright / parallel Vite), also disable Vite's dev WebSocket server.
        * Otherwise Vite may fall back to a dedicated listener on the default HMR port (24678) and
        * collide with another dev instance: "WebSocket server error: Port 24678 is already in use".
-       * Bind to IPv4 loopback so Playwright's `http://127.0.0.1:<port>` readiness checks match
-       * Windows behavior where `localhost` may not accept IPv4 connections.
        */
-      ...(disableHmr
-        ? {hmr: false as const, ws: false as const, host: '127.0.0.1' as const}
-        : {}),
+      ...(disableHmr ? {hmr: false as const, ws: false as const} : {}),
+      /** Reduce stale-module issues during stabilization QA (hard refresh still recommended). */
+      headers: {
+        'Cache-Control': 'no-store',
+      },
       proxy: {
         '/api': {
           target: apiProxyTarget,
@@ -51,6 +53,11 @@ export default defineConfig(({mode}) => {
         '/health': {
           target: apiProxyTarget,
           changeOrigin: true,
+        },
+        '/socket.io': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          ws: true,
         },
       },
     },

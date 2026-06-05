@@ -8,7 +8,13 @@ export class PermissionController {
   static async getRoles(req: TenantRequest, res: Response) {
     try {
       const roles = await prisma.role.findMany({
-        where: { OR: [{ tenantId: req.tenantId }, { isSystem: true }] },
+        where: {
+          OR: [
+            { tenantId: req.tenantId },
+            // Global system roles are tenant-agnostic; do not leak tenant-bound "system" rows.
+            { isSystem: true, tenantId: null },
+          ],
+        },
         include: { rolePermissions: { include: { permission: true } } },
         orderBy: { name: 'asc' }
       });
@@ -35,6 +41,17 @@ export class PermissionController {
 
       let role;
       if (id) {
+        const existingRole = await prisma.role.findFirst({
+          where: { id, tenantId },
+          select: { id: true, isSystem: true },
+        });
+        if (!existingRole) {
+          return res.status(404).json({ error: 'Role not found for this tenant' });
+        }
+        if (existingRole.isSystem) {
+          return res.status(403).json({ error: 'System roles cannot be modified' });
+        }
+
         // Update
         role = await prisma.role.update({
           where: { id },
@@ -71,10 +88,13 @@ export class PermissionController {
     try {
       const id = req.params.id as string;
       
-      const role = await prisma.role.findUnique({ 
-        where: { id },
+      const role = await prisma.role.findFirst({ 
+        where: { id, tenantId: req.tenantId },
         include: { users: true }
       });
+      if (!role) {
+        return res.status(404).json({ error: 'Role not found for this tenant' });
+      }
 
       if (role?.isSystem) {
         return res.status(403).json({ error: 'System roles cannot be deleted' });
@@ -123,9 +143,27 @@ export class PermissionController {
     try {
       const { id, username, email, password, roleId, status } = req.body;
       const tenantId = req.tenantId!;
+      const role = await prisma.role.findFirst({
+        where: {
+          id: roleId,
+          OR: [{ tenantId }, { isSystem: true, tenantId: null }],
+        },
+        select: { id: true },
+      });
+      if (!role) {
+        return res.status(400).json({ error: 'Role is not available for this tenant' });
+      }
 
       if (id) {
         // Update
+        const existingUser = await prisma.user.findFirst({
+          where: { id, tenantId },
+          select: { id: true },
+        });
+        if (!existingUser) {
+          return res.status(404).json({ error: 'User not found for this tenant' });
+        }
+
         const data: any = { username, email, roleId, status };
         if (password) {
           data.password = await bcrypt.hash(password, 10);

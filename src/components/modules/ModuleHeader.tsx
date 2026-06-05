@@ -1,16 +1,19 @@
 /**
  * ModuleHeader — consistent top section for every admin module.
- * Provides: title, subtitle, status badge, breadcrumb, and action slot.
+ * Provides: title, subtitle, breadcrumb, and action slot.
  */
 import React from 'react';
-import { CheckCircle2, Clock, Cpu, Construction, FlaskConical, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ModuleStatus, ERPModule } from '@/types';
+import { ds } from '@/lib/designSystem';
+
+export { ds };
 
 interface ModuleHeaderProps {
   title: string;
   subtitle?: React.ReactNode;
-  status?: ModuleStatus;
+  /** Legacy prop kept for compatibility; no user-facing status chips are rendered. */
+  status?: string;
   /** Breadcrumb path e.g. ['Finance', 'Accounting'] */
   breadcrumb?: string[];
   /** Right-side action buttons */
@@ -19,23 +22,32 @@ interface ModuleHeaderProps {
   icon?: React.ComponentType<{ className?: string }>;
 }
 
-const STATUS_MAP: Record<ModuleStatus, { label: string; icon: React.ComponentType<{ className?: string }>; classes: string }> = {
-  live:            { label: 'Live',             icon: CheckCircle2,  classes: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  operational:     { label: 'Operational',     icon: CheckCircle2,  classes: 'bg-teal-50 text-teal-800 border-teal-200' },
-  partial:         { label: 'Partial',         icon: Clock,         classes: 'bg-amber-50 text-amber-700 border-amber-200' },
-  prototype:       { label: 'Prototype',       icon: FlaskConical,  classes: 'bg-orange-50 text-orange-800 border-orange-200' },
-  placeholder:     { label: 'Placeholder',   icon: Construction,  classes: 'bg-slate-100 text-slate-600 border-slate-200' },
-  'backend-ready': { label: 'Backend Ready',   icon: Cpu,           classes: 'bg-blue-50 text-blue-700 border-blue-200' },
-  planned:         { label: 'Planned',         icon: Construction,  classes: 'bg-slate-50 text-slate-500 border-slate-200' },
-  experimental:    { label: 'Experimental',    icon: FlaskConical,  classes: 'bg-purple-50 text-purple-700 border-purple-200' },
-};
+/** Standard page wrapper — spacing, min-width, animation. */
+export function PageLayout({ children, className, tight }: { children: React.ReactNode; className?: string; tight?: boolean }) {
+  return <div className={cn(tight ? ds.pageTight : ds.page, className)}>{children}</div>;
+}
 
-export function ModuleHeader({ title, subtitle, status, breadcrumb, actions, icon: Icon }: ModuleHeaderProps) {
-  const cfg = status ? STATUS_MAP[status] : null;
-  const StatusIcon = cfg?.icon;
-
+/** Primary + secondary action row (one primary recommended). */
+export function ModulePageActions({
+  primary,
+  secondary,
+  className,
+}: {
+  primary?: React.ReactNode;
+  secondary?: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col gap-4 mb-8">
+    <div className={cn('flex flex-wrap items-center gap-2', className)}>
+      {secondary}
+      {primary}
+    </div>
+  );
+}
+
+export function ModuleHeader({ title, subtitle, status: _status, breadcrumb, actions, icon: Icon }: ModuleHeaderProps) {
+  return (
+    <header className="flex flex-col gap-4 mb-6 md:mb-8">
       {/* Breadcrumb */}
       {breadcrumb && breadcrumb.length > 0 && (
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -49,7 +61,7 @@ export function ModuleHeader({ title, subtitle, status, breadcrumb, actions, ico
       )}
 
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        {/* Left: title + badge */}
+        {/* Left: title */}
         <div className="flex items-center gap-4">
           {Icon && (
             <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center shrink-0">
@@ -57,27 +69,19 @@ export function ModuleHeader({ title, subtitle, status, breadcrumb, actions, ico
             </div>
           )}
           <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h1>
-              {cfg && StatusIcon && (
-                <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border', cfg.classes)}>
-                  <StatusIcon className="w-3 h-3" />
-                  {cfg.label}
-                </span>
-              )}
-            </div>
-            {subtitle && <div className="text-sm text-slate-500 font-medium mt-1">{subtitle}</div>}
+            <h1 className={ds.pageTitle}>{title}</h1>
+            {subtitle && <div className={ds.pageSubtitle}>{subtitle}</div>}
           </div>
         </div>
 
         {/* Right: actions */}
         {actions && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {actions}
           </div>
         )}
       </div>
-    </div>
+    </header>
   );
 }
 
@@ -101,7 +105,7 @@ export function StatCard({ label, value, icon: Icon, iconColor = 'text-brand-pri
   return (
     <div 
       onClick={onClick}
-      className={cn('bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow', onClick && 'cursor-pointer', className)}
+      className={cn(ds.card, ds.cardPadding, ds.cardHover, onClick && 'cursor-pointer', className)}
     >
       <div className="flex items-start justify-between mb-4">
         <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', iconBg)}>
@@ -110,11 +114,11 @@ export function StatCard({ label, value, icon: Icon, iconColor = 'text-brand-pri
         {topRightBadge && <div>{topRightBadge}</div>}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</div>
+        <div className={ds.kpiLabel}>{label}</div>
         {loading ? (
           <div className="h-7 w-16 bg-slate-100 rounded-lg animate-pulse" />
         ) : (
-          <p className="text-2xl font-black text-slate-900 leading-none">{value}</p>
+          <p className={ds.kpiValue}>{value}</p>
         )}
         {trend && !loading && (
           <p className={cn('text-[10px] font-bold mt-1.5', trend.positive ? 'text-emerald-600' : 'text-rose-600')}>
@@ -140,7 +144,7 @@ interface SectionCardProps {
 
 export function SectionCard({ title, subtitle, actions, children, className, noPadding }: SectionCardProps) {
   return (
-    <div className={cn('bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden', className)}>
+    <div className={cn(ds.card, 'overflow-hidden', className)}>
       <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-black text-slate-800">{title}</h2>
@@ -163,6 +167,15 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   action?: React.ReactNode;
+}
+
+/** Wrap wide tables for horizontal scroll on mobile without breaking layout. */
+export function ResponsiveTableWrap({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('w-full min-w-0 overflow-x-auto rounded-xl border border-slate-100', className)}>
+      {children}
+    </div>
+  );
 }
 
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
@@ -192,7 +205,10 @@ interface ActionButtonProps {
 }
 
 export function ActionButton({ label, onClick, variant = 'primary', icon: Icon, disabled, size = 'md', className }: ActionButtonProps) {
-  const base = 'inline-flex items-center gap-2 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+  const base = cn(
+    'inline-flex items-center gap-2 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+    ds.focusRing,
+  );
   const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2.5 text-sm' };
   const variants = {
     primary:   'bg-brand-primary text-white hover:opacity-90 shadow-sm shadow-brand-primary/20',
@@ -224,6 +240,37 @@ export function LoadingSkeleton({ rows = 5 }: { rows?: number }) {
           <div className="h-5 w-16 bg-slate-100 rounded-full" />
         </div>
       ))}
+    </div>
+  );
+}
+
+interface FeedbackBannerProps {
+  tone?: 'success' | 'error' | 'warning' | 'info';
+  children: React.ReactNode;
+}
+
+/** Consistent form label + optional hint. */
+export function FormFieldLabel({ children, htmlFor, hint }: { children: React.ReactNode; htmlFor?: string; hint?: string }) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={htmlFor} className={ds.formLabel}>
+        {children}
+      </label>
+      {hint ? <p className="text-[11px] text-slate-400">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function FeedbackBanner({ tone = 'info', children }: FeedbackBannerProps) {
+  const tones = {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    error: 'border-rose-200 bg-rose-50 text-rose-800',
+    warning: 'border-amber-200 bg-amber-50 text-amber-900',
+    info: 'border-indigo-200 bg-indigo-50 text-indigo-900',
+  } as const;
+  return (
+    <div className={cn('rounded-xl border px-4 py-3 text-sm font-medium', tones[tone])} role={tone === 'error' ? 'alert' : 'status'}>
+      {children}
     </div>
   );
 }

@@ -11,5 +11,6 @@ coverage/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/uploads/
 
 /src/generated/prisma

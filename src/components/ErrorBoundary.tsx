@@ -23,6 +23,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] Critical crash detected:', error, errorInfo);
+    void import('@/lib/apiClient').then(({ apiRequest }) =>
+      apiRequest('platform/client-errors', {
+        method: 'POST',
+        body: {
+          message: error.message,
+          stack: error.stack?.slice(0, 4000),
+          module: 'root-error-boundary',
+        },
+      }).catch(() => {}),
+    );
   }
 
   render() {

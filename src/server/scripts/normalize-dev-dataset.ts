@@ -140,6 +140,207 @@ async function mergeMemberPair(keeperId: string, removeId: string, tenantId: str
   });
 }
 
+function extractLastName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return '';
+  return parts[parts.length - 1]!.trim();
+}
+
+async function enrichOperationalDataset(tenantId: string) {
+  const members = await prisma.member.findMany({
+    where: { tenantId },
+    select: {
+      id: true,
+      name: true,
+      familyId: true,
+      email: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (members.length === 0) return;
+
+  // 1) Family cohesion: create household rows from shared last names and assign unlinked members.
+  const familyByName = new Map<string, string>();
+  const existingFamilies = await prisma.family.findMany({
+    where: { tenantId },
+    select: { id: true, name: true },
+  });
+  for (const f of existingFamilies) familyByName.set(f.name.toLowerCase(), f.id);
+
+  const bucket = new Map<string, { id: string; familyId: string | null }[]>();
+  for (const m of members) {
+    const last = extractLastName(m.name);
+    if (!last) continue;
+    const key = `${last} Family`;
+    const list = bucket.get(key) || [];
+    list.push({ id: m.id, familyId: m.familyId ?? null });
+    bucket.set(key, list);
+  }
+
+  for (const [familyName, list] of bucket) {
+    if (list.length < 2) continue;
+    let familyId = familyByName.get(familyName.toLowerCase());
+    if (!familyId) {
+      const f = await prisma.family.create({
+        data: { tenantId, name: familyName },
+        select: { id: true },
+      });
+      familyId = f.id;
+      familyByName.set(familyName.toLowerCase(), familyId);
+    }
+    const toAssign = list.filter((x) => !x.familyId).map((x) => x.id);
+    if (toAssign.length > 0) {
+      await prisma.member.updateMany({
+        where: { tenantId, id: { in: toAssign } },
+        data: { familyId },
+      });
+    }
+  }
+
+  // 2) Attendance realism: if no attendance rows, seed a few closed sessions from recent events.
+  const attendanceCount = await prisma.attendance.count({ where: { tenantId } });
+  if (attendanceCount === 0) {
+    const events = await prisma.event.findMany({
+      where: { tenantId },
+      orderBy: { date: 'desc' },
+      take: 4,
+      select: { id: true, name: true, date: true, type: true, campusId: true },
+    });
+    const activeMembers = await prisma.member.findMany({
+      where: { tenantId, status: 'Active' },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+      take: 35,
+    });
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i]!;
+      const session = await prisma.attendanceSession.create({
+        data: {
+          tenantId,
+          name: e.name,
+          date: e.date,
+          status: 'CLOSED',
+          type: e.type?.toUpperCase() === 'SERVICE' ? 'SERVICE' : 'EVENT',
+          campusId: e.campusId ?? undefined,
+          eventId: e.id,
+        },
+        select: { id: true },
+      });
+      const headCount = Math.max(12, Math.min(28, 16 + i * 3));
+      const rows = activeMembers.slice(0, headCount).map((m) => ({
+        tenantId,
+        sessionId: session.id,
+        memberId: m.id,
+        status: 'PRESENT',
+        method: 'MANUAL',
+      }));
+      if (rows.length > 0) {
+        await prisma.attendance.createMany({ data: rows });
+      }
+    }
+  }
+
+  // 3) Small groups: ensure at least one operational group with members.
+  const smallGroupCount = await prisma.smallGroup.count({ where: { tenantId } });
+  if (smallGroupCount === 0) {
+    const sg = await prisma.smallGroup.create({
+      data: {
+        tenantId,
+        name: 'Downtown Bible Study',
+        type: 'Cell',
+        meetingDay: 'Wednesday',
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    const picks = members.slice(0, 10);
+    if (picks.length > 0) {
+      await prisma.smallGroupMember.createMany({
+        data: picks.map((m, idx) => ({
+          tenantId,
+          groupId: sg.id,
+          memberId: m.id,
+          role: idx === 0 ? 'LEADER' : 'PARTICIPANT',
+        })),
+      });
+    }
+  }
+
+  // 4) Pathways: ensure one pathway exists and some members have progress.
+  let pathway = await prisma.pathway.findFirst({
+    where: { tenantId },
+    select: { id: true },
+  });
+  if (!pathway) {
+    pathway = await prisma.pathway.create({
+      data: {
+        tenantId,
+        name: 'Faith Foundations',
+        description: 'Operational pathway for new member growth',
+      },
+      select: { id: true },
+    });
+    await prisma.pathwayStep.createMany({
+      data: [
+        { tenantId, pathwayId: pathway.id, name: 'Attend Sunday Service', sequence: 1 },
+        { tenantId, pathwayId: pathway.id, name: 'Join Orientation', sequence: 2 },
+        { tenantId, pathwayId: pathway.id, name: 'Complete Membership Class', sequence: 3 },
+      ],
+    });
+  }
+  const progressCount = await prisma.memberPathwayProgress.count({
+    where: { tenantId, pathwayId: pathway.id },
+  });
+  if (progressCount === 0) {
+    const picks = members.slice(0, 8);
+    if (picks.length > 0) {
+      await prisma.memberPathwayProgress.createMany({
+        data: picks.map((m) => ({
+          tenantId,
+          memberId: m.id,
+          pathwayId: pathway!.id,
+          status: 'InProgress',
+        })),
+      });
+    }
+  }
+
+  // 5) Shepherd baseline: one care case + one log for realism if empty.
+  const careCaseCount = await prisma.careCase.count({ where: { tenantId } });
+  if (careCaseCount === 0 && members.length > 0) {
+    const admin = await prisma.user.findFirst({
+      where: { tenantId, username: 'admin' },
+      select: { id: true },
+    });
+    const target = members[0]!;
+    const cc = await prisma.careCase.create({
+      data: {
+        tenantId,
+        memberId: target.id,
+        assignedUserId: admin?.id ?? undefined,
+        createdById: admin?.id ?? undefined,
+        updatedById: admin?.id ?? undefined,
+        category: 'Pastoral Follow-up',
+        status: 'OPEN',
+      },
+      select: { id: true },
+    });
+    if (admin?.id) {
+      await prisma.careLog.create({
+        data: {
+          tenantId,
+          careCaseId: cc.id,
+          authorId: admin.id,
+          createdById: admin.id,
+          interactionType: 'NOTE',
+          content: 'Initial pastoral check-in created during dev normalization.',
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   if (process.env.ALLOW_DEV_DB_NORMALIZE !== '1') {
     console.error('Refusing to run: set ALLOW_DEV_DB_NORMALIZE=1');
@@ -174,6 +375,11 @@ async function main() {
       await mergeMemberPair(keeper.id, dup.id, tenantId);
       merged++;
     }
+  }
+
+  if (process.env.ENRICH_OPERATIONAL_DATA === '1') {
+    await enrichOperationalDataset(tenantId);
+    console.log('[normalize-dev-dataset] operational enrichment applied.');
   }
 
   console.log(`[normalize-dev-dataset] done. Merged ${merged} duplicate member row(s).`);

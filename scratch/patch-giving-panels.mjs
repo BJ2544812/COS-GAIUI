@@ -1,0 +1,11 @@
+import fs from 'fs';
+const p = 'src/modules/giving/GivingModule.tsx';
+let s = fs.readFileSync(p, 'utf8');
+const a = s.indexOf('function GatewayReconciliationPanel()');
+const b = s.indexOf('function ServiceCollectionPanel()');
+if (a < 0 || b < 0) throw new Error('anchors not found');
+let neu = fs.readFileSync('scratch/giving-panels-snippet.tsx', 'utf8');
+neu = neu.replace(/<\/?motion\.div/g, (m) => m.replace('motion.', ''));
+s = s.slice(0, a) + neu + s.slice(b);
+fs.writeFileSync(p, s);
+console.log('patched giving panels');

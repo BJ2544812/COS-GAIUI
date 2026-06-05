@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch, apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
-import { ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, PageLayout } from '@/components/modules/ModuleHeader';
 import { AccountSelect } from '@/components/settings/AccountSelect';
 import { BrandingUploadField } from '@/components/settings/BrandingUploadField';
 import { AccountChartPanel } from '@/components/settings/AccountChartPanel';
@@ -152,7 +152,7 @@ export function SettingsModule() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-500 text-left">
+    <PageLayout className="max-w-6xl mx-auto pb-24">
       <ModuleHeader
         title="System Settings"
         subtitle={
@@ -837,6 +837,6 @@ export function SettingsModule() {
           setPendingLockDate('');
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

@@ -9,6 +9,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  errorMessage?: string;
 }
 
 export class SafeModule extends React.Component<Props, State> {
@@ -17,8 +18,11 @@ export class SafeModule extends React.Component<Props, State> {
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error) {
+    return {
+      hasError: true,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -27,7 +31,7 @@ export class SafeModule extends React.Component<Props, State> {
 
   componentDidUpdate(prevProps: Props) {
     if (prevProps.moduleName !== this.props.moduleName && this.state.hasError) {
-      this.setState({ hasError: false });
+      this.setState({ hasError: false, errorMessage: undefined });
     }
   }
 
@@ -44,9 +48,14 @@ export class SafeModule extends React.Component<Props, State> {
                  <p className="text-sm text-slate-500 font-medium leading-relaxed">
                     The <span className="font-bold text-rose-600 uppercase tracking-widest text-[10px] px-2 py-1 bg-rose-50 rounded-lg">{this.props.moduleName}</span> module encountered a runtime exception. This typically happens when data shapes mismatch or local state becomes inconsistent.
                  </p>
+                 {this.state.errorMessage ? (
+                   <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-slate-950 p-4 text-left text-xs text-rose-100 whitespace-pre-wrap break-words">
+                     {this.state.errorMessage}
+                   </pre>
+                 ) : null}
               </div>
               <Button 
-                onClick={() => this.setState({ hasError: false })}
+                onClick={() => this.setState({ hasError: false, errorMessage: undefined })}
                 className="h-14 rounded-2xl bg-slate-950 hover:bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest px-8 transition-all shadow-lg"
               >
                  <RefreshCw className="mr-2 w-4 h-4" /> Try Reloading Module

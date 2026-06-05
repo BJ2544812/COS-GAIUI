@@ -3,8 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Button } from '@/components/ui/button';
 import { MemberSelect } from './MemberSelect';
 import { ShieldAlert, Lock, Unlock } from 'lucide-react';
-// Prayer is mocked right now since the prayer schema is in the DB but API might not be fully exposed
-// or we just simulate the UI if API is missing. We will assume standard API request logic.
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 
 interface PrayerIntakeSheetProps {
   open: boolean;
@@ -27,9 +26,16 @@ export function PrayerIntakeSheet({ open, onOpenChange, members, onSuccess }: Pr
     
     try {
       setLoading(true);
-      // We simulate API call for prayer creation as instructed 'DO NOT BREAK' and 'API might be pending'
-      console.log('Simulating prayer request creation', formData);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const res = await apiRequest('care/prayer', {
+        method: 'POST',
+        body: {
+          content: formData.requestText,
+          memberId: formData.memberId || undefined,
+          isConfidential: formData.isConfidential,
+          needsFollowUp: formData.needsFollowUp,
+        },
+      });
+      parseApiResponse(res);
 
       if (onSuccess) onSuccess();
       onOpenChange(false);
@@ -41,8 +47,8 @@ export function PrayerIntakeSheet({ open, onOpenChange, members, onSuccess }: Pr
         isConfidential: false,
         needsFollowUp: false
       });
-    } catch (e: any) {
-      alert(`Error submitting prayer request: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error submitting prayer request: ${formatApiError(e)}`);
     } finally {
       setLoading(false);
     }

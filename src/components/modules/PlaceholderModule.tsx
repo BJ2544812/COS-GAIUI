@@ -1,10 +1,8 @@
 import React from 'react';
 import {
-  CheckCircle2, Clock, Cpu, AlertCircle, Zap, ArrowRight, ExternalLink,
-  Lock, Sparkles, Construction, FlaskConical
+  CheckCircle2, Zap, ArrowRight, Sparkles
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ERPModule, ModuleStatus } from '@/types';
 
 interface PlaceholderModuleProps {
@@ -19,78 +17,15 @@ interface PlaceholderModuleProps {
   children?: React.ReactNode;
 }
 
-const STATUS_CONFIG: Record<ModuleStatus, {
-  label: string;
-  color: string;
-  bg: string;
-  border: string;
-  icon: React.ComponentType<{ className?: string }>;
-  desc: string;
-}> = {
-  live: {
-    label: 'Live',
-    color: 'text-emerald-700',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    icon: CheckCircle2,
-    desc: 'Fully operational with verified backend integration for this screen.'
-  },
-  partial: {
-    label: 'Partial',
-    color: 'text-amber-700',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    icon: Clock,
-    desc: 'Core features work. Some capabilities are still being completed.'
-  },
-  'backend-ready': {
-    label: 'Backend Ready',
-    color: 'text-blue-700',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    icon: Cpu,
-    desc: 'Database schema and API layer are complete. UI is being built.'
-  },
-  planned: {
-    label: 'Planned',
-    color: 'text-slate-600',
-    bg: 'bg-slate-50',
-    border: 'border-slate-200',
-    icon: Construction,
-    desc: 'Scheduled for development. Backend groundwork may be in progress.'
-  },
-  experimental: {
-    label: 'Experimental',
-    color: 'text-purple-700',
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
-    icon: FlaskConical,
-    desc: 'Preview release. Functionality may change.'
-  },
-  operational: {
-    label: 'Operational',
-    color: 'text-teal-800',
-    bg: 'bg-teal-50',
-    border: 'border-teal-200',
-    icon: CheckCircle2,
-    desc: 'Core workflows connected to the database; continue validation before calling production-complete.'
-  },
-  prototype: {
-    label: 'Prototype',
-    color: 'text-orange-800',
-    bg: 'bg-orange-50',
-    border: 'border-orange-200',
-    icon: FlaskConical,
-    desc: 'Illustrative or partial UI — not fully backed by live APIs.'
-  },
-  placeholder: {
-    label: 'Placeholder',
-    color: 'text-slate-600',
-    bg: 'bg-slate-100',
-    border: 'border-slate-200',
-    icon: Construction,
-    desc: 'Screen reserved for future work — no operational backend in this build.'
-  }
+const STATUS_DESC: Record<ModuleStatus, string> = {
+  live: 'This screen is available for use.',
+  partial: 'Some interactions are still being completed.',
+  'backend-ready': 'Backend services are available; UI wiring is still in progress.',
+  planned: 'This screen is reserved for upcoming implementation.',
+  experimental: 'This screen is in early preview and may change.',
+  operational: 'Core workflows are available for routine use.',
+  prototype: 'This is an early workflow draft with limited scope.',
+  placeholder: 'This screen is intentionally limited until backend support is completed.',
 };
 
 export function PlaceholderModule({
@@ -104,8 +39,7 @@ export function PlaceholderModule({
   onModuleChange,
   children,
 }: PlaceholderModuleProps) {
-  const cfg = STATUS_CONFIG[status];
-  const StatusIcon = cfg.icon;
+  const desc = STATUS_DESC[status];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -116,33 +50,17 @@ export function PlaceholderModule({
             <Icon className="w-8 h-8 text-indigo-600" />
           </div>
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h1>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
-                <StatusIcon className="w-3 h-3" />
-                {cfg.label}
-              </span>
-            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-1">{title}</h1>
             <p className="text-slate-500 text-sm font-medium">{subtitle}</p>
           </div>
         </div>
       </div>
 
-      {/* Status Banner */}
-      <div className={`rounded-2xl border p-5 flex items-start gap-4 ${cfg.bg} ${cfg.border}`}>
-        <StatusIcon className={`w-5 h-5 mt-0.5 shrink-0 ${cfg.color}`} />
+      {/* Context Banner */}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 flex items-start gap-4">
+        <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0 text-slate-500" />
         <div>
-          <p className={`text-sm font-bold ${cfg.color}`}>{cfg.label} — {cfg.desc}</p>
-          {status === 'backend-ready' && (
-            <p className="text-xs text-blue-600 mt-1 font-medium">
-              The Prisma schema, service layer, and API routes for this module are complete. The admin UI surface is the only remaining step.
-            </p>
-          )}
-          {status === 'planned' && (
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              This module is on the platform roadmap. Core domain models may already be defined in the schema.
-            </p>
-          )}
+          <p className="text-sm font-medium text-slate-700">{desc}</p>
         </div>
       </div>
 
@@ -246,16 +164,6 @@ export function PlaceholderModule({
             </Card>
           )}
 
-          {/* Status Detail Card */}
-          <Card className={`border shadow-sm ${cfg.bg} ${cfg.border}`}>
-            <CardContent className="p-5 space-y-3">
-              <div className={`flex items-center gap-2 ${cfg.color}`}>
-                <StatusIcon className="w-4 h-4" />
-                <span className="text-xs font-black uppercase tracking-widest">{cfg.label}</span>
-              </div>
-              <p className={`text-xs font-medium leading-relaxed ${cfg.color} opacity-80`}>{cfg.desc}</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

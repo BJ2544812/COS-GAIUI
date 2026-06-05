@@ -14,22 +14,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 function readPlaywrightUiPort(): number {
   const fromEnv = Number(process.env.PLAYWRIGHT_UI_PORT);
   if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  const isCi = process.env.CI === '1' || process.env.CI === 'true';
+  if (!isCi) {
+    return 3001;
+  }
   try {
     const f = path.join(__dirname, 'node_modules', '.cache', 'playwright-ui-port.txt');
     const n = Number(fs.readFileSync(f, 'utf8').trim());
-    if (Number.isFinite(n) && n > 0) return n;
+    if (Number.isFinite(n) && n >= 1024 && n <= 65535) return n;
   } catch {
-    /* missing file — e.g. `npx playwright test` without `npm run test:pw` */
+    /* missing file */
   }
-  if (process.env.CI === '1' || process.env.CI === 'true') {
-    throw new Error(
-      'Playwright: set PLAYWRIGHT_UI_PORT or run `node scripts/write-playwright-ui-port.mjs` before loading config (use `npm run test:pw`).'
-    );
-  }
-  return 3001;
+  throw new Error(
+    'Playwright: set PLAYWRIGHT_UI_PORT or run `node scripts/write-playwright-ui-port.mjs` before loading config (use `npm run test:pw:ci`).'
+  );
 }
 
 const PLAYWRIGHT_UI_PORT = readPlaywrightUiPort();
+
+function resolveBaseUrl(): string {
+  if (process.env.PLAYWRIGHT_BASE_URL?.trim()) {
+    return process.env.PLAYWRIGHT_BASE_URL.trim().replace(/\/$/, '');
+  }
+  return `http://127.0.0.1:${PLAYWRIGHT_UI_PORT}`;
+}
 
 /**
  * UI smoke tests. Starts API + Vite when CI=1; locally reuse existing dev servers when set.
@@ -47,7 +55,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${PLAYWRIGHT_UI_PORT}`,
+    baseURL: resolveBaseUrl(),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

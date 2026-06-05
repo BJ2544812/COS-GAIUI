@@ -35,6 +35,8 @@ import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
 import { SERVER_ROOT } from '@/lib/apiConfig';
 import { listMembers, generateMemberIdentityDocument } from '../members/memberApi';
+import { ModuleHeader, ActionButton, PageLayout } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 
 // --- Template Renderer Imports ---
 import { 
@@ -55,22 +57,13 @@ type DocRow = {
   fileUrl?: string | null;
 };
 
-const DOCS: DocRow[] = [
-  { id: 1, name: 'Member_Covenant_Benson_Jacob.pdf', cat: 'Member Files', owner: 'Clerk Office', size: '142 KB', date: 'Just now', status: 'Live' },
-  { id: 2, name: 'Baptism_Certificate_Benson_Jacob.pdf', cat: 'Baptism Registry', owner: 'Pastor David Chen', size: '280 KB', date: 'Just now', status: 'Live' },
-  { id: 3, name: 'Visitor_Intake_Benson_Jacob.pdf', cat: 'Member Files', owner: 'Host Team', size: '94 KB', date: 'Just now', status: 'Live' },
-  { id: 4, name: 'Member_Trust_Agreement_2024.pdf', cat: 'Legal & Policy', owner: 'Sarah Jenkins', size: '2.4 MB', date: '2 days ago', status: 'Approved' },
-  { id: 5, name: 'Annual_Audit_Report_2023.xlsx', cat: 'Financial Records', owner: 'James Wilson', size: '15.2 MB', date: 'Mar 12, 2024', status: 'Audit Ready' },
-  { id: 6, name: 'Declaration_of_Indigenous_Rights.pdf', cat: 'Legal & Policy', owner: 'Legal Office', size: '3.1 MB', date: 'Feb 10, 2024', status: 'Certified' },
-];
-
 export function DocumentsModule() {
   const { settings } = useSettings();
   const [selectedDoc, setSelectedDoc] = React.useState<any>(null);
   const [activeCategory, setActiveCategory] = React.useState('All');
   const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [docs, setDocs] = React.useState<DocRow[]>(DOCS);
+  const [docs, setDocs] = React.useState<DocRow[]>([]);
   const [docsError, setDocsError] = React.useState<string | null>(null);
   const [uploadFeedback, setUploadFeedback] = React.useState<string | null>(null);
 
@@ -84,24 +77,28 @@ export function DocumentsModule() {
     showQR: true
   });
 
-  const defaultFormValues = {
-    memberName: 'Benson Jacob',
-    pastorName: 'Pastor David Chen',
-    date: 'May 18, 2026',
-    churchName: 'Grace Community Trust',
-    docRef: 'GCC-MEMB-2026-9402',
-    witnessName: 'Elder John Sterling',
-    churchAddress: '12/1, Residency Road, Richmond Town, Bangalore, Karnataka - 560025',
-    baptismLocation: 'Richmond Town, Bangalore',
-    candidateDob: 'August 14, 2002',
-    fatherName: '—',
-    motherName: '—',
-    visitorEmail: 'visitor@grace.local',
-    visitorPhone: '+91 98450 12345',
-    prayerRequest: 'I am currently going through a career transition and would love prayer for peace, clarity, wisdom, and that my family is sustained through this next chapter.'
-  };
+  const buildFormDefaults = React.useCallback(() => {
+    const org = settings?.organization;
+    const docsSettings = settings?.documents as { authorizedSignatoryName?: string } | undefined;
+    return {
+      memberName: '',
+      pastorName: docsSettings?.authorizedSignatoryName || 'Pastor',
+      date: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
+      churchName: org?.name || 'Your Church',
+      docRef: '',
+      witnessName: '',
+      churchAddress: org?.address || '',
+      baptismLocation: org?.address?.split(',')[0] || '',
+      candidateDob: '',
+      fatherName: '—',
+      motherName: '—',
+      visitorEmail: '',
+      visitorPhone: '',
+      prayerRequest: '',
+    };
+  }, [settings]);
 
-  const [formValues, setFormValues] = React.useState(defaultFormValues);
+  const [formValues, setFormValues] = React.useState(buildFormDefaults);
   const [isExportingPDF, setIsExportingPDF] = React.useState(false);
   const [pdfProgress, setPdfProgress] = React.useState(0);
 
@@ -115,15 +112,13 @@ export function DocumentsModule() {
         const list = await listMembers();
         setMembersList(list);
         if (list.length > 0) {
-          // Check if Benson Jacob is in the list
-          const benson = list.find(m => m.name.toLowerCase().includes('benson'));
-          const defaultMember = benson || list[0];
+          const defaultMember = list[0];
           setSelectedMemberId(defaultMember.id);
           setFormValues(prev => ({
             ...prev,
             memberName: defaultMember.name,
-            visitorEmail: defaultMember.email || 'visitor@grace.local',
-            visitorPhone: defaultMember.phone || '+91 98450 12345',
+            visitorEmail: defaultMember.email || '',
+            visitorPhone: defaultMember.phone || '',
             candidateDob: defaultMember.dob ? new Date(defaultMember.dob).toISOString().split('T')[0] : '2002-08-14',
           }));
         }
@@ -142,10 +137,9 @@ export function DocumentsModule() {
         const list = parseApiResponse<
           { id: string; title: string; category?: string | null; createdAt: string; url: string }[]
         >(json);
-        if (cancelled || !list.length) return;
-        setDocs([
-          ...DOCS.slice(0, 3), // Keep our newly generated compliance entries
-          ...list.map((d) => ({
+        if (cancelled) return;
+        setDocs(
+          (list ?? []).map((d) => ({
             id: d.id,
             name: d.title,
             cat: d.category || 'General',
@@ -153,8 +147,8 @@ export function DocumentsModule() {
             size: '—',
             date: new Date(d.createdAt).toLocaleDateString(),
             status: 'Live',
-          }))
-        ]);
+          })),
+        );
       } catch (e) {
         if (!cancelled) setDocsError(formatApiError(e));
       }
@@ -238,7 +232,7 @@ export function DocumentsModule() {
   };
 
   const handleResetForm = () => {
-    setFormValues(defaultFormValues);
+    setFormValues(buildFormDefaults());
   };
 
   // --- Render Compliance Document Template ---
@@ -350,7 +344,7 @@ export function DocumentsModule() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <PageLayout>
       {/* Dynamic Global Printer Styling CSS Override */}
       <style>{`
         @media print {
@@ -412,21 +406,14 @@ export function DocumentsModule() {
         // TAB 1: SECURE DOCUMENT VAULT (EXISTING)
         // ==========================================
         <>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Secure Document Vault</h1>
-              <p className="text-slate-500">Secure church records, policies, and printable member documents.</p>
-              {docsError && <p className="text-sm text-rose-600 font-medium mt-1">{docsError}</p>}
-            </div>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setIsUploading(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 transition-all active:scale-95 leading-none"
-              >
-                <Plus className="w-4 h-4" />
-                Upload File
-              </button>
-            </div>
+          <div className="print:hidden">
+            <ModuleHeader
+              title="Secure document vault"
+              subtitle="Church records, policies, and printable member documents."
+              icon={FileBox}
+              actions={<ActionButton label="Upload file" icon={Plus} variant="primary" onClick={() => setIsUploading(true)} />}
+            />
+            {docsError && <p className="text-sm text-rose-600 font-medium -mt-4 mb-4">{docsError}</p>}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -633,21 +620,7 @@ export function DocumentsModule() {
                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change history</h4>
                         <History size={14} className="text-slate-300" />
                      </div>
-                     <div className="space-y-6">
-                        {[
-                          { action: 'Document Signed', user: 'Bishop Mike', time: '1 hour ago' },
-                          { action: 'New Version Uploaded', user: 'Sarah Jenkins', time: '2 days ago' },
-                          { action: 'Initial Upload', user: 'System Alpha', time: '3 days ago' },
-                        ].map((log, i) => (
-                          <div key={i} className="flex gap-3 relative pl-4 border-l-2 border-slate-50">
-                             <div className="absolute -left-[7px] top-1 w-3 h-3 rounded-full bg-indigo-500 border-2 border-white" />
-                             <div>
-                                <p className="text-xs font-bold text-slate-800">{log.action}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{log.user} • {log.time}</p>
-                             </div>
-                          </div>
-                        ))}
-                     </div>
+                     <p className="text-sm text-slate-500 font-medium">Document history is recorded when your church enables change logging.</p>
                   </div>
 
                   <div className="pt-8 border-t border-slate-50 flex items-center gap-3">
@@ -669,11 +642,12 @@ export function DocumentsModule() {
         // TAB 2: COMPLIANCE & TEMPLATE REGISTRY (NEW)
         // ==========================================
         <div className="space-y-8 animate-in fade-in duration-500">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Institutional Registry & Documents</h1>
-              <p className="text-slate-500">Preview, generate, and print member-facing letters and certificates.</p>
-            </div>
+          <div className="print:hidden">
+            <ModuleHeader
+              title="Institutional registry"
+              subtitle="Preview, generate, and print member-facing letters and certificates."
+              icon={FileSignature}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -747,8 +721,8 @@ export function DocumentsModule() {
                               setFormValues(prev => ({
                                 ...prev,
                                 memberName: m.name,
-                                visitorEmail: m.email || 'visitor@grace.local',
-                                visitorPhone: m.phone || '+91 98450 12345',
+                                visitorEmail: m.email || '',
+                                visitorPhone: m.phone || '',
                                 candidateDob: m.dob ? new Date(m.dob).toISOString().split('T')[0] : '2002-08-14',
                               }));
                             }
@@ -1004,6 +978,6 @@ export function DocumentsModule() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

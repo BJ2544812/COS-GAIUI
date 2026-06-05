@@ -16,16 +16,8 @@ services:
     volumes:
       - uploads_data:/app/uploads
 
-  worker:
-    build: .
-    container_name: church-erp-worker
-    command: ["npm", "run", "start:worker"] # Assumes a worker start script
-    env_file:
-      - .env.production
-    depends_on:
-      - postgres
-      - redis
-    restart: unless-stopped
+  # BullMQ workers run inside the API process (see src/server/index.ts).
+  # For production use docker-compose.production.yml (healthchecks, no orphan worker).
 
   postgres:
     image: postgres:15-alpine

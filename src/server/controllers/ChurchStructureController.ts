@@ -60,10 +60,25 @@ export class ChurchStructureController {
   // ---- Ministries ----
   static async getMinistries(req: TenantRequest, res: Response) {
     try {
-      const ministries = await ChurchStructureService.getMinistries(req.tenantId!, queryParam(req.query.campusId));
+      const enrich = req.query.enrich === '1' || req.query.enrich === 'true';
+      const ministries = await ChurchStructureService.getMinistries(
+        req.tenantId!,
+        queryParam(req.query.campusId),
+        enrich,
+      );
       res.status(200).json({ status: 'success', data: ministries });
     } catch (error: any) {
       res.status(400).json({ status: 'error', error: error.message });
+    }
+  }
+
+  /** GET /structure/ministries/:id/roster — active serving assignments for a ministry team */
+  static async getMinistryRoster(req: TenantRequest, res: Response) {
+    try {
+      const data = await ChurchStructureService.getMinistryRoster(req.tenantId!, routeParam(req.params.id));
+      res.status(200).json({ status: 'success', data });
+    } catch (error: any) {
+      res.status(error.message === 'Ministry not found' ? 404 : 400).json({ status: 'error', error: error.message });
     }
   }
 

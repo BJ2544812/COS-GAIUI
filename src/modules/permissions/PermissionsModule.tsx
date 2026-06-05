@@ -42,7 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { apiRequest, parseApiResponse, formatApiError } from '@/lib/apiClient';
 import { usePermissions } from '@/context/AuthContext';
-import { ModuleHeader } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
 
 // Types
 type Role = {
@@ -113,7 +113,7 @@ export function PermissionsModule() {
   }
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       {/* Header */}
       <ModuleHeader
         title="Access Control"
@@ -157,7 +157,7 @@ export function PermissionsModule() {
           <UserManager users={users} roles={roles} onUpdate={fetchData} />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageLayout>
   );
 }
 

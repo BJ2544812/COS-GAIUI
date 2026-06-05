@@ -7,7 +7,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ERPModule } from '@/types';
-import { ModuleHeader, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, StatCard, SectionCard, PageLayout } from '@/components/modules/ModuleHeader';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
 
@@ -112,10 +112,10 @@ export function PathwaysModule({ onModuleChange }: PathwaysModuleProps) {
     : members;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <PageLayout>
       <ModuleHeader
         title="Discipleship Pathways"
-        subtitle="Growth stages from member records; pathway definitions load from your tenant data."
+        subtitle="Growth stages from member records; pathway definitions load from your church data."
         status="live"
         icon={Route}
         actions={
@@ -202,7 +202,7 @@ export function PathwaysModule({ onModuleChange }: PathwaysModuleProps) {
           {/* Cross-module links */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { icon:BookOpen, iconColor:'text-indigo-600', iconBg:'bg-indigo-50', label:'Shepherd Workspace', desc:'Manage care cases and discipleship tasks.', module:'discipleship' as ERPModule },
+              { icon:BookOpen, iconColor:'text-indigo-600', iconBg:'bg-indigo-50', label:'Pastoral Care', desc:'Manage care cases and discipleship tasks.', module:'discipleship' as ERPModule },
               { icon:Users, iconColor:'text-violet-600', iconBg:'bg-violet-50', label:'Small Groups', desc:'Assign members to cell groups and community circles.', module:'small-groups' as ERPModule },
               { icon:UserCheck, iconColor:'text-amber-600', iconBg:'bg-amber-50', label:'Volunteers', desc:'Track ministry assignments and serving roles.', module:'volunteers' as ERPModule },
             ].map(item=>(
@@ -262,7 +262,7 @@ export function PathwaysModule({ onModuleChange }: PathwaysModuleProps) {
           <div className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 flex items-start gap-3">
             <Flag size={16} className="text-slate-500 shrink-0 mt-0.5"/>
             <p className="text-xs text-slate-700 font-medium leading-relaxed">
-              These rows are pathways stored for your tenant (usually created by seed or future admin tools). Member progress is tracked separately in Shepherd Workspace when those APIs are enabled.
+              These rows are pathways stored for your church (usually created by seed or admin tools). Member progress is tracked in Pastoral Care when journey tracking is enabled.
             </p>
           </div>
           {pathwaysLoading ? (
@@ -313,7 +313,7 @@ export function PathwaysModule({ onModuleChange }: PathwaysModuleProps) {
                     ))}
                   </div>
                   <button type="button" onClick={()=>onModuleChange?.('discipleship')} className="mt-4 text-[10px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
-                    Open Shepherd Workspace <ArrowRight size={10}/>
+                    Open Pastoral Care <ArrowRight size={10}/>
                   </button>
                 </div>
               )}
@@ -362,6 +362,6 @@ export function PathwaysModule({ onModuleChange }: PathwaysModuleProps) {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

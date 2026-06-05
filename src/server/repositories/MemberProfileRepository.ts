@@ -119,10 +119,22 @@ export class SpiritualMilestoneRepository {
 // MemberResponsibility repository
 // ------------------------------------------------------------------
 export class MemberResponsibilityRepository {
-  static async findByMember(memberId: string) {
+  static async findByMember(memberId: string, tenantId?: string) {
     return prisma.memberResponsibility.findMany({
-      where: { memberId },
+      where: { memberId, ...(tenantId ? { tenantId } : {}) },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  static async findByEntity(tenantId: string, entityType: string, entityId: string) {
+    return prisma.memberResponsibility.findMany({
+      where: { tenantId, entityType, entityId },
+      include: {
+        member: {
+          select: { id: true, name: true, email: true, phone: true, profileImageUrl: true, growthStage: true, role: true },
+        },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     });
   }
 
@@ -131,6 +143,8 @@ export class MemberResponsibilityRepository {
     entityType: string;
     entityId?: string | null;
     status?: string;
+    startDate?: Date;
+    endDate?: Date | null;
     allocatedFunds?: number | null;
     usedFunds?: number | null;
     notes?: string | null;
@@ -149,6 +163,8 @@ export class MemberResponsibilityRepository {
     entityType?: string | null;
     entityId?: string | null;
     status?: string;
+    startDate?: Date;
+    endDate?: Date | null;
     allocatedFunds?: number | null;
     usedFunds?: number | null;
     notes?: string | null;

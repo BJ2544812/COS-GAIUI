@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ModuleHeader, ActionButton, FeedbackBanner } from '@/components/modules/ModuleHeader';
+import { ModuleHeader, ActionButton, FeedbackBanner, PageLayout, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
 import { apiRequest, formatApiError, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
 import { cn } from '@/lib/utils';
@@ -79,7 +79,7 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       <ModuleHeader
         title="Change history"
         subtitle="Who changed what in giving, finance, and church records — with exportable books of account."
@@ -95,12 +95,8 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
       {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
       {exportMsg && <FeedbackBanner tone="success">{exportMsg}</FeedbackBanner>}
 
-      <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
-        <CardHeader className="p-10 border-b border-slate-50">
-          <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight">CA & Statutory Reports</CardTitle>
-          <CardDescription className="text-xs uppercase tracking-widest font-bold text-slate-400">Grouped exports with verification checksum — open in Excel or share with your CA</CardDescription>
-        </CardHeader>
-        <CardContent className="p-8 space-y-8">
+      <SectionCard title="CA & statutory reports" subtitle="Grouped exports with verification checksum — open in Excel or share with your CA">
+        <div className="space-y-8">
           {['Books of Account', 'Fund & Ministry', 'Donor records', 'CA Handoff'].map((group) => (
             <div key={group} className="space-y-4">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{group}</h3>
@@ -126,55 +122,13 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-         <Card className="border-none shadow-2xl rounded-[3rem] bg-slate-900 text-white overflow-hidden group">
-            <CardContent className="p-10 space-y-6">
-               <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400">
-                  <ShieldCheck size={24} />
-               </div>
-               <div>
-                  <h3 className="text-4xl font-black tracking-tighter">Verified</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Log Integrity Status</p>
-               </div>
-               <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  Cryptographic hashing confirms 100% log consistency. No unauthorized mutations detected in the last 24h.
-               </p>
-            </CardContent>
-         </Card>
-         
-         <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden group">
-            <CardContent className="p-10 space-y-6">
-               <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-indigo-600">
-                  <FileCheck size={24} />
-               </div>
-               <div>
-                  <h3 className="text-4xl font-black tracking-tighter">{logs.length}</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Critical Actions (30d)</p>
-               </div>
-               <div className="flex gap-2">
-                  <Badge className="bg-emerald-50 text-emerald-600 border-none font-black text-[8px] uppercase tracking-widest">Financial: {logs.filter((l) => String(l.entityType || '').toLowerCase().includes('voucher')).length}</Badge>
-                  <Badge className="bg-indigo-50 text-indigo-600 border-none font-black text-[8px] uppercase tracking-widest">Approvals: {approvalQueue.length}</Badge>
-               </div>
-            </CardContent>
-         </Card>
-
-         <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden group">
-            <CardContent className="p-10 space-y-6">
-               <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600">
-                  <AlertCircle size={24} />
-               </div>
-               <div>
-                  <h3 className="text-4xl font-black tracking-tighter">{logs.filter((l) => String(l.action || '').includes('failed')).length}</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Attention items</p>
-               </div>
-               <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  All administrative actions currently adhere to the church's internal control policies.
-               </p>
-            </CardContent>
-         </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+         <StatCard label="Log integrity" value="Verified" icon={ShieldCheck} iconColor="text-emerald-600" iconBg="bg-emerald-50" />
+         <StatCard label="Critical actions (30d)" value={logs.length} icon={FileCheck} />
+         <StatCard label="Attention items" value={logs.filter((l) => String(l.action || '').includes('failed')).length} icon={AlertCircle} iconColor="text-rose-600" iconBg="bg-rose-50" />
       </div>
 
       <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
@@ -266,7 +220,7 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageLayout>
   );
 }
 

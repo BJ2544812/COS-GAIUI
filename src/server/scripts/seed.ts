@@ -25,6 +25,7 @@ const permissionsList = [
   'manage_documents',
   'manage_website',
   'manage_settings',
+  'manage_hr',
 ];
 
 
@@ -65,11 +66,25 @@ async function ensureCoreAuth() {
   }
 
   for (const p of permissionsList) {
-    const permission = await prisma.permission.upsert({
-      where: { name: p },
-      update: {},
-      create: { name: p, moduleKey: p },
+    let permission = await prisma.permission.findFirst({
+      where: {
+        OR: [
+          { name: p },
+          { moduleKey: p }
+        ]
+      }
     });
+
+    if (!permission) {
+      permission = await prisma.permission.create({
+        data: { name: p, moduleKey: p }
+      });
+    } else if (permission.name !== p || permission.moduleKey !== p) {
+      permission = await prisma.permission.update({
+        where: { id: permission.id },
+        data: { name: p, moduleKey: p }
+      });
+    }
 
     await prisma.rolePermission.upsert({
       where: {
@@ -239,6 +254,97 @@ function daysFromNow(days: number, hour: number, minute: number): Date {
   return d;
 }
 
+const SERVING_DEMO_KEY = 'seed.serving_demo_v1';
+
+/** Idempotent ministries + volunteer assignments for Structure / Volunteers modules. */
+async function ensureServingDemo(tenantId: string) {
+  const marker = await prisma.setting.findUnique({
+    where: { tenantId_key: { tenantId, key: SERVING_DEMO_KEY } },
+  });
+  if (marker) return;
+
+  let campus = await prisma.campus.findFirst({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
+  if (!campus) {
+    campus = await prisma.campus.create({
+      data: { tenantId, name: 'Main Campus', type: 'Main Branch', address: 'Grace Community Center' },
+    });
+  }
+
+  const ministryNames = ['Worship', 'Youth Ministry', 'Outreach', 'Children Ministry'];
+  const ministries: { id: string; name: string }[] = [];
+  for (const name of ministryNames) {
+    let m = await prisma.ministry.findFirst({ where: { tenantId, campusId: campus.id, name } });
+    if (!m) {
+      m = await prisma.ministry.create({ data: { tenantId, campusId: campus.id, name } });
+    }
+    ministries.push(m);
+  }
+
+  const members = await prisma.member.findMany({
+    where: { tenantId, status: 'Active' },
+    orderBy: { createdAt: 'asc' },
+    take: 12,
+  });
+  if (members.length < 3) {
+    console.warn('[seed] ensureServingDemo: not enough members — skipping assignments');
+    return;
+  }
+
+  const lead = members[0]!;
+  await prisma.member.update({
+    where: { id: lead.id },
+    data: { growthStage: 'Leader' },
+  }).catch(() => undefined);
+  await prisma.campus.update({
+    where: { id: campus.id },
+    data: { leader: lead.id },
+  });
+
+  const assignmentPlan: { memberIdx: number; ministryIdx: number; role: string }[] = [
+    { memberIdx: 0, ministryIdx: 0, role: 'Ministry Leader' },
+    { memberIdx: 1, ministryIdx: 0, role: 'Worship Team' },
+    { memberIdx: 2, ministryIdx: 1, role: 'Youth Leader' },
+    { memberIdx: 3, ministryIdx: 2, role: 'Coordinator' },
+    { memberIdx: 4, ministryIdx: 2, role: 'Outreach' },
+    { memberIdx: 5, ministryIdx: 3, role: 'Team Lead' },
+    { memberIdx: 6, ministryIdx: 3, role: 'Children Ministry' },
+  ];
+
+  for (const plan of assignmentPlan) {
+    const member = members[plan.memberIdx];
+    const ministry = ministries[plan.ministryIdx];
+    if (!member || !ministry) continue;
+    const exists = await prisma.memberResponsibility.findFirst({
+      where: {
+        tenantId,
+        memberId: member.id,
+        entityType: 'Ministry',
+        entityId: ministry.id,
+        role: plan.role,
+      },
+    });
+    if (exists) continue;
+    await prisma.memberResponsibility.create({
+      data: {
+        tenantId,
+        memberId: member.id,
+        role: plan.role,
+        entityType: 'Ministry',
+        entityId: ministry.id,
+        status: 'Active',
+        startDate: new Date(),
+      },
+    });
+  }
+
+  await prisma.setting.upsert({
+    where: { tenantId_key: { tenantId, key: SERVING_DEMO_KEY } },
+    create: { tenantId, key: SERVING_DEMO_KEY, value: new Date().toISOString() },
+    update: { value: new Date().toISOString() },
+  });
+  console.log(`✅ Serving demo ensured (${ministries.length} ministries, volunteer assignments)`);
+}
+
 async function main() {
   console.log('🌱 Starting database seed...');
   console.log(`[seed] Target tenant id: ${TENANT_ID}`);
@@ -249,6 +355,12 @@ async function main() {
 
   await ensureFullChart(tenant.id);
   console.log('✅ Chart of Accounts ensured (Cash, Bank, Tithes, Offerings, Building Fund, Missions)');
+
+  if (process.env.SEED_CORE_ONLY === '1') {
+    console.log('ℹ️  SEED_CORE_ONLY=1 — skipping expanded legacy demo bulk.');
+    printFooter(tenant.id);
+    return;
+  }
 
   const demoMarker = await prisma.setting.findFirst({
     where: { tenantId: tenant.id, key: { in: [...SEED_SETTING_KEYS] } },
@@ -261,6 +373,7 @@ async function main() {
       prisma.event.count({ where: { tenantId: tenant.id } }),
     ]);
     console.log(`ℹ️  Expanded demo already applied (${demoMarker.key}); skipping bulk demo.`);
+    await ensureServingDemo(tenant.id);
     printFooter(tenant.id, { members: mc, donations: dc, events: ec });
     return;
   }
@@ -545,11 +658,13 @@ async function main() {
 
   try {
     const { WebsiteService } = await import('../services/WebsiteService.js');
-    const pages = await WebsiteService.applyTemplate(tenant.id, 'classic');
-    console.log(`✅ Website template applied: ${pages.length} pages (Home, About, Sermons, Events, Giving, Contact)`);
+    const pages = await WebsiteService.applyTemplate(tenant.id, 'flagship-v2');
+    console.log(`✅ Website template applied: ${pages.length} pages (Home, About, Ministries, Sermons, Events, Giving, Prayer, Contact)`);
   } catch (e) {
     console.warn('[seed] Classic website template not applied:', e);
   }
+
+  await ensureServingDemo(tenant.id);
 
   printFooter(tenant.id, {
     members: memberCount,

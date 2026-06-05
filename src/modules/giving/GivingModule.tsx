@@ -29,7 +29,6 @@ import { listMembers, type MemberDto } from '../members/memberApi';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ActivityTimeline } from '@/components/ui/ActivityTimeline';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -44,7 +43,18 @@ import { ERPModule } from '@/types';
 import { apiDownloadBlob, apiRequest, formatApiError, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
-import { FeedbackBanner, ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import {
+  FeedbackBanner,
+  ModuleHeader,
+  ActionButton,
+  PageLayout,
+  StatCard,
+  SectionCard,
+} from '@/components/modules/ModuleHeader';
+import { ChurchAreaChart, ChartSection } from '@/components/modules/ChurchChart';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
+import { SubpageHeader } from '@/components/modules/SubpageHeader';
+import { ds } from '@/lib/designSystem';
 import { navigateToFinanceTab } from '@/lib/financeNavigation';
 
 type GiveRow = {
@@ -312,18 +322,14 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
 
   if (view === 'create') {
     return (
-      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 text-left">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setView('dashboard')} className="rounded-full">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Record gift</h1>
-            <p className="text-sm text-slate-500 font-medium tracking-tight">Enter details to log a new gift. Accounting ledgers will be updated automatically in the background.</p>
-          </div>
-        </div>
+      <PageLayout className="max-w-4xl">
+        <SubpageHeader
+          title="Record gift"
+          subtitle="Enter details to log a new gift. Accounting ledgers update automatically in the background."
+          onBack={() => setView('dashboard')}
+        />
 
-         <Card className="border-none shadow-2xl rounded-[4rem] bg-white p-12">
+         <Card className={cn(ds.card, 'p-6 md:p-8')}>
            {givingError && (
              <div className="mb-8 rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-bold text-rose-800 animate-in slide-in-from-top-2">
                {givingError}
@@ -395,8 +401,8 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                <Button type="button" variant="ghost" className="px-8 h-16 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em]" onClick={() => setView('dashboard')}>Cancel</Button>
             </div>
           </form>
-        </Card>
-      </div>
+         </Card>
+      </PageLayout>
     );
   }
 
@@ -485,42 +491,35 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
     );
   }
 
+  const givingTabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'registry', label: 'All gifts' },
+    { id: 'donors', label: 'Donors' },
+    { id: 'campaigns', label: 'Campaigns' },
+    { id: 'sessions', label: 'Sunday & services' },
+    { id: 'receipts', label: 'Receipts' },
+    { id: 'settlements', label: 'Settlement status' },
+  ];
+
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 text-left pb-20">
+    <PageLayout>
       {givingError && (
         <FeedbackBanner tone="error">{givingError}</FeedbackBanner>
       )}
-       {/* Simple Action-Driven Header */}
        <ModuleHeader
         title="Giving"
         subtitle="Record gifts, thank donors, print receipts, and track campaigns."
-        status="live"
         icon={CircleDollarSign}
         actions={
-          <>
-            <ActionButton label="Record gift" icon={PlusCircle} variant="primary" onClick={() => setView('create')} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100/50" />
-          </>
+          <ActionButton label="Record gift" icon={PlusCircle} variant="primary" onClick={() => setView('create')} />
         }
       />
-      <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1 w-full max-w-full overflow-x-auto">
-        {[
-          ['overview', 'Overview'],
-          ['registry', 'All gifts'],
-          ['donors', 'Donors'],
-          ['campaigns', 'Campaigns'],
-          ['sessions', 'Sunday & services'],
-          ['receipts', 'Receipts'],
-          ['settlements', 'Settlement status'],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setWorkspaceTab(id as any)}
-            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${workspaceTab === id ? 'bg-white text-indigo-600' : 'text-slate-500'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        tabs={givingTabs}
+        activeId={workspaceTab}
+        onChange={(id) => setWorkspaceTab(id as typeof workspaceTab)}
+        aria-label="Giving sections"
+      />
 
       {workspaceTab === 'registry' && (
         <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
@@ -679,166 +678,90 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
 
       {!listLoading && (
       <>
-      {/* KPI Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-        <Card onClick={() => setSelectedFund('General Giving')} className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden group cursor-pointer hover:translate-y-[-8px] transition-all duration-500">
-           <CardContent className="p-12 space-y-10">
-              <div className="flex justify-between items-center">
-                 <div className="w-14 h-14 rounded-3xl bg-indigo-50 text-indigo-600 flex items-center justify-center transition-all group-hover:scale-110"><CircleDollarSign size={28} /></div>
-                 <Badge className="bg-emerald-100 text-emerald-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">
-                   {listLoading ? '…' : donationRows.length === 0 ? 'No gifts on file' : `${donationRows.length} recorded`}
-                 </Badge>
-              </div>
-              <div className="space-y-2">
-                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Total giving (loaded gifts)</p>
-                 <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
-                    {listLoading
-                      ? '…'
-                      : formatCurrencyAmount(apiTotal ?? 0, settings.financial.currency, {
-                          maximumFractionDigits: 0,
-                        })}
-                 </h2>
-              </div>
-              <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recorded Donations</p>
-                 <ArrowUpRight className="w-6 h-6 text-emerald-500" />
-              </div>
-           </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-500">
-           <CardContent className="p-12 space-y-10">
-              <div className="flex justify-between items-center">
-                 <div className="w-14 h-14 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center transition-all group-hover:scale-110"><HeartHandshake size={28} /></div>
-                 <Badge className="bg-amber-100 text-amber-700 font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">{activeStewardsCount} Active Donors</Badge>
-              </div>
-              <div className="space-y-2">
-                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Unique donors (this list)</p>
-                 <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
-                   {listLoading ? '…' : donationRows.length === 0 ? '—' : uniqueDonorCount}
-                 </h2>
-              </div>
-              <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
-                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                   {donationRows.length === 0
-                     ? 'Record gifts to see donor diversity here.'
-                     : 'Based on gifts in your recent history below.'}
-                 </p>
-              </div>
-           </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-2xl rounded-[4rem] bg-emerald-600 text-white overflow-hidden group transition-all duration-500 relative">
-           <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
-           <CardContent className="p-12 space-y-10 relative z-10">
-              <div className="flex justify-between items-center">
-                 <div className="w-14 h-14 rounded-3xl bg-white/20 text-white flex items-center justify-center"><TrendingUp size={28} /></div>
-                 <Badge className="bg-white/20 text-white font-black uppercase tracking-widest text-[9px] px-4 py-1.5 border-none">Campaigns</Badge>
-              </div>
-              <div className="space-y-4">
-                 <div className="space-y-2">
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/60">Configured Campaigns</p>
-                    <h2 className="text-6xl font-black tracking-tighter leading-none">{campaigns.length}</h2>
-                 </div>
-                 <p className="text-[11px] font-bold text-white/80 uppercase tracking-widest">
-                   Campaign data is loaded from the campaigns API.
-                 </p>
-              </div>
-              <div className="pt-4 flex items-center justify-between">
-                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Open Campaign Management in Giving</p>
-                 <ArrowRight className="w-6 h-6 text-white" />
-              </div>
-           </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <StatCard
+          label="Total giving (loaded)"
+          value={
+            listLoading
+              ? '…'
+              : formatCurrencyAmount(apiTotal ?? 0, settings.financial.currency, { maximumFractionDigits: 0 })
+          }
+          icon={CircleDollarSign}
+          loading={listLoading}
+          onClick={() => setSelectedFund('General Giving')}
+        />
+        <StatCard
+          label="Unique donors"
+          value={listLoading ? '…' : donationRows.length === 0 ? '—' : String(uniqueDonorCount)}
+          icon={HeartHandshake}
+          iconColor="text-amber-600"
+          iconBg="bg-amber-50"
+          loading={listLoading}
+        />
+        <StatCard
+          label="Campaigns"
+          value={campaigns.length}
+          icon={TrendingUp}
+          iconColor="text-emerald-600"
+          iconBg="bg-emerald-50"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8">
-           <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
-              <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between">
-                 <div className="space-y-2">
-                    <CardTitle className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Giving Velocity</CardTitle>
-                    <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Giving totals by month (from recorded donations)</CardDescription>
-                 </div>
-                 <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-400 shadow-inner">
-                    <TrendingUp size={24} />
-                 </div>
-              </CardHeader>
-              <CardContent className="p-12">
-                 <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                       <AreaChart data={chartData}>
-                          <defs>
-                             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={settings.branding.primaryColor} stopOpacity={0.15} />
-                                <stop offset="95%" stopColor={settings.branding.primaryColor} stopOpacity={0} />
-                             </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
-                          <Tooltip contentStyle={{ borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: 'none' }} />
-                          <Area type="monotone" dataKey="total" stroke={settings.branding.primaryColor} strokeWidth={6} fill="url(#colorRevenue)" />
-                       </AreaChart>
-                    </ResponsiveContainer>
-                 </div>
-              </CardContent>
-           </Card>
+          <ChartSection
+            title="Giving velocity"
+            subtitle="Monthly totals from recorded donations"
+          >
+            <ChurchAreaChart
+              data={chartData}
+              xKey="month"
+              dataKey="total"
+              color={settings.branding.primaryColor}
+              gradientId="givingVelocity"
+            />
+          </ChartSection>
         </div>
 
-        <div className="lg:col-span-4 flex flex-col gap-10">
-           <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-12 space-y-10 flex-1 relative overflow-hidden group">
-              <div className="absolute top-[-40px] right-[-40px] w-64 h-64 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000" />
-              <div className="relative z-10 space-y-8">
-                 <div className="w-16 h-16 rounded-[2rem] bg-white/10 flex items-center justify-center text-white shadow-xl shadow-slate-900"><TrendingUp size={32} /></div>
-                 <div className="space-y-4">
-                    <h3 className="text-3xl font-black uppercase tracking-tight leading-none">Growth Report</h3>
-                    <p className="text-slate-400 font-medium leading-relaxed">
-                      This panel reflects recorded donations only. Use Finance and Change history for accountant-ready reports.
-                    </p>
-                 </div>
-                 <Button disabled className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] hover:bg-slate-100 transition-colors border-none shadow-2xl">Export for accountant</Button>
-              </div>
-           </Card>
-           
-           <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden p-8 flex-1">
-             <CardHeader className="p-4 pb-8">
-               <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-tight">Recent Donation Events</CardTitle>
-               <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Background processing status</CardDescription>
-             </CardHeader>
-             <CardContent className="p-4">
-                <ActivityTimeline events={timelineEvents} />
-             </CardContent>
-           </Card>
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          <SectionCard title="Growth report" subtitle="Recorded donations only">
+            <p className="text-sm text-slate-500 mb-4">
+              Use Finance and Change history for accountant-ready exports.
+            </p>
+            <Button disabled variant="outline" className="w-full">
+              Export for accountant
+            </Button>
+          </SectionCard>
+          <SectionCard title="Recent donation events" subtitle="Processing status">
+            <ActivityTimeline events={timelineEvents} />
+          </SectionCard>
         </div>
       </div>
 
-      {/* Simplified Transactions */}
-      <Card className="border-none shadow-2xl rounded-[4rem] bg-white overflow-hidden">
-         <CardHeader className="p-12 border-b border-slate-50 flex flex-row items-center justify-between bg-slate-50/20">
-            <div className="space-y-2">
-               <CardTitle className="text-3xl font-black text-slate-900 uppercase tracking-tight leading-none">Recent History</CardTitle>
-               <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Track every gift with complete transparency</CardDescription>
-            </div>
-            <div className="relative w-72">
-               <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <SectionCard
+        title="Recent history"
+        subtitle="Track every gift with complete transparency"
+        noPadding
+        actions={
+            <div className="relative w-full sm:w-56">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                <Input
                  placeholder="Search givers..."
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
-                 className="h-14 pl-14 pr-6 rounded-2xl bg-white border-slate-100 shadow-sm font-black uppercase text-[10px] tracking-widest"
+                 className={cn(ds.formInput, 'h-10 pl-10')}
                />
             </div>
-         </CardHeader>
-         <CardContent className="p-0">
+        }
+      >
             <Table>
                <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent border-slate-100">
-                     <TableHead className="px-12 py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Donor</TableHead>
-                     <TableHead className="py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Allocation Fund</TableHead>
-                     <TableHead className="py-8 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">Contribution</TableHead>
-                     <TableHead className="py-8 text-[11px] font-black uppercase tracking-widest text-slate-400">Method</TableHead>
-                     <TableHead className="px-12 py-8 text-right text-[11px] font-black uppercase tracking-widest text-slate-400">Timestamp</TableHead>
+                     <TableHead className={cn('px-4 md:px-6 py-4', ds.tableHead)}>Donor</TableHead>
+                     <TableHead className={cn('py-4', ds.tableHead)}>Allocation fund</TableHead>
+                     <TableHead className={cn('py-4 text-right', ds.tableHead)}>Contribution</TableHead>
+                     <TableHead className={cn('py-4', ds.tableHead)}>Method</TableHead>
+                     <TableHead className={cn('px-4 md:px-6 py-4 text-right', ds.tableHead)}>Date</TableHead>
                   </TableRow>
                </TableHeader>
                <TableBody>
@@ -892,18 +815,17 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                   )}
                </TableBody>
             </Table>
-            <div className="p-12 text-center border-t border-slate-50">
-               <Button disabled variant="ghost" className="h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400">
-                  <History className="mr-2 w-4 h-4" /> Full giving history export coming soon
+            <div className="p-6 text-center border-t border-slate-50">
+               <Button disabled variant="ghost" className="text-xs font-semibold text-slate-400">
+                  <History className="mr-2 w-4 h-4" /> Full export coming soon
                </Button>
             </div>
-         </CardContent>
-      </Card>
+      </SectionCard>
       </>
       )}
       </>
       )}
-    </div>
+    </PageLayout>
   );
 }
 

@@ -150,7 +150,7 @@ export function OperationsCommandCenter({
               else onModuleChange?.('sunday-mode');
             }}
           >
-            <Radio className="w-4 h-4" /> Sunday Mode
+            <Radio className="w-4 h-4" /> Sunday Service
           </Button>
         </div>
       </div>
@@ -264,7 +264,7 @@ export function OperationsCommandCenter({
               <div className="flex flex-wrap gap-2 pt-2">
                 {data.todayServices.map((svc) => (
                   <Button key={`live-${svc.id}`} type="button" size="sm" variant="outline" className="min-h-[44px]" onClick={() => openSundayMode(svc.id)}>
-                    <Radio className="w-4 h-4 mr-1" /> Live: {svc.name}
+                    <Radio className="w-4 h-4 mr-1" /> Sunday Service: {svc.name}
                   </Button>
                 ))}
               </div>

@@ -332,11 +332,11 @@ export function MembershipDeclarationTemplate({
             </div>
             <div className="p-2 border-t border-slate-200 print:border-slate-950 border-r">
               <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block leading-none">Contact Email Address</span>
-              <strong className="block text-slate-800 font-mono text-[9px] pt-1 leading-none">{values.visitorEmail || "candidate@grace.local"}</strong>
+              <strong className="block text-slate-800 font-mono text-[9px] pt-1 leading-none">{values.visitorEmail || "—"}</strong>
             </div>
             <div className="p-2 border-t border-slate-200 print:border-slate-950">
               <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block leading-none">Contact Mobile Number</span>
-              <strong className="block text-slate-800 font-mono text-[9px] pt-1 leading-none">{values.visitorPhone || "+91 98450 12345"}</strong>
+              <strong className="block text-slate-800 font-mono text-[9px] pt-1 leading-none">{values.visitorPhone || "—"}</strong>
             </div>
           </div>
         </div>
@@ -607,13 +607,13 @@ export function VisitorDeclarationTemplate({
               <div className="space-y-1">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Confidential Email</span>
                 <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center text-xs font-bold text-slate-800 print:border-slate-950 print:bg-transparent">
-                  {values.visitorEmail || "visitor@grace.local"}
+                  {values.visitorEmail || "—"}
                 </div>
               </div>
               <div className="space-y-1">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Contact Number</span>
                 <div className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center text-xs font-bold text-slate-800 print:border-slate-950 print:bg-transparent">
-                  {values.visitorPhone || "+91 98450 12345"}
+                  {values.visitorPhone || "—"}
                 </div>
               </div>
             </div>

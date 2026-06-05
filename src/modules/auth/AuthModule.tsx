@@ -20,16 +20,9 @@ export function AuthModule({ onLogin }: AuthModuleProps) {
     setError(null);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Identity verification failed');
-
-      onLogin(data.token, data.user);
+      const { loginWithCredentials, getDefaultTenantId } = await import('@/lib/authSession');
+      const result = await loginWithCredentials(username, password, getDefaultTenantId());
+      onLogin(result.token, result.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'System lockout');
     } finally {

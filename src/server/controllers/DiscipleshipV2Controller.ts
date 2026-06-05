@@ -14,6 +14,26 @@ export class DiscipleshipV2Controller {
     }
   }
 
+  static async getOperationalTasks(req: TenantRequest, res: Response) {
+    try {
+      const { OperationsRepository } = await import('../repositories/OperationsRepository.js');
+      const tenantId = req.tenantId!;
+      const userId = req.user!.id;
+      const [myTasks, teamTasks, overdueTasks] = await Promise.all([
+        OperationsRepository.getOperationalTasks(tenantId, userId),
+        OperationsRepository.getTeamTasks(tenantId),
+        OperationsRepository.getOverdueTasks(tenantId),
+      ]);
+      res.status(200).json({
+        status: 'success',
+        data: { myTasks, teamTasks, overdueTasks },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load tasks';
+      res.status(400).json({ error: message });
+    }
+  }
+
   static async getMyTasks(req: TenantRequest, res: Response) {
     try {
       console.log(`[DiscipleshipV2] getMyTasks: tenantId=${req.tenantId}, userId=${req.user.id}`);

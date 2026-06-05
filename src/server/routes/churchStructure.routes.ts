@@ -17,6 +17,7 @@ churchStructureRouter.patch('/campuses/:id', requirePermission('manage_settings'
 
 // --- Ministries ---
 churchStructureRouter.get('/ministries', requirePermission('manage_settings'), ChurchStructureController.getMinistries as any);
+churchStructureRouter.get('/ministries/:id/roster', requirePermission('manage_members'), ChurchStructureController.getMinistryRoster as any);
 churchStructureRouter.post('/ministries', requirePermission('manage_settings'), ChurchStructureController.createMinistry as any);
 churchStructureRouter.patch('/ministries/:id', requirePermission('manage_settings'), ChurchStructureController.updateMinistry as any);
 churchStructureRouter.delete('/ministries/:id', requirePermission('manage_settings'), ChurchStructureController.deleteMinistry as any);

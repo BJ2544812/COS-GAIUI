@@ -24,6 +24,8 @@ import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
 import { DocumentsModule } from '../documents/DocumentsModule';
+import { PageLayout, ModuleHeader, ActionButton } from '@/components/modules/ModuleHeader';
+import { ModuleTabs } from '@/components/modules/ModuleTabs';
 
 const EMPTY_FORM = { name: '', category: 'Technical Equipment', value: '', location: '', serialNumber: '', notes: '', status: 'Active' };
 
@@ -359,6 +361,12 @@ export function AssetsModule() {
                        </div>
                     </div>
                  </CardContent>
+                 <div className="border-t border-slate-50 grid grid-cols-1 md:grid-cols-4 gap-4 px-8 py-6 bg-slate-50/30 text-xs">
+                    <p>Accum. Depreciation: <span className="font-bold">{formatCurrencyAmount(selectedAsset.accumulatedDepreciation || 0, settings.financial.currency, { maximumFractionDigits: 0 })}</span></p>
+                    <p>Residual Value: <span className="font-bold">{formatCurrencyAmount(selectedAsset.residualValue || 0, settings.financial.currency, { maximumFractionDigits: 0 })}</span></p>
+                    <p>Useful Life: <span className="font-bold">{selectedAsset.usefulLifeMonths || '—'} months</span></p>
+                    <p>Depreciation Method: <span className="font-bold">{selectedAsset.depreciationMethod || '—'}</span></p>
+                 </div>
               </Card>
 
               <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden">
@@ -432,34 +440,27 @@ export function AssetsModule() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 text-left">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">Assets & Documents</h1>
-          <p className="text-slate-500 font-medium">Equipment registry, assignments, and linked documents.</p>
-          {assetsError && <p className="text-sm text-rose-600 font-medium mt-1">{assetsError}</p>}
-        </div>
-        <div className="flex bg-slate-100 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveTab('assets')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-widest transition-all",
-              activeTab === 'assets' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Physical Assets
-          </button>
-          <button
-            onClick={() => setActiveTab('documents')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold uppercase tracking-widest transition-all",
-              activeTab === 'documents' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            Documents
-          </button>
-        </div>
-      </div>
+    <PageLayout>
+      <ModuleHeader
+        title="Assets & documents"
+        subtitle="Equipment registry, assignments, and linked documents."
+        icon={Building2}
+        actions={
+          view === 'list' && activeTab === 'assets' ? (
+            <ActionButton label="Add asset" icon={Plus} variant="primary" onClick={() => setView('create')} />
+          ) : undefined
+        }
+      />
+      {assetsError && <p className="text-sm text-rose-600 font-medium">{assetsError}</p>}
+      <ModuleTabs
+        tabs={[
+          { id: 'assets', label: 'Physical assets' },
+          { id: 'documents', label: 'Documents' },
+        ]}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as 'assets' | 'documents')}
+        aria-label="Assets sections"
+      />
 
       {activeTab === 'documents' ? (
         <DocumentsModule />
@@ -568,54 +569,50 @@ export function AssetsModule() {
          </Card>
 
          <div className="space-y-6">
-            <Card className="border-none shadow-sm flex flex-col h-[380px] rounded-[2.5rem] overflow-hidden bg-white text-left">
+            <Card className="border-none shadow-sm flex flex-col rounded-[2.5rem] overflow-hidden bg-white text-left">
                <CardHeader className="p-8 border-b border-slate-50 bg-slate-50/10">
-                  <CardTitle className="text-sm font-black text-slate-800 uppercase tracking-widest">Facility Schedule</CardTitle>
+                  <CardTitle className="text-sm font-black text-slate-800 uppercase tracking-widest">Asset Status Mix</CardTitle>
                </CardHeader>
-               <CardContent className="flex-1 p-0 overflow-y-auto">
-                  <div className="divide-y divide-slate-50">
-                     {[
-                       { room: 'Main Sanctuary', event: 'Worship Practice', time: '14:00 - 16:30' },
-                       { room: 'Conference Room B', event: 'Elders Meeting', time: '18:00 - 20:00' },
-                       { room: 'Multi-purpose Hall', event: 'Youth Bible Study', time: '17:00 - 19:00' },
-                     ].map((b, i) => (
-                        <div key={i} className="p-6 hover:bg-slate-50 transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-[color:var(--brand-primary)]">
-                           <div className="flex justify-between items-start mb-2">
-                              <p className="text-sm font-black text-slate-800 group-hover:text-[color:var(--brand-primary)] transition-colors uppercase tracking-tight">{b.room}</p>
-                              <span className="text-[10px] font-black text-[color:var(--brand-primary)] bg-[color-mix(in_oklab,var(--brand-primary)12%,white)] px-3 py-1 rounded-full">{b.time}</span>
-                           </div>
-                           <p className="text-[11px] font-bold text-slate-400 leading-tight uppercase tracking-widest">{b.event}</p>
-                        </div>
-                     ))}
-                  </div>
+               <CardContent className="p-6 space-y-3">
+                  {['Active', 'Maintenance', 'Damaged', 'Retired', 'Disposed'].map((statusKey) => {
+                    const count = rows.filter((r: any) => String(r.status || '').toLowerCase() === statusKey.toLowerCase()).length;
+                    return (
+                      <div key={statusKey} className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{statusKey}</p>
+                        <p className="text-sm font-black text-slate-900">{count}</p>
+                      </div>
+                    );
+                  })}
                </CardContent>
-               <div className="p-8 border-t border-slate-50 bg-slate-50/10">
-                  <button className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]/40 hover:bg-[color-mix(in_oklab,var(--brand-primary)6%,white)] transition-all active:scale-95">Quick Reserve Room</button>
-               </div>
             </Card>
 
-            <Card className="border-none shadow-2xl bg-slate-900 text-white overflow-hidden relative rounded-[2.5rem] group cursor-pointer hover:bg-slate-950 transition-all text-left">
+            <Card className="border-none shadow-2xl bg-slate-900 text-white overflow-hidden relative rounded-[2.5rem] text-left">
                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.2),transparent)]"></div>
                <CardHeader className="relative z-10 p-8 pb-4">
                   <div className="w-12 h-12 rounded-2xl bg-[var(--chart-primary)] flex items-center justify-center mb-4 shadow-xl shadow-slate-300/30">
                     <Settings className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-xl font-black tracking-tight">Depreciation Engine</CardTitle>
-                  <CardDescription className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Fiscal integrity module active</CardDescription>
+                  <CardTitle className="text-xl font-black tracking-tight">Asset Accounting</CardTitle>
+                  <CardDescription className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Capitalization · depreciation · disposal</CardDescription>
                </CardHeader>
-               <CardContent className="relative z-10 text-sm space-y-6 pt-0 p-8">
-                  <p className="text-[12px] leading-relaxed text-slate-300 font-medium">Automatic SLM/WDV calculation syncs with financial ledgers every 24 hours.</p>
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] pt-4 border-t border-white/5">
-                     <span className="text-slate-500">Last Sync</span>
-                     <span className="text-[var(--brand-secondary)]">4h ago</span>
+               <CardContent className="relative z-10 text-sm space-y-4 pt-0 p-8">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Total registered value</span>
+                    <span className="font-black">{formatCurrencyAmount(stats.totalValue, settings.financial.currency, { maximumFractionDigits: 0 })}</span>
                   </div>
-                  <button className="w-full py-4 bg-[var(--brand-primary)] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-400/30 active:scale-95 transition-all hover:opacity-95">Run Recalculation</button>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Pending maintenance</span>
+                    <span className="font-black">{stats.maintenance}</span>
+                  </div>
+                  <Button disabled className="w-full bg-[var(--brand-primary)] hover:opacity-95 h-11 rounded-xl uppercase tracking-widest font-black text-[10px]">
+                    Use Finance module for posting actions
+                  </Button>
                </CardContent>
             </Card>
          </div>
       </div>
       </>
       )}
-    </div>
+    </PageLayout>
   );
 }
