@@ -16,7 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest, parseApiResponse } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
-import type { CommandCenterPayload } from '@/lib/operationsTypes';
+import { EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
+import { labelForEventType } from '@/lib/eventTypeCatalog';
 import type { ERPModule } from '@/types';
 import { ReadinessBadge } from './ReadinessBadge';
 import { WorkflowCommandPanel } from './WorkflowCommandPanel';
@@ -26,6 +27,7 @@ import { MinistryIntelligenceStrip } from '@/components/intelligence/MinistryInt
 import { VolunteerHealthPanel } from '@/components/intelligence/VolunteerHealthPanel';
 import { RealtimeStatusBar } from '@/components/operations/RealtimeStatusBar';
 import { OperationalGuidanceBanner } from '@/components/operations/OperationalGuidanceBanner';
+import type { CommandCenterPayload } from '@/lib/operationsTypes';
 
 const LENS_LABELS: Record<string, string> = {
   super_admin: 'All campuses',
@@ -269,8 +271,8 @@ export function OperationsCommandCenter({
                 ))}
               </div>
             )}
-            <Button type="button" variant="ghost" className="w-full text-indigo-600 font-bold" onClick={() => onModuleChange?.('events', 'services')}>
-              Open worship services
+            <Button type="button" variant="ghost" className="w-full text-indigo-600 font-bold" onClick={() => onModuleChange?.('events')}>
+              All events
             </Button>
           </CardContent>
         </Card>
@@ -328,7 +330,7 @@ export function OperationsCommandCenter({
                   <div className="min-w-0">
                     <p className="font-bold text-slate-900">{ev.name}</p>
                     <p className="text-xs text-slate-500 font-medium">
-                      {ev.type} · {new Date(ev.date).toLocaleDateString()} · {ev.status}
+                      {labelForEventType(ev.type)} · {new Date(ev.date).toLocaleDateString()} · {EVENT_STATUS_LABELS[ev.status] ?? ev.status}
                     </p>
                   </div>
                   <ReadinessBadge level={ev.readiness.level} score={ev.readiness.score} />

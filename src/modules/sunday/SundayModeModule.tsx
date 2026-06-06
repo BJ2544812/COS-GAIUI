@@ -7,7 +7,6 @@ import {
   Users,
   AlertTriangle,
   ChevronRight,
-  ListOrdered,
   ClipboardList,
   Maximize2,
   Minimize2,
@@ -22,6 +21,9 @@ import { segmentCountdownSeconds } from '@/lib/liveOps';
 import type { RunSheetSegment } from '@/lib/eventLifecycle';
 import { EVENT_STATUS_COLORS } from '@/lib/eventLifecycle';
 import type { ERPModule } from '@/types';
+import { openAttendanceForEvent } from '@/lib/attendanceNavigation';
+import { openWorshipServices } from '@/lib/sundayServicesNavigation';
+import { UCOS_EVENT_WORKSPACE_TAB } from '@/lib/eventWorkspaceNavigation';
 import { useRealtimeOps } from '@/hooks/useRealtimeOps';
 import { RealtimeStatusBar } from '@/components/operations/RealtimeStatusBar';
 import { InlineTextCapture } from '@/components/operations/InlineTextCapture';
@@ -207,9 +209,10 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
     setShowEmergency(false);
   };
 
-  const openEventWorkspace = () => {
+  const openEventWorkspace = (tab: 'overview' | 'people' = 'overview') => {
     if (!eventId) return;
     sessionStorage.setItem(UCOS_OPEN_EVENT_ID, eventId);
+    sessionStorage.setItem(UCOS_EVENT_WORKSPACE_TAB, tab);
     onModuleChange?.('events');
   };
 
@@ -249,7 +252,7 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
             <Button
               type="button"
               className="w-full min-h-[48px] font-bold bg-indigo-600"
-              onClick={() => onModuleChange?.('sunday-services', 'schedule')}
+              onClick={() => openWorshipServices(onModuleChange, 'schedule')}
             >
               Plan a service
             </Button>
@@ -482,14 +485,14 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
           <CockpitSection title="Service flow" subtitle="Current part of worship and timing.">
             {runSheet.length === 0 ? (
               <div className="space-y-3">
-                <p className="text-sm text-slate-600 font-medium">No segments in the service plan yet.</p>
+                <p className="text-sm text-slate-600 font-medium">No run sheet has been created.</p>
                 <Button
                   type="button"
                   variant="outline"
                   className="min-h-[44px] font-semibold"
-                  onClick={() => onModuleChange?.('sunday-services', 'plan')}
+                  onClick={() => openWorshipServices(onModuleChange, 'plan', eventId)}
                 >
-                  View service plan
+                  Open Worship Planning
                 </Button>
               </div>
             ) : (
@@ -562,7 +565,7 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
           </CockpitSection>
 
           {/* Section 4 — Teams */}
-          <CockpitSection title="Teams" subtitle="Serving areas at a glance — open Volunteers for full roster.">
+          <CockpitSection title="Teams" subtitle="Serving areas at a glance — assign team in Events → People.">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {teams.map((team) => {
                 const style = TEAM_STATUS_STYLES[team.status];
@@ -582,13 +585,13 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
           </CockpitSection>
 
           {/* Section 5 — Quick Actions */}
-          <CockpitSection title="Quick actions" subtitle="Common tasks during the service.">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <CockpitSection title="Quick actions" subtitle="Live service tasks — planning stays in the event workspace.">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Button
                 type="button"
                 variant="outline"
                 className="h-auto min-h-[56px] py-3 justify-start font-semibold text-left"
-                onClick={() => onModuleChange?.('attendance')}
+                onClick={() => eventId && openAttendanceForEvent(onModuleChange, eventId)}
               >
                 <CheckCircle2 className="w-5 h-5 mr-3 shrink-0 text-emerald-600" />
                 Record attendance
@@ -597,25 +600,16 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
                 type="button"
                 variant="outline"
                 className="h-auto min-h-[56px] py-3 justify-start font-semibold text-left"
-                onClick={() => onModuleChange?.('sunday-services', 'plan')}
-              >
-                <ListOrdered className="w-5 h-5 mr-3 shrink-0 text-indigo-600" />
-                View service plan
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto min-h-[56px] py-3 justify-start font-semibold text-left"
-                onClick={() => onModuleChange?.('volunteers')}
+                onClick={() => openEventWorkspace('people')}
               >
                 <Users className="w-5 h-5 mr-3 shrink-0 text-sky-600" />
-                View volunteers
+                View team roster
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="h-auto min-h-[56px] py-3 justify-start font-semibold text-left"
-                onClick={openEventWorkspace}
+                onClick={() => openEventWorkspace('overview')}
               >
                 <ClipboardList className="w-5 h-5 mr-3 shrink-0 text-violet-600" />
                 Open event workspace

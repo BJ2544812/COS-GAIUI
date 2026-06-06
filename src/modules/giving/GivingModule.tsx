@@ -642,7 +642,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
 
       
       {workspaceTab === 'settlements' && (
-        <GivingSettlementStatusPanel onOpenFinance={() => navigateToFinanceTab(onModuleChange, 'settlements')} />
+        <GivingSettlementStatusPanel onOpenFinance={() => navigateToFinanceTab(onModuleChange, 'reconciliation')} />
       )}
 
       {workspaceTab === 'receipts' && (
@@ -653,7 +653,7 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
           </CardHeader>
           <CardContent className="p-8">
             <Button variant="outline" onClick={() => setWorkspaceTab('registry')}>Open all gifts</Button>
-            <Button variant="ghost" className="ml-2" onClick={() => navigateToFinanceTab(onModuleChange, 'receipts')}>Finance receipt archive</Button>
+            <Button variant="ghost" className="ml-2" onClick={() => navigateToFinanceTab(onModuleChange, 'document-center')}>Finance document archive</Button>
           </CardContent>
         </Card>
       )}

@@ -93,31 +93,26 @@ export function DocumentHeader({
   );
 }
 
-export function SignatureSection({ 
-  signatures 
-}: { 
-  signatures: { label: string; name: string; date?: string; title?: string }[] 
+/** Physical signature block — labels only; never pre-fill signer names. */
+export function SignatureSection({
+  parties,
+}: {
+  parties: { title: string; nameLine: string; dateLine?: string }[];
 }) {
   return (
-    <div className="grid grid-cols-3 gap-8 pt-6 mt-6 border-t border-slate-300 print:border-slate-400">
-      {signatures.map((sig, i) => (
-        <div key={i} className="text-center flex flex-col justify-between">
-          <div className="w-full h-10 border-b border-slate-900 flex items-end justify-center pb-0.5 mb-1 relative print:border-slate-950">
-            {sig.name && (
-              <span className="font-serif italic text-sm text-slate-900 font-bold tracking-wide print:text-xs">
-                {sig.name}
-              </span>
-            )}
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-950 block leading-none">{sig.label}</span>
-            {sig.title && (
-              <span className="text-[8px] font-bold text-slate-500 block tracking-wider uppercase leading-none mt-0.5">{sig.title}</span>
-            )}
-            {sig.date && (
-              <span className="text-[7px] font-mono text-slate-400 block mt-0.5 leading-none">{sig.date}</span>
-            )}
-          </div>
+    <div className="pt-6 mt-6 border-t border-slate-300 print:border-slate-400 space-y-4">
+      <p className="text-[8px] text-slate-500 italic text-left">
+        Sign in ink after printing. Do not sign electronically on this generated copy.
+      </p>
+      {parties.map((party, i) => (
+        <div key={i} className="text-left space-y-1">
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-950 block leading-none">
+            {party.title}
+          </span>
+          <span className="text-[10px] font-mono text-slate-700 block">{party.nameLine}</span>
+          <span className="text-[10px] font-mono text-slate-700 block">
+            {party.dateLine || 'Date: ______________________'}
+          </span>
         </div>
       ))}
     </div>
@@ -284,7 +279,6 @@ export function MembershipDeclarationTemplate({
     "Congregational Conduct: Committing to gather regularly for worship, supporting community services, and adhering to the guidelines of the society."
   ];
 
-  const pastorName = settings?.documents?.authorizedSignatoryName || values.pastorName || "Pastor David Chen";
   const orgName = settings?.organization?.name || values.churchName || "Grace Community Trust";
 
   return (
@@ -383,11 +377,11 @@ export function MembershipDeclarationTemplate({
       </div>
 
       <div className="relative z-10 space-y-4 mt-4">
-        <SignatureSection 
-          signatures={[
-            { label: "Signature of Declarant", name: values.memberName, title: "Affiant Candidate", date: values.date },
-            { label: "Attesting Board Trustee / Officer", name: values.witnessName || "Elder John Sterling", title: "Board of Trustees" },
-            { label: "Pastoral Affirmation", name: pastorName, title: "Authorized Signatory", date: values.date }
+        <SignatureSection
+          parties={[
+            { title: 'Declarant / Affiant Signature', nameLine: 'Name: ______________________' },
+            { title: 'Witness Signature: __________', nameLine: 'Witness Name: ______________' },
+            { title: 'Authorized Pastor: __________', nameLine: 'Pastor Name: _______________' },
           ]}
         />
 
@@ -418,7 +412,6 @@ export function BaptismCertificateTemplate({
   settings: any;
   displaySettings?: Record<string, boolean>;
 }) {
-  const pastorName = settings?.documents?.authorizedSignatoryName || values.pastorName || "Pastor David Chen";
   const orgName = settings?.organization?.name || values.churchName || "Grace Community Trust";
 
   return (
@@ -503,10 +496,9 @@ export function BaptismCertificateTemplate({
       {/* Dynamic Cert Seals & Verification Area */}
       <div className="relative z-10 grid grid-cols-3 items-center gap-4 max-w-xl mx-auto pt-4">
         <div className="text-center flex flex-col items-center justify-end h-20">
-          <div className="w-full border-b border-slate-900 pb-0.5 mb-1 print:border-slate-950">
-            <span className="font-serif italic text-xs text-slate-900 font-bold leading-none block">{pastorName}</span>
-          </div>
-          <span className="text-[7.5px] font-sans font-black uppercase tracking-wider text-slate-400 leading-none">Officiating Pastor</span>
+          <div className="w-full border-b border-dashed border-slate-300 pb-2 mb-1 print:border-slate-400 min-h-[2rem]" />
+          <span className="text-[7.5px] font-sans font-black uppercase tracking-wider text-slate-950 leading-none">Officiating Pastor</span>
+          <span className="text-[8px] font-mono text-slate-600 mt-0.5 leading-none">Pastor Name: _______________</span>
         </div>
 
         {displaySettings.showSeal ? (
@@ -524,10 +516,9 @@ export function BaptismCertificateTemplate({
           </div>
         ) : (
           <div className="text-center flex flex-col items-center justify-end h-20">
-            <div className="w-full border-b border-slate-900 pb-0.5 mb-1 print:border-slate-950">
-              <span className="font-serif italic text-xs text-slate-900 font-bold leading-none block">{values.witnessName || "Elder David Sterling"}</span>
-            </div>
-            <span className="text-[7.5px] font-sans font-black uppercase tracking-wider text-slate-400 leading-none">Attesting Witness</span>
+            <div className="w-full border-b border-dashed border-slate-300 pb-2 mb-1 print:border-slate-400 min-h-[2rem]" />
+            <span className="text-[7.5px] font-sans font-black uppercase tracking-wider text-slate-950 leading-none">Attesting Witness</span>
+            <span className="text-[8px] font-mono text-slate-600 mt-0.5 leading-none">Witness Name: ______________</span>
           </div>
         )}
       </div>
@@ -561,7 +552,6 @@ export function VisitorDeclarationTemplate({
   displaySettings?: Record<string, boolean>;
 }) {
   const orgName = settings?.organization?.name || values.churchName || "Grace Community Trust";
-  const pastorName = settings?.documents?.authorizedSignatoryName || values.pastorName || "Pastor David Chen";
 
   return (
     <div className="h-full flex flex-col justify-between p-8 bg-white relative font-sans print:p-0 select-text text-slate-900">
@@ -657,11 +647,11 @@ export function VisitorDeclarationTemplate({
       </div>
 
       <div className="relative z-10 space-y-4 mt-4">
-        <SignatureSection 
-          signatures={[
-            { label: "Signature of Guest", name: values.memberName, title: "Visitor Declarant", date: values.date },
-            { label: "Assigned Connector", name: values.witnessName || "Sarah Jenkins", title: "Hospitality Lead" },
-            { label: "Ministry Intake Host", name: pastorName, title: "Senior Minister", date: values.date }
+        <SignatureSection
+          parties={[
+            { title: 'Visitor Signature', nameLine: 'Name: ______________________' },
+            { title: 'Witness Signature: __________', nameLine: 'Witness Name: ______________' },
+            { title: 'Pastoral Representative', nameLine: 'Pastor Name: _______________' },
           ]}
         />
 

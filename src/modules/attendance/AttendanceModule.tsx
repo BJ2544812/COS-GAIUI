@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { 
   CalendarCheck, 
   Users, 
@@ -48,8 +47,15 @@ import {
   removeOfflineIds,
 } from '@/lib/offlineAttendanceQueue';
 import { ApiError } from '@/lib/apiClient';
+import { registerVisitorForFollowUp } from '@/lib/visitorWorkflow';
+import { VisitorWorkflowBanner } from '@/components/operations/VisitorWorkflowBanner';
+import {
+  readAttendanceEventContext,
+  UCOS_OPEN_ATTENDANCE_SESSION_ID,
+} from '@/lib/attendanceNavigation';
+import type { ERPModule } from '@/types';
 
-export function AttendanceModule() {
+export function AttendanceModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
   const { settings } = useSettings();
   const [selectedSession, setSelectedSession] = React.useState<any | null>(null);
   const [isLiveCheckin, setIsLiveCheckin] = React.useState(false);
@@ -69,6 +75,13 @@ export function AttendanceModule() {
     activeMembers30d: 0,
     recentVelocity: []
   });
+
+  const [linkedEventId, setLinkedEventId] = React.useState<string | null>(() => readAttendanceEventContext());
+
+  const [showNewSessionModal, setShowNewSessionModal] = React.useState(false);
+  const [newSessionName, setNewSessionName] = React.useState('');
+  const [newSessionStandalone, setNewSessionStandalone] = React.useState(false);
+  const [creatingSession, setCreatingSession] = React.useState(false);
 
   const loadSessions = React.useCallback(async () => {
     try {
@@ -145,12 +158,57 @@ export function AttendanceModule() {
     if (offlinePending > 0) void flushOfflineQueue();
   }, [offlinePending, flushOfflineQueue]);
 
-  /** Deep link from Events: open a specific session in the live portal */
+  React.useEffect(() => {
+    setLinkedEventId(readAttendanceEventContext());
+  }, [isLiveCheckin]);
+
+  const openNewSessionModal = React.useCallback(() => {
+    const eventId = readAttendanceEventContext();
+    const defaultName = eventId
+      ? `Check-in session — ${new Date().toLocaleDateString()}`
+      : `Service — ${new Date().toLocaleDateString()}`;
+    setNewSessionName(defaultName);
+    setNewSessionStandalone(false);
+    setShowNewSessionModal(true);
+  }, []);
+
+  const createSession = React.useCallback(async () => {
+    const name = newSessionName.trim();
+    if (!name) return;
+    const eventId = readAttendanceEventContext();
+    if (!eventId && !newSessionStandalone) return;
+    setCreatingSession(true);
+    try {
+      const body: Record<string, unknown> = eventId
+        ? { name, type: 'EVENT', eventId, status: 'OPEN' }
+        : { name, type: 'SERVICE', status: 'OPEN' };
+      const res = await apiRequest<any>('attendance/sessions', {
+        method: 'POST',
+        body,
+      });
+      const session = parseApiResponse(res);
+      setShowNewSessionModal(false);
+      setSelectedSession(session);
+      setIsLiveCheckin(true);
+      loadSessions();
+    } catch (e) {
+      setAttendanceError(formatApiError(e));
+    } finally {
+      setCreatingSession(false);
+    }
+  }, [loadSessions, newSessionName, newSessionStandalone]);
+
+  const openSessionCheckIn = React.useCallback((session: { id: string }) => {
+    setSelectedSession(session);
+    setIsLiveCheckin(true);
+  }, []);
+
+  /** Deep link from Events / Sunday Service: open a specific session in the live portal */
   React.useEffect(() => {
     if (sessions.length === 0) return;
-    const sid = sessionStorage.getItem('ucos_open_attendance_session_id');
+    const sid = sessionStorage.getItem(UCOS_OPEN_ATTENDANCE_SESSION_ID);
     if (!sid) return;
-    sessionStorage.removeItem('ucos_open_attendance_session_id');
+    sessionStorage.removeItem(UCOS_OPEN_ATTENDANCE_SESSION_ID);
     const s = sessions.find((x: { id: string }) => x.id === sid);
     if (s) {
       setSelectedSession(s);
@@ -166,7 +224,7 @@ export function AttendanceModule() {
     }
   }, [selectedSession, loadRecords]);
 
-  const handleCheckIn = async (memberId: string | null, visitorData?: any) => {
+  const handleCheckIn = async (memberId: string | null, visitorData?: { visitorName?: string; visitorPhone?: string }) => {
     if (!selectedSession || submitting) return;
     try {
       setSubmitting(true);
@@ -178,8 +236,21 @@ export function AttendanceModule() {
           method: 'MANUAL'
         }
       });
+      if (!memberId && visitorData?.visitorName?.trim()) {
+        try {
+          await registerVisitorForFollowUp({
+            name: visitorData.visitorName.trim(),
+            phone: visitorData.visitorPhone?.trim(),
+            source: 'Attendance',
+          });
+        } catch (outreachErr) {
+          setAttendanceError(
+            `Checked in, but follow-up queue sync failed: ${formatApiError(outreachErr)}`,
+          );
+        }
+      }
       loadRecords(selectedSession.id);
-      loadSessions(); // Update counts
+      loadSessions();
     } catch (err) {
       const offline =
         err instanceof ApiError && (err.status === 0 || err.status >= 500) ||
@@ -201,6 +272,49 @@ export function AttendanceModule() {
     }
   };
 
+  const exportSessionsCsv = () => {
+    const lines = [
+      ['sessionId', 'name', 'date', 'status', 'checkInCount'].join(','),
+      ...sessions.map((s) =>
+        [
+          s.id,
+          String(s.name ?? '').replace(/,/g, ' '),
+          s.date ?? '',
+          s.status ?? '',
+          s._count?.attendances ?? 0,
+        ].join(','),
+      ),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance-sessions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportSessionRecordsCsv = () => {
+    const lines = [
+      ['name', 'type', 'checkInTime', 'method'].join(','),
+      ...sessionRecords.map((r) =>
+        [
+          (r.member?.name ?? r.visitorName ?? '').replace(/,/g, ' '),
+          r.memberId ? 'Member' : 'Visitor',
+          r.checkInTime ?? '',
+          r.method ?? '',
+        ].join(','),
+      ),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${selectedSession?.id ?? 'export'}-checkins.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLiveCheckin && selectedSession) {
     const currentSession = selectedSession;
     return (
@@ -213,6 +327,7 @@ export function AttendanceModule() {
             </Button>
           </div>
         )}
+        <VisitorWorkflowBanner variant="attendance" onModuleChange={onModuleChange} />
         <SubpageHeader
           title="Live attendance"
           subtitle={`Accepting check-ins for ${currentSession.name}`}
@@ -240,7 +355,13 @@ export function AttendanceModule() {
                 </Button>
               )}
               <ActionButton
-                label={showQR ? 'Hide kiosk' : 'Open kiosk'}
+                label="Export session"
+                icon={Download}
+                variant="secondary"
+                onClick={exportSessionRecordsCsv}
+              />
+              <ActionButton
+                label={showQR ? 'Hide kiosk info' : 'Self check-in kiosk'}
                 icon={QrCode}
                 variant="primary"
                 onClick={() => setShowQR(showQR ? null : currentSession.id)}
@@ -252,21 +373,21 @@ export function AttendanceModule() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
            <div className="lg:col-span-8 space-y-10">
               {showQR && (
-                <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-20 text-center space-y-10 animate-in zoom-in-95 duration-500 overflow-hidden relative">
+                <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-16 text-center space-y-8 animate-in zoom-in-95 duration-500 overflow-hidden relative">
                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent"></div>
-                   <div className="relative z-10 space-y-6">
+                   <div className="relative z-10 space-y-6 max-w-lg mx-auto">
+                      <div className="w-20 h-20 rounded-[2rem] bg-white/10 flex items-center justify-center mx-auto">
+                        <QrCode className="w-10 h-10 text-indigo-300" />
+                      </div>
                       <div className="space-y-2">
-                        <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">Scan to Check-in</h2>
-                        <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-xs">
-                          Demo QR payload only — not a live public check-in URL until a member app is deployed.
+                        <h2 className="text-3xl font-black tracking-tighter uppercase leading-none">Self check-in kiosk</h2>
+                        <p className="text-slate-400 font-medium text-sm leading-relaxed">
+                          Public QR check-in is coming soon. Use manual member search or visitor quick-entry below for this session.
                         </p>
                       </div>
-                      <div className="w-72 h-72 bg-white rounded-[3rem] mx-auto p-10 shadow-2xl flex items-center justify-center">
-                         <QRCodeSVG value={`https://example.invalid/checkin/${showQR}`} size={220} className="rounded-2xl" />
-                      </div>
-                      <div className="pt-4 flex justify-center gap-4">
-                         <Badge className="bg-white/10 text-white border-white/10 px-6 py-2 font-black uppercase tracking-widest text-[10px]">Session Active</Badge>
-                      </div>
+                      <Badge className="bg-amber-500/20 text-amber-200 border-amber-400/30 px-6 py-2 font-black uppercase tracking-widest text-[10px]">
+                        Coming soon
+                      </Badge>
                    </div>
                 </Card>
               )}
@@ -321,15 +442,19 @@ export function AttendanceModule() {
                             onSubmit={(e) => {
                               e.preventDefault();
                               const formData = new FormData(e.currentTarget);
+                              const name = String(formData.get('name') ?? '').trim();
+                              const phone = String(formData.get('phone') ?? '').trim();
                               handleCheckIn(null, {
-                                visitorName: formData.get('name'),
-                                visitorPhone: formData.get('phone')
+                                visitorName: name,
+                                visitorPhone: phone || undefined,
                               });
                               setCheckinMode('default');
                             }}
                             className="bg-indigo-50 rounded-[2rem] p-8 space-y-4 animate-in slide-in-from-top-4"
                           >
-                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Visitor Quick-Entry</p>
+                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">
+                              Visitor quick-entry — also queues pastoral follow-up
+                            </p>
                             <div className="grid grid-cols-2 gap-4">
                               <Input name="name" placeholder="Visitor Full Name" required className="h-14 bg-white border-none rounded-2xl px-6 font-bold" />
                               <Input name="phone" placeholder="Phone Number" className="h-14 bg-white border-none rounded-2xl px-6 font-bold" />
@@ -410,14 +535,6 @@ export function AttendanceModule() {
                           </div>
                        </div>
                     </div>
-                    <Button
-                      type="button"
-                      disabled
-                      title="Staff blast notifications are not wired to a provider in this build."
-                      className="w-full h-16 bg-white/40 text-slate-500 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] border border-white/20 cursor-not-allowed"
-                    >
-                      Notify All Staff (not connected)
-                    </Button>
                  </div>
               </Card>
            </div>
@@ -434,32 +551,22 @@ export function AttendanceModule() {
         icon={CalendarCheck}
         actions={
           <>
-            <ActionButton label="Export records" icon={Download} variant="secondary" />
+            <ActionButton label="Export sessions" icon={Download} variant="secondary" onClick={exportSessionsCsv} />
             <ActionButton 
               label="New session" 
               icon={PlusCircle} 
               variant="primary" 
-              onClick={async () => {
-                const name = prompt('Session Name:', `Service - ${new Date().toLocaleDateString()}`);
-                if (!name) return;
-                try {
-                  const res = await apiRequest<any>('attendance/sessions', {
-                    method: 'POST',
-                    body: { name, type: 'SERVICE', status: 'OPEN' }
-                  });
-                  const session = parseApiResponse(res);
-                  setSelectedSession(session);
-                  setIsLiveCheckin(true);
-                  loadSessions();
-                } catch (e) {
-                  setAttendanceError(formatApiError(e));
-                }
-              }} 
+              onClick={openNewSessionModal}
             />
           </>
         }
       />
       {attendanceError && <FeedbackBanner tone="error">{attendanceError}</FeedbackBanner>}
+      {linkedEventId && !isLiveCheckin && (
+        <FeedbackBanner tone="info">
+          New sessions will link to the current event. To create a standalone session, use New session and confirm when prompted.
+        </FeedbackBanner>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
         <StatCard
@@ -539,18 +646,29 @@ export function AttendanceModule() {
 
       <div className="space-y-8">
         <div className="flex items-center justify-between px-2 border-b border-slate-100 pb-6">
-           <h2 className={ds.sectionTitle}>Recent service sessions</h2>
-           <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50">View History Archive</Button>
+           <div>
+             <h2 className={ds.sectionTitle}>Session history</h2>
+             <p className="text-sm text-slate-500 font-medium mt-1">Click any session below to open check-in</p>
+           </div>
+           <Button variant="outline" className="text-[10px] font-black uppercase tracking-widest" onClick={openNewSessionModal}>
+             <PlusCircle className="w-4 h-4 mr-2" /> New session
+           </Button>
         </div>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-           {sessions.map((session, i) => (
+           {sessions.map((session) => (
              <Card 
-               key={i} 
-               onClick={() => {
-                 setSelectedSession(session);
-                 setIsLiveCheckin(true);
+               key={session.id} 
+               role="button"
+               tabIndex={0}
+               aria-label={`Open check-in for ${session.name}`}
+               onClick={() => openSessionCheckIn(session)}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter' || e.key === ' ') {
+                   e.preventDefault();
+                   openSessionCheckIn(session);
+                 }
                }}
-               className={cn(ds.card, 'group cursor-pointer overflow-hidden transition-all hover:shadow-md active:scale-[0.99]')}
+               className={cn(ds.card, 'group cursor-pointer overflow-hidden transition-all hover:shadow-md hover:border-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-[0.99]')}
              >
                <CardContent className="p-0">
                  <div className="flex h-40">
@@ -565,6 +683,9 @@ export function AttendanceModule() {
                              {session.status === 'OPEN' && <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
                           </div>
                           <h3 className="text-lg font-black text-slate-900 group-hover:text-brand-primary transition-colors leading-tight">{session.name}</h3>
+                          <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
+                            Click to check in →
+                          </p>
                           <div className="flex items-center gap-4 pt-1">
                              <div className="flex items-center gap-2">
                                 <Users className="w-5 h-5 text-slate-300" />
@@ -587,6 +708,59 @@ export function AttendanceModule() {
            )}
          </div>
       </div>
+
+      {showNewSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="new-session-title">
+          <Card className="w-full max-w-md rounded-3xl border-none shadow-2xl">
+            <CardHeader>
+              <CardTitle id="new-session-title" className="text-xl font-black">New check-in session</CardTitle>
+              <CardDescription>
+                {linkedEventId
+                  ? 'This session will link to your current event automatically.'
+                  : 'Name your session, then start checking people in.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="session-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Session name</label>
+                <Input
+                  id="session-name"
+                  value={newSessionName}
+                  onChange={(e) => setNewSessionName(e.target.value)}
+                  placeholder="Sunday morning service"
+                  autoFocus
+                />
+              </div>
+              {!linkedEventId && (
+                <label className="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newSessionStandalone}
+                    onChange={(e) => setNewSessionStandalone(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-slate-600">
+                    Create a standalone session with no event link. Open Attendance from Events or Sunday Service to link automatically.
+                  </span>
+                </label>
+              )}
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowNewSessionModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 bg-indigo-600"
+                  disabled={creatingSession || !newSessionName.trim() || (!linkedEventId && !newSessionStandalone)}
+                  onClick={() => void createSession()}
+                >
+                  {creatingSession ? 'Creating…' : 'Start session'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </PageLayout>
   );
 }

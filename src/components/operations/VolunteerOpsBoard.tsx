@@ -28,10 +28,16 @@ export function VolunteerOpsBoard({
   eventId,
   livePresence,
   onPresenceChange,
+  refreshKey = 0,
+  localRows,
 }: {
   eventId?: string;
   livePresence?: Record<string, VolunteerPresence>;
   onPresenceChange?: (presence: Record<string, VolunteerPresence>) => void;
+  /** Increment to force reload after assignments change */
+  refreshKey?: number;
+  /** Same assignments as Events People tab — used when board API is stale */
+  localRows?: Row[];
 }) {
   const [rows, setRows] = React.useState<Row[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -56,7 +62,7 @@ export function VolunteerOpsBoard({
 
   React.useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const setPresence = (responsibilityId: string, status: VolunteerPresence) => {
     if (!onPresenceChange || !livePresence) return;
@@ -98,10 +104,15 @@ export function VolunteerOpsBoard({
     }
   };
 
+  const displayRows = React.useMemo(() => {
+    if (localRows && localRows.length > 0) return localRows;
+    return rows;
+  }, [localRows, rows]);
+
   const buckets = {
-    active: rows.filter((r) => r.status === 'Active'),
-    pending: rows.filter((r) => r.status === 'Pending'),
-    inactive: rows.filter((r) => r.status === 'Inactive'),
+    active: displayRows.filter((r) => r.status === 'Active'),
+    pending: displayRows.filter((r) => r.status === 'Pending'),
+    inactive: displayRows.filter((r) => r.status === 'Inactive'),
   };
 
   return (
@@ -135,7 +146,7 @@ export function VolunteerOpsBoard({
               ))}
             </div>
 
-            {rows.length === 0 ? (
+            {displayRows.length === 0 ? (
               <div className="py-10 text-center space-y-3 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
                 <p className="text-sm font-bold text-slate-700">No volunteers assigned for this event</p>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -144,7 +155,7 @@ export function VolunteerOpsBoard({
               </div>
             ) : (
             <ul className="space-y-3">
-              {rows.map((r) => {
+              {displayRows.map((r) => {
                 const presence = livePresence?.[r.id] ?? (r.status === 'Active' ? 'confirmed' : 'pending');
                 return (
                   <li

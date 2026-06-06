@@ -388,9 +388,9 @@ export function DashboardModule({
                </CardDescription>
             </CardHeader>
             <CardContent className="p-10 pt-0 space-y-3 relative z-10">
-               {(['attendance', 'giving', 'sunday-services', 'events'] as ERPModule[]).map((id) => (
+               {(['attendance', 'giving', 'events'] as ERPModule[]).map((id) => (
                  <Button key={id} type="button" variant="outline" className="w-full justify-center border-white/20 bg-white/5 text-white hover:bg-white/15 rounded-xl text-[10px] font-black uppercase tracking-widest" onClick={() => onModuleChange?.(id)}>
-                    {id === 'sunday-services' ? 'Sunday & Services' : id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ')}
+                    {id === 'events' ? 'Worship Services' : id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ')}
                  </Button>
                ))}
             </CardContent>

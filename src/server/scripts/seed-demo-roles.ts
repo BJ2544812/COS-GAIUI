@@ -116,6 +116,12 @@ const DEMO_ROLES: RoleSpec[] = [
     permissions: ['manage_events', 'manage_attendance'],
   },
   {
+    name: 'Counter Team',
+    username: 'counter',
+    email: 'counter@grace.local',
+    permissions: ['manage_attendance', 'manage_events'],
+  },
+  {
     name: 'Campus Admin',
     username: 'campus',
     email: 'campus@grace.local',

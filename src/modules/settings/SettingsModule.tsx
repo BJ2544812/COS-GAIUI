@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Layers,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,17 +24,32 @@ import { BrandingUploadField } from '@/components/settings/BrandingUploadField';
 import { AccountChartPanel } from '@/components/settings/AccountChartPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { OpsFeedback } from '@/components/operations/OpsFeedback';
+import { StructureModule } from '@/modules/structure/StructureModule';
 
-type SettingSection = 'organization' | 'branding' | 'financial' | 'paymentGateway' | 'documents' | 'operational' | 'system';
+type SettingSection = 'organization' | 'branding' | 'financial' | 'paymentGateway' | 'documents' | 'operational' | 'system' | 'structure';
+
+const UCOS_SETTINGS_SECTION = 'ucos_settings_section';
+
+function resolveInitialSection(initialSection?: string): SettingSection {
+  if (initialSection === 'structure') return 'structure';
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem(UCOS_SETTINGS_SECTION);
+    if (stored === 'structure') {
+      sessionStorage.removeItem(UCOS_SETTINGS_SECTION);
+      return 'structure';
+    }
+  }
+  return 'organization';
+}
 
 function settingsPayloadFromState(settings: ReturnType<typeof useSettings>['settings']) {
   const { _meta, ...rest } = settings;
   return rest;
 }
 
-export function SettingsModule() {
+export function SettingsModule({ initialSection }: { initialSection?: string } = {}) {
   const { settings, setSettings, refreshSettings, error: contextError, isLoading } = useSettings();
-  const [activeSection, setActiveSection] = useState<SettingSection>('organization');
+  const [activeSection, setActiveSection] = useState<SettingSection>(() => resolveInitialSection(initialSection));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [accountRefreshKey, setAccountRefreshKey] = React.useState(0);
@@ -48,8 +64,13 @@ export function SettingsModule() {
     }
   }, [contextError]);
 
+  React.useEffect(() => {
+    if (initialSection === 'structure') setActiveSection('structure');
+  }, [initialSection]);
+
   const sidebarItems = [
     { id: 'organization', label: 'Organization', icon: Building2, description: 'Identity & contact info' },
+    { id: 'structure', label: 'Church Structure', icon: Layers, description: 'Campuses, ministries & hierarchy' },
     { id: 'branding', label: 'Branding', icon: Palette, description: 'Colors & theme' },
     { id: 'financial', label: 'Financial', icon: Wallet, description: 'Currency & accounts' },
     { id: 'paymentGateway', label: 'Online Giving', icon: CreditCard, description: 'Cashfree & cards' },
@@ -223,6 +244,9 @@ export function SettingsModule() {
         </aside>
 
         <main>
+          {activeSection === 'structure' ? (
+            <StructureModule embedded />
+          ) : (
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
               <CardTitle className="text-xl text-slate-800">
@@ -818,6 +842,7 @@ export function SettingsModule() {
 
             </CardContent>
           </Card>
+          )}
         </main>
       </div>
 

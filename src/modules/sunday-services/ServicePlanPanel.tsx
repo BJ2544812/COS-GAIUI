@@ -16,8 +16,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SortableRunSheet } from '@/components/operations/SortableRunSheet';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
-import { defaultRunSheet, EVENT_STATUS_LABELS, type RunSheetSegment } from '@/lib/eventLifecycle';
-import { openSundayLive } from '@/lib/sundayServicesNavigation';
+import { EVENT_STATUS_LABELS, type RunSheetSegment } from '@/lib/eventLifecycle';
+import { openSundayLive, openWorshipServices } from '@/lib/sundayServicesNavigation';
+import { openAttendanceForEvent } from '@/lib/attendanceNavigation';
 import type { ERPModule } from '@/types';
 
 type EventDetail = {
@@ -54,10 +55,13 @@ export function ServicePlanPanel({
   eventId,
   onModuleChange,
   onBack,
+  embedded = false,
 }: {
   eventId: string;
   onModuleChange?: (m: ERPModule, tab?: string) => void;
   onBack?: () => void;
+  /** When true, render inside Event workspace Schedule tab (no page chrome). */
+  embedded?: boolean;
 }) {
   const [event, setEvent] = React.useState<EventDetail | null>(null);
   const [responsibilities, setResponsibilities] = React.useState<Responsibility[]>([]);
@@ -83,7 +87,7 @@ export function ServicePlanPanel({
       setEvent({ ...ev, attendanceSessions: ws.event.attendanceSessions ?? ev.attendanceSessions });
       setResponsibilities(ws.responsibilities ?? []);
       setNotes(ev.internalNotes ?? '');
-      setRunSheet(Array.isArray(ev.runSheet) && ev.runSheet.length > 0 ? ev.runSheet : defaultRunSheet());
+      setRunSheet(Array.isArray(ev.runSheet) && ev.runSheet.length > 0 ? ev.runSheet : []);
       if (sermonsJ) {
         const list = parseApiResponse<SermonRow[]>(sermonsJ);
         setSermons(Array.isArray(list) ? list : []);
@@ -125,6 +129,22 @@ export function ServicePlanPanel({
     }
   };
 
+  const savePlan = async () => {
+    setSavingSheet(true);
+    setSavingNotes(true);
+    setError(null);
+    try {
+      await apiRequest(`events/${eventId}/run-sheet`, { method: 'PUT', body: { runSheet } });
+      await apiRequest(`events/${eventId}`, { method: 'PUT', body: { internalNotes: notes } });
+      await load();
+    } catch (e) {
+      setError(formatApiError(e));
+    } finally {
+      setSavingSheet(false);
+      setSavingNotes(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center gap-3 text-slate-500 py-12">
@@ -140,6 +160,139 @@ export function ServicePlanPanel({
   const when = new Date(event.date);
   const preacher = pickRoleName(responsibilities, [/speaker/i, /pastor/i, /preach/i]);
   const serviceLeader = pickRoleName(responsibilities, [/worship lead/i, /service lead/i, /host/i, /coordinator/i]);
+  const mediaSegments = runSheet.filter((s) => s.media || s.segmentType === 'media');
+
+  if (embedded) {
+    return (
+      <div className="space-y-6 text-left">
+        {error && <p className="text-sm text-rose-600 font-medium">{error}</p>}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => onModuleChange?.('sermons')}>
+              <Mic2 className="w-4 h-4 mr-2" /> Song & sermon library
+            </Button>
+            <Button type="button" className="bg-violet-600" size="sm" onClick={() => openSundayLive(onModuleChange, eventId)}>
+              <Radio className="w-4 h-4 mr-2" /> Sunday Service (live)
+            </Button>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-indigo-600"
+            disabled={savingSheet || savingNotes}
+            onClick={() => void savePlan()}
+          >
+            {savingSheet || savingNotes ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" /> Save plan
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Speaker', value: preacher ?? '—' },
+            { label: 'Worship lead', value: serviceLeader ?? '—' },
+            { label: 'Team', value: String(responsibilities.length) },
+            { label: 'Segments', value: String(runSheet.length) },
+          ].map((m) => (
+            <Card key={m.label} className="rounded-2xl border-slate-100">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.label}</p>
+                <p className="text-lg font-bold text-slate-900 mt-1 truncate">{m.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="rounded-2xl border-slate-100">
+          <CardHeader>
+            <div>
+              <CardTitle className="text-lg">Run sheet</CardTitle>
+              <CardDescription>Order of service — drag to reorder, link sermons on Message segments.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="overflow-x-auto p-2">
+            <SortableRunSheet rows={runSheet} onChange={setRunSheet} sermons={sermons} />
+          </CardContent>
+        </Card>
+
+        {mediaSegments.length > 0 && (
+          <Card className="rounded-2xl border-slate-100">
+            <CardHeader>
+              <CardTitle className="text-lg">Media cues</CardTitle>
+              <CardDescription>Production notes from the run sheet</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {mediaSegments.map((s) => (
+                <div key={s.id} className="flex justify-between py-2 border-b border-slate-50 text-sm">
+                  <span className="font-medium text-slate-800">{s.item}</span>
+                  <span className="text-slate-500">{s.media ?? s.owner ?? '—'}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="rounded-2xl border-slate-100">
+          <CardHeader className="flex flex-row justify-between items-center">
+            <div>
+              <CardTitle className="text-lg">Teams</CardTitle>
+              <CardDescription>Serving roles for this worship gathering</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                sessionStorage.setItem('ucos_assign_event_id', eventId);
+                onModuleChange?.('volunteers');
+              }}
+            >
+              Manage in Volunteers
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {responsibilities.length === 0 ? (
+              <p className="text-sm text-slate-500">No team assigned yet.</p>
+            ) : (
+              responsibilities.map((r) => (
+                <div key={r.id} className="flex justify-between items-center py-2 border-b border-slate-50">
+                  <span className="font-medium text-slate-800">{r.member?.name ?? '—'}</span>
+                  <Badge variant="outline">{r.role}</Badge>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border-slate-100">
+          <CardHeader>
+            <div>
+              <CardTitle className="text-lg">Planning notes</CardTitle>
+              <CardDescription>For hosts, worship, and production — saved with the run sheet above.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              className="resize-y"
+              placeholder="Theme, announcements, production cues…"
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const sessions = event.attendanceSessions ?? [];
   const openSession = sessions.find((s) => s.status === 'OPEN') ?? sessions[0];
 
@@ -286,8 +439,8 @@ export function ServicePlanPanel({
               size="sm"
               className="w-full"
               onClick={() => {
-                if (openSession) sessionStorage.setItem('ucos_open_attendance_session_id', openSession.id);
-                onModuleChange?.('attendance');
+                if (openSession) openAttendanceForEvent(onModuleChange, eventId, openSession.id);
+                else openAttendanceForEvent(onModuleChange, eventId);
               }}
             >
               <ExternalLink className="w-4 h-4 mr-2" /> Open Attendance

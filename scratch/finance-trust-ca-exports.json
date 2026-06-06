@@ -1,0 +1,66 @@
+{
+  "results": [
+    {
+      "type": "trial_balance",
+      "ok": true,
+      "rows": 16,
+      "detail": "header=code,name,type,debit,credit"
+    },
+    {
+      "type": "ledger",
+      "ok": false,
+      "rows": 0,
+      "detail": "status=400 {\"code\":\"ACCOUNT_NOT_FOUND\",\"message\":\"Account not found\"}"
+    },
+    {
+      "type": "day_book",
+      "ok": true,
+      "rows": 108,
+      "detail": "header=date,voucherNo,type,amount,description"
+    },
+    {
+      "type": "cash_bank_book",
+      "ok": true,
+      "rows": 102,
+      "detail": "header=date,account,voucherNo,debit,credit"
+    },
+    {
+      "type": "fund_statements",
+      "ok": false,
+      "rows": 0,
+      "detail": "status=200 {\"status\":\"success\",\"data\":{\"exportId\":\"eb3e8cd2-0124-4bd1-ac97-b7eec4f5a2ac\",\"e"
+    },
+    {
+      "type": "event_pnl",
+      "ok": true,
+      "rows": 20,
+      "detail": "header=event,date,income,expenses,net"
+    },
+    {
+      "type": "donor_statements",
+      "ok": true,
+      "rows": 67,
+      "detail": "header=date,donorName,amount,reference"
+    },
+    {
+      "type": "tally_foundation",
+      "ok": true,
+      "rows": 216,
+      "detail": "header=voucherNo,date,voucherType,account,debit,credit,narration"
+    }
+  ],
+  "failed": [
+    {
+      "type": "ledger",
+      "ok": false,
+      "rows": 0,
+      "detail": "status=400 {\"code\":\"ACCOUNT_NOT_FOUND\",\"message\":\"Account not found\"}"
+    },
+    {
+      "type": "fund_statements",
+      "ok": false,
+      "rows": 0,
+      "detail": "status=200 {\"status\":\"success\",\"data\":{\"exportId\":\"eb3e8cd2-0124-4bd1-ac97-b7eec4f5a2ac\",\"e"
+    }
+  ]
+}

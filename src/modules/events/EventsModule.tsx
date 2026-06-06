@@ -1,19 +1,11 @@
 import React from 'react';
-import { 
-  Star, 
-  Search, 
-  Filter, 
-  MapPin, 
-  Users, 
-  Calendar, 
-  Plus, 
-  ChevronRight, 
-  ArrowRight,
+import { useSearchParams } from 'react-router-dom';
+import {
+  Star,
+  Calendar,
+  Plus,
   ArrowLeft,
-  Settings,
-  Share2,
-  Download,
-  Mic2,
+  Users,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +14,17 @@ import { cn } from '@/lib/utils';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { useSettings } from '@/context/SettingsContext';
 import { EventWorkspace } from '@/components/events/EventWorkspace';
-import { openSundayServices, UCOS_OPEN_EVENT_ID } from '@/lib/sundayServicesNavigation';
-import { formatCurrencyAmount } from '@/lib/formatCurrency';
+import {
+  UCOS_OPEN_EVENT_ID,
+  UCOS_OPEN_SERVICE_EVENT_ID,
+} from '@/lib/sundayServicesNavigation';
+import {
+  UCOS_EVENT_WORKSPACE_TAB,
+  UCOS_OPEN_NEXT_SERVICE,
+  UCOS_EVENTS_ACTIVE_EVENT_ID,
+  type EventWorkspaceTab,
+} from '@/lib/eventWorkspaceNavigation';
+import { openAttendanceForEvent } from '@/lib/attendanceNavigation';
 import { EVENT_STATUS_LABELS, EVENT_STATUS_COLORS } from '@/lib/eventLifecycle';
 import { ModuleHeader, ActionButton, PageLayout, FeedbackBanner } from '@/components/modules/ModuleHeader';
 import type { ERPModule } from '@/types';
@@ -36,6 +37,15 @@ import {
   type EventPublicFormState,
 } from '@/components/events/EventPublicPublishingFields';
 import { getEventPublicProfile, publicRegistrationCount, isPublishedToWebsite } from '@/lib/eventPublicProfile';
+import {
+  EVENT_CREATE_TYPE_OPTIONS,
+  defaultCreateTypeOptionId,
+  defaultEventDateIso,
+  defaultWorshipServiceDateYmd,
+  labelForEventType,
+  readEventCategory,
+  resolveEventCreateOption,
+} from '@/lib/eventTypeCatalog';
 
 
 type EventDetailDto = {
@@ -60,16 +70,6 @@ type EventDetailDto = {
   }>;
 };
 
-type EventAttendanceRow = {
-  id: string;
-  checkInTime: string;
-  status: string;
-  member?: { id: string; name: string } | null;
-  visitorName?: string | null;
-  notes?: string | null;
-  session?: { id: string; name: string };
-};
-
 type EventCard = {
   id: string;
   title: string;
@@ -80,24 +80,48 @@ type EventCard = {
   regCount: number;
   published: boolean;
   type: string;
+  typeLabel?: string;
 };
 
-export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
+function readWorkspaceTab(): EventWorkspaceTab {
+  if (typeof window === 'undefined') return 'overview';
+  const t = sessionStorage.getItem(UCOS_EVENT_WORKSPACE_TAB);
+  sessionStorage.removeItem(UCOS_EVENT_WORKSPACE_TAB);
+  const allowed: EventWorkspaceTab[] = ['overview', 'people', 'schedule', 'finance', 'reports', 'workflow'];
+  if (t && allowed.includes(t as EventWorkspaceTab)) return t as EventWorkspaceTab;
+  return 'overview';
+}
+
+function pickNextServiceId(rows: { id: string; type: string; date: string }[]): string | null {
+  const services = rows.filter((e) => e.type === 'Service').sort((a, b) => +new Date(a.date) - +new Date(b.date));
+  if (services.length === 0) return null;
+  const now = Date.now();
+  const upcoming = services.find((s) => +new Date(s.date) >= now - 12 * 60 * 60 * 1000);
+  return (upcoming ?? services[services.length - 1]).id;
+}
+
+export function EventsModule({
+  onModuleChange,
+}: {
+  onModuleChange?: (m: ERPModule, tab?: string) => void;
+  initialTab?: string;
+}) {
   const { settings } = useSettings();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [view, setView] = React.useState<'list' | 'details' | 'create' | 'setup'>('list');
+  const [workspaceTab, setWorkspaceTab] = React.useState<EventWorkspaceTab>('overview');
   const [selectedEvent, setSelectedEvent] = React.useState<EventCard | null>(null);
   const [eventDetail, setEventDetail] = React.useState<EventDetailDto | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailError, setDetailError] = React.useState<string | null>(null);
-  const [eventAttendees, setEventAttendees] = React.useState<EventAttendanceRow[]>([]);
   const [listEvents, setListEvents] = React.useState<EventCard[]>([]);
   const [eventsError, setEventsError] = React.useState<string | null>(null);
   const [listLoading, setListLoading] = React.useState(true);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [createName, setCreateName] = React.useState('');
-  const [createType, setCreateType] = React.useState('Special');
-  const [createDate, setCreateDate] = React.useState(() => new Date().toISOString().split('T')[0]);
+  const [createTypeOptionId, setCreateTypeOptionId] = React.useState(defaultCreateTypeOptionId);
+  const [createDate, setCreateDate] = React.useState(() => defaultWorshipServiceDateYmd());
   const [createLocation, setCreateLocation] = React.useState('');
   const [createPublic, setCreatePublic] = React.useState<EventPublicFormState>(emptyPublicForm);
 
@@ -134,6 +158,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
           regCount,
           published: isPublishedToWebsite(e.opsConfig),
           type: e.type,
+          typeLabel: labelForEventType(e.type, readEventCategory(e.opsConfig)),
         };
       }),
     [],
@@ -144,8 +169,8 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
       setEventsError(null);
       setListLoading(true);
       const json = await apiRequest<unknown>('events', { method: 'GET' });
-      const rows = parseApiResponse<{ id: string; name: string; type: string; date: string }[]>(json);
-      setListEvents(mapRowsToCards(rows.filter((e) => e.type !== 'Service')));
+      const rows = parseApiResponse<{ id: string; name: string; type: string; date: string; status?: string; opsConfig?: unknown; attendanceSessions?: Array<{ _count?: { attendances: number } }> }[]>(json);
+      setListEvents(mapRowsToCards(rows));
     } catch (e) {
       setEventsError(formatApiError(e));
       setListEvents([]);
@@ -158,17 +183,10 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     void fetchEvents();
   }, [fetchEvents]);
 
-  React.useEffect(() => {
-    if (!successMessage) return;
-    const t = window.setTimeout(() => setSuccessMessage(null), 4500);
-    return () => window.clearTimeout(t);
-  }, [successMessage]);
-
   const loadEventOperational = React.useCallback(async (id: string, listCard?: EventCard | null) => {
     setDetailError(null);
     setDetailLoading(true);
     setEventDetail(null);
-    setEventAttendees([]);
     if (listCard) setSelectedEvent(listCard);
     try {
       const j = await apiRequest<unknown>(`events/${id}`, { method: 'GET' });
@@ -187,8 +205,6 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
         type: row.type,
       });
       setSetupPublic(publicFormFromProfile(getEventPublicProfile(row.opsConfig)));
-      const aj = await apiRequest<unknown>(`attendance/event/${id}`, { method: 'GET' });
-      setEventAttendees(parseApiResponse<EventAttendanceRow[]>(aj) ?? []);
     } catch (e) {
       setDetailError(formatApiError(e));
       if (listCard) setSelectedEvent(listCard);
@@ -197,33 +213,88 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     }
   }, []);
 
+  const syncEventUrl = React.useCallback(
+    (eventId: string | null, tab?: EventWorkspaceTab) => {
+      const next = new URLSearchParams(searchParams);
+      if (eventId) {
+        next.set('event', eventId);
+        if (tab) next.set('tab', tab);
+      } else {
+        next.delete('event');
+        next.delete('tab');
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const openEventDetails = React.useCallback(
+    (id: string, listCard?: EventCard | null, tab: EventWorkspaceTab = 'overview') => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(UCOS_EVENTS_ACTIVE_EVENT_ID, id);
+        sessionStorage.setItem(UCOS_EVENT_WORKSPACE_TAB, tab);
+      }
+      setWorkspaceTab(tab);
+      setView('details');
+      syncEventUrl(id, tab);
+      void loadEventOperational(id, listCard);
+    },
+    [loadEventOperational, syncEventUrl],
+  );
+
   React.useEffect(() => {
+    const urlEventId = searchParams.get('event');
+    if (urlEventId && view === 'list') {
+      const tabParam = searchParams.get('tab');
+      const allowed: EventWorkspaceTab[] = ['overview', 'people', 'schedule', 'finance', 'reports', 'workflow'];
+      const tab = tabParam && allowed.includes(tabParam as EventWorkspaceTab) ? (tabParam as EventWorkspaceTab) : readWorkspaceTab();
+      openEventDetails(urlEventId, null, tab);
+      return;
+    }
+
+    const persistedId = sessionStorage.getItem(UCOS_EVENTS_ACTIVE_EVENT_ID);
+    if (persistedId && view === 'list') {
+      openEventDetails(persistedId, null, readWorkspaceTab());
+      return;
+    }
+
+    const openNext = sessionStorage.getItem(UCOS_OPEN_NEXT_SERVICE);
+    if (openNext) {
+      sessionStorage.removeItem(UCOS_OPEN_NEXT_SERVICE);
+      void (async () => {
+        try {
+          const json = await apiRequest<unknown>('events', { method: 'GET' });
+          const rows = parseApiResponse<{ id: string; type: string; date: string }[]>(json);
+          const id = pickNextServiceId(rows);
+          if (id) openEventDetails(id, null, readWorkspaceTab());
+        } catch {
+          /* list stays */
+        }
+      })();
+      return;
+    }
+
+    const serviceId = sessionStorage.getItem(UCOS_OPEN_SERVICE_EVENT_ID);
+    if (serviceId) {
+      sessionStorage.removeItem(UCOS_OPEN_SERVICE_EVENT_ID);
+      openEventDetails(serviceId, null, readWorkspaceTab());
+      return;
+    }
+
     const id = sessionStorage.getItem(UCOS_OPEN_EVENT_ID);
     if (!id) return;
     sessionStorage.removeItem(UCOS_OPEN_EVENT_ID);
-    void (async () => {
-      try {
-        const j = await apiRequest<unknown>(`events/${id}`, { method: 'GET' });
-        const row = parseApiResponse<{ type: string }>(j);
-        if (row.type === 'Service') {
-          openSundayServices(onModuleChange, 'plan', id);
-          return;
-        }
-      } catch {
-        /* fall through to workspace */
-      }
-      setView('details');
-      void loadEventOperational(id);
-    })();
-  }, [loadEventOperational, onModuleChange]);
+    openEventDetails(id, null, readWorkspaceTab());
+  }, [openEventDetails]);
+
+  React.useEffect(() => {
+    if (!successMessage) return;
+    const t = window.setTimeout(() => setSuccessMessage(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [successMessage]);
 
   const handleEventClick = (event: EventCard) => {
-    if (event.type === 'Service') {
-      openSundayServices(onModuleChange, 'plan', event.id);
-      return;
-    }
-    setView('details');
-    void loadEventOperational(event.id, event);
+    openEventDetails(event.id, event);
   };
 
   const openSetup = () => {
@@ -278,59 +349,10 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
     }
   };
 
-  const createCheckInSession = async () => {
-    if (!eventDetail) return;
-    setEventsError(null);
-    try {
-      const j = await apiRequest<unknown>('attendance/sessions', {
-        method: 'POST',
-        body: {
-          name: `Check-in: ${eventDetail.name}`,
-          date: eventDetail.date,
-          type: 'EVENT',
-          eventId: eventDetail.id,
-          status: 'OPEN',
-        },
-      });
-      const session = parseApiResponse<{ id: string }>(j);
-      sessionStorage.setItem('ucos_open_attendance_session_id', session.id);
-      onModuleChange?.('attendance');
-      setSuccessMessage('Opened the Attendance module with this check-in session.');
-    } catch (e) {
-      setEventsError(formatApiError(e));
-    }
-  };
-
-  const openAttendanceSession = (sessionId: string) => {
-    sessionStorage.setItem('ucos_open_attendance_session_id', sessionId);
-    onModuleChange?.('attendance');
-  };
-
-  const downloadAttendanceReport = () => {
-    const lines = [
-      ['session', 'name', 'status', 'checkInTime', 'notes'].join(','),
-      ...eventAttendees.map((r) =>
-        [
-          r.session?.name ?? '',
-          (r.member?.name ?? r.visitorName ?? '').replace(/,/g, ' '),
-          r.status,
-          r.checkInTime,
-          (r.notes ?? '').replace(/,/g, ' '),
-        ].join(','),
-      ),
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `event-attendance-${selectedEvent?.id ?? 'export'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const submitNewEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createName.trim()) return;
+    const typeOption = resolveEventCreateOption(createTypeOptionId);
     setCreating(true);
     setEventsError(null);
     try {
@@ -338,17 +360,18 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
         method: 'POST',
         body: {
           name: createName.trim(),
-          type: createType,
-          date: createDate,
+          type: typeOption.canonicalType,
+          date: defaultEventDateIso(typeOption.canonicalType, createDate),
           location: createLocation.trim() || null,
           publicProfile: publicFormToProfile(createPublic),
+          ...(typeOption.category ? { eventCategory: typeOption.category } : {}),
         },
       });
       const created = parseApiResponse<{ id: string; name: string; type: string; date: string }>(j);
       await fetchEvents();
       setSuccessMessage(`Event “${created.name}” was created.`);
-      setView('list');
       setCreateName('');
+      openEventDetails(created.id, null, 'overview');
     } catch (err) {
       setEventsError(formatApiError(err));
     } finally {
@@ -387,9 +410,9 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
                   onChange={(e) => setSetupType(e.target.value)}
                   className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900"
                 >
-                  <option value="Service">Service</option>
-                  <option value="Special">Special</option>
-                  <option value="SmallGroup">SmallGroup</option>
+                  <option value="Service">Worship service</option>
+                  <option value="Special">Special event</option>
+                  <option value="SmallGroup">Small group gathering</option>
                 </select>
               </div>
               <div className="space-y-2">
@@ -476,7 +499,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Create event</h1>
             <p className="text-sm text-slate-500 font-medium">
-              Conferences, outreach, and special gatherings. Worship services are planned in Sunday &amp; Services.
+              Conferences, outreach, worship services, and small groups — each opens in one workspace.
             </p>
           </div>
         </div>
@@ -501,12 +524,22 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Event type</label>
                 <select
-                  value={createType}
-                  onChange={(e) => setCreateType(e.target.value)}
+                  value={createTypeOptionId}
+                  onChange={(e) => {
+                    const optionId = e.target.value;
+                    setCreateTypeOptionId(optionId);
+                    const option = resolveEventCreateOption(optionId);
+                    if (option.canonicalType === 'Service') {
+                      setCreateDate(defaultWorshipServiceDateYmd());
+                    }
+                  }}
                   className="w-full h-14 bg-slate-50 border-none rounded-2xl px-6 font-bold text-slate-900 focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none cursor-pointer"
                 >
-                  <option value="Special">Special event</option>
-                  <option value="SmallGroup">Small group</option>
+                  {EVENT_CREATE_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -559,31 +592,31 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
 
   if (view === 'details' && selectedEvent) {
     return (
-      <div className="space-y-6 min-w-0 animate-in fade-in slide-in-from-right-8 duration-500 text-left">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <Button variant="ghost" onClick={() => { setView('list'); setEventDetail(null); }} className="gap-2">
-            <ArrowLeft className="w-4 h-4" /> Back to Events
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={openSetup} disabled={!eventDetail}>
-              <Settings className="w-4 h-4 mr-2" /> Setup
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={downloadAttendanceReport} disabled={!eventAttendees.length}>
-              <Download className="w-4 h-4 mr-2" /> Attendance CSV
-            </Button>
-          </div>
-        </div>
-        <div>
-          <h2 className="text-2xl font-black text-slate-900">{selectedEvent.title}</h2>
-          <p className="text-sm text-slate-500 font-medium">
-            {selectedEvent.date} · {selectedEvent.type} · {selectedEvent.status}
-          </p>
-        </div>
+      <div className="space-y-6 min-w-0 animate-in fade-in duration-500 text-left max-w-5xl mx-auto">
+        <Button variant="ghost" onClick={() => {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(UCOS_EVENTS_ACTIVE_EVENT_ID);
+            sessionStorage.removeItem(UCOS_EVENT_WORKSPACE_TAB);
+          }
+          syncEventUrl(null);
+          setView('list');
+          setEventDetail(null);
+        }} className="gap-2 -ml-2">
+          <ArrowLeft className="w-4 h-4" /> All events
+        </Button>
         {detailError && <p className="text-sm text-rose-600 font-medium">{detailError}</p>}
-        {detailLoading && <p className="text-sm text-slate-500 font-medium">Loading event workspace…</p>}
+        {detailLoading && (
+          <p className="text-sm text-slate-500 font-medium py-8 text-center">Opening event…</p>
+        )}
         {!detailLoading && eventDetail && (
           <EventWorkspace
             eventId={eventDetail.id}
+            initialTab={workspaceTab}
+            onTabChange={(tab) => {
+              setWorkspaceTab(tab);
+              syncEventUrl(eventDetail.id, tab);
+            }}
+            onOpenSetup={openSetup}
             onModuleChange={onModuleChange}
             currency={settings.financial.currency}
           />
@@ -598,21 +631,14 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
 
        <ModuleHeader
          title="Events"
-         subtitle="Conferences, outreach gatherings, and special meetings — worship services live in Sunday & Services."
+         subtitle="One place for worship services, conferences, outreach, and gatherings."
          status="live"
          icon={Star}
          actions={
-           <div className="flex flex-wrap gap-2">
-             <ActionButton
-               label="Sunday & Services"
-               icon={Calendar}
-               variant="secondary"
-               onClick={() => openSundayServices(onModuleChange, 'this-sunday')}
-             />
-             <ActionButton label="Create Event" icon={Plus} variant="primary" onClick={() => setView('create')} />
-           </div>
+           <ActionButton label="Create Event" icon={Plus} variant="primary" onClick={() => setView('create')} />
          }
        />
+
        {eventsError && <p className="text-sm text-rose-600 font-medium mt-1 mb-4">{eventsError}</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -651,7 +677,7 @@ export function EventsModule({ onModuleChange }: { onModuleChange?: (m: ERPModul
                  <div className="p-8 space-y-6">
                     <div className="space-y-2">
                        <div className="flex justify-between items-start">
-                          <Badge variant="outline" className="text-[9px] uppercase tracking-[0.2em] font-black rounded-lg text-[color:var(--brand-primary)] border-[color:var(--brand-primary)]/20 bg-[color-mix(in_oklab,var(--brand-primary)12%,white)]/30 px-3 py-1.5">{event.type}</Badge>
+                          <Badge variant="outline" className="text-[9px] uppercase tracking-[0.2em] font-black rounded-lg text-[color:var(--brand-primary)] border-[color:var(--brand-primary)]/20 bg-[color-mix(in_oklab,var(--brand-primary)12%,white)]/30 px-3 py-1.5">{event.typeLabel ?? event.type}</Badge>
                           <span className="text-[10px] font-black text-slate-300 group-hover:text-[var(--brand-secondary)] transition-colors uppercase tracking-widest">{event.date}</span>
                        </div>
                        <h3 className="text-xl font-black text-slate-800 tracking-tight group-hover:text-[color:var(--brand-primary)] transition-colors pt-1 leading-tight">{event.title}</h3>

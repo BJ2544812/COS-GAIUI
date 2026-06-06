@@ -3,7 +3,7 @@ import { NotificationService } from './NotificationService.js';
 import { EventBus } from '../events/eventBus.js';
 import { broadcastScoped } from '../realtime/socketHub.js';
 import { RT } from '../utils/realtimeEvents.js';
-import { defaultRunSheet, type RunSheetSegment } from '../../lib/eventLifecycle.js';
+import { type RunSheetSegment } from '../../lib/eventLifecycle.js';
 import { Prisma } from '@prisma/client';
 
 type LiveOpsConfig = {
@@ -26,7 +26,7 @@ function asConfig(raw: unknown): LiveOpsConfig {
 
 function asRunSheet(raw: unknown): RunSheetSegment[] {
   if (Array.isArray(raw) && raw.length > 0) return raw as RunSheetSegment[];
-  return defaultRunSheet();
+  return [];
 }
 
 export class LiveOpsService {
@@ -123,6 +123,9 @@ export class LiveOpsService {
     if (!event) throw new Error('Event not found');
 
     const runSheet = asRunSheet(event.runSheet);
+    if (runSheet.length === 0) {
+      throw new Error('No run sheet has been created for this service.');
+    }
     const ops = asConfig(event.opsConfig);
     let current = ops.currentSegmentIndex ?? 0;
 

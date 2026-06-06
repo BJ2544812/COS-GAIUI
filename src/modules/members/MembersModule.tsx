@@ -242,7 +242,7 @@ export function MembersModule({ onModuleChange, user: _user }: MembersModuleProp
   };
 
   if (view === 'intake') {
-    return <MemberIntake onCancel={handleBackToDirectory} onSave={handleSaveMember} />;
+    return <MemberIntake onCancel={handleBackToDirectory} onSave={handleSaveMember} onModuleChange={onModuleChange} />;
   }
 
   if (view === 'profile' && selectedMemberId) {

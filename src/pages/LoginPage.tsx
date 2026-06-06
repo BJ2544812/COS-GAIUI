@@ -268,7 +268,7 @@ export function LoginPage() {
                 )}
 
                 {!checkingApi && !showOfflineState && error && (
-                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-[11px] font-black uppercase tracking-widest text-rose-600 text-center">
+                  <div role="alert" className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-[11px] font-black uppercase tracking-widest text-rose-600 text-center">
                     {error}
                   </div>
                 )}

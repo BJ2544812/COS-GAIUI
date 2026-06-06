@@ -40,9 +40,10 @@ import { isUuid, servingTierForRole } from '@/lib/servingRoles';
 
 interface StructureModuleProps {
   onModuleChange?: (module: ERPModule) => void;
+  embedded?: boolean;
 }
 
-export function StructureModule({ onModuleChange }: StructureModuleProps) {
+export function StructureModule({ onModuleChange, embedded = false }: StructureModuleProps) {
   const [activeTab, setActiveTab] = React.useState<'structure' | 'settings' | 'permissions'>('structure');
   const [view, setView] = React.useState<'list' | 'campus-detail' | 'add-campus' | 'manage-hierarchy'>('list');
   const [selectedCampus, setSelectedCampus] = React.useState<any | null>(null);
@@ -83,11 +84,11 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
   };
 
   React.useEffect(() => {
-    if (activeTab === 'structure') {
+    if (embedded || activeTab === 'structure') {
       fetchCampuses();
       fetchMembers();
     }
-  }, [activeTab]);
+  }, [activeTab, embedded]);
 
   const handleCreateCampus = async () => {
     setLoading(true);
@@ -508,44 +509,17 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
     </div>
   );
 
-  return (
-    <PageLayout>
-      <ModuleHeader
-        title="Church Structure"
-        subtitle="Manage campuses, ministries, and organizational hierarchy."
-        status="live"
-        icon={GitFork}
-        actions={
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            {(['structure', 'settings', 'permissions'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                  activeTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        }
-      />
+  const structureViews = (
+    <>
+      {view === 'list' && <CampusList />}
+      {view === 'campus-detail' && <CampusDetail />}
+      {view === 'add-campus' && <AddCampusView />}
+      {view === 'manage-hierarchy' && <ManageHierarchy />}
+    </>
+  );
 
-      {activeTab === 'settings' ? (
-        <SettingsModule />
-      ) : activeTab === 'permissions' ? (
-        <PermissionsModule />
-      ) : (
-        <>
-          {view === 'list' && <CampusList />}
-          {view === 'campus-detail' && <CampusDetail />}
-          {view === 'add-campus' && <AddCampusView />}
-          {view === 'manage-hierarchy' && <ManageHierarchy />}
-        </>
-      )}
-
+  const structureModals = (
+    <>
       {rosterMinistry && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 space-y-6 max-h-[85vh] overflow-y-auto">
@@ -621,6 +595,52 @@ export function StructureModule({ onModuleChange }: StructureModuleProps) {
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-6">
+        {structureViews}
+        {structureModals}
+      </div>
+    );
+  }
+
+  return (
+    <PageLayout>
+      <ModuleHeader
+        title="Church Structure"
+        subtitle="Manage campuses, ministries, and organizational hierarchy."
+        status="live"
+        icon={GitFork}
+        actions={
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            {(['structure', 'settings', 'permissions'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                  activeTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      {activeTab === 'settings' ? (
+        <SettingsModule />
+      ) : activeTab === 'permissions' ? (
+        <PermissionsModule />
+      ) : (
+        structureViews
+      )}
+
+      {structureModals}
     </PageLayout>
   );
 }

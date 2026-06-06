@@ -22,10 +22,12 @@ import { ServicePlanPanel } from './ServicePlanPanel';
 import {
   openSundayLive,
   openSundayServices,
+  openWorshipServices,
   readSundayServicesTab,
   UCOS_OPEN_SERVICE_EVENT_ID,
   type SundayServicesTab,
 } from '@/lib/sundayServicesNavigation';
+import { UCOS_OPEN_NEXT_SERVICE } from '@/lib/eventWorkspaceNavigation';
 import type { ERPModule } from '@/types';
 
 type ServiceRow = {
@@ -56,9 +58,11 @@ function pickNextService(rows: ServiceRow[]): ServiceRow | null {
 export function SundayServicesModule({
   onModuleChange,
   initialTab,
+  embedded = false,
 }: {
   onModuleChange?: (m: ERPModule, tab?: string) => void;
   initialTab?: string;
+  embedded?: boolean;
 }) {
   const [tab, setTab] = React.useState<SundayServicesTab>(() => {
     if (initialTab === 'schedule' || initialTab === 'plan' || initialTab === 'this-sunday') return initialTab;
@@ -152,7 +156,7 @@ export function SundayServicesModule({
 
   if (tab === 'plan' && planEventId) {
     return (
-      <PageLayout>
+      <PageLayout className={embedded ? 'pt-0' : undefined}>
         <ServicePlanPanel
           eventId={planEventId}
           onModuleChange={onModuleChange}
@@ -165,14 +169,33 @@ export function SundayServicesModule({
     );
   }
 
-  return (
-    <PageLayout>
-      <ModuleHeader
-        title="Sunday & Services"
-        subtitle="Plan worship services, assign teams, and open the live Sunday cockpit from one place."
-        status="live"
-        icon={CalendarCheck}
-        actions={
+  const content = (
+    <>
+      {!embedded && (
+        <ModuleHeader
+          title="Worship Services"
+          subtitle="Plan worship services, assign teams, and open the live Sunday cockpit from one place."
+          status="live"
+          icon={CalendarCheck}
+          actions={
+            <ActionButton
+              label="Plan service"
+              icon={Plus}
+              variant="primary"
+              onClick={() => {
+                setPlanOpen(true);
+                setTab('schedule');
+              }}
+            />
+          }
+        />
+      )}
+
+      {embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <p className="text-sm text-slate-500 font-medium">
+            Canonical planning surface for Service-type events — run sheets, teams, and Sunday live links.
+          </p>
           <ActionButton
             label="Plan service"
             icon={Plus}
@@ -182,8 +205,8 @@ export function SundayServicesModule({
               setTab('schedule');
             }}
           />
-        }
-      />
+        </div>
+      )}
 
       {error && <p className="text-sm text-rose-600 font-medium">{error}</p>}
 
@@ -299,8 +322,12 @@ export function SundayServicesModule({
           </Button>
         </div>
       )}
-    </PageLayout>
+    </>
   );
+
+  if (embedded) return content;
+
+  return <PageLayout>{content}</PageLayout>;
 }
 
 function ThisSundayDashboard({
@@ -483,14 +510,29 @@ function ScheduleList({
   );
 }
 
-/** Legacy worship module entry — redirects to Sunday & Services. */
+/** Legacy worship / sunday-services URLs — redirect to Events → Worship Services. */
 export function WorshipPlanningRedirect({ onModuleChange }: { onModuleChange?: (m: ERPModule, tab?: string) => void }) {
   React.useEffect(() => {
-    openSundayServices(onModuleChange, 'this-sunday');
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(UCOS_OPEN_NEXT_SERVICE, '1');
+    }
+    onModuleChange?.('events');
   }, [onModuleChange]);
   return (
     <div className="flex items-center gap-3 text-slate-500 py-12">
-      <Loader2 className="w-5 h-5 animate-spin" /> Opening Sunday & Services…
+      <Loader2 className="w-5 h-5 animate-spin" /> Opening Worship Services…
+    </div>
+  );
+}
+
+/** Legacy structure module URL — redirect to Settings → Church Structure. */
+export function StructureSettingsRedirect({ onModuleChange }: { onModuleChange?: (m: ERPModule, tab?: string) => void }) {
+  React.useEffect(() => {
+    onModuleChange?.('settings', 'structure');
+  }, [onModuleChange]);
+  return (
+    <div className="flex items-center gap-3 text-slate-500 py-12">
+      <Loader2 className="w-5 h-5 animate-spin" /> Opening Church Structure…
     </div>
   );
 }

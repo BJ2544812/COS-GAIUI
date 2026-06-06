@@ -111,6 +111,8 @@ export function VolunteersModule({ onModuleChange }: VolunteersModuleProps) {
 
   // Assignment modal
   const [showAssignModal, setShowAssignModal] = React.useState(false);
+  const [opsBoardEventId, setOpsBoardEventId] = React.useState<string | undefined>();
+  const [boardRefreshKey, setBoardRefreshKey] = React.useState(0);
   const [ministries, setMinistries] = React.useState<StructureEntity[]>([]);
   const [smallGroups, setSmallGroups] = React.useState<StructureEntity[]>([]);
   const [events, setEvents] = React.useState<StructureEntity[]>([]);
@@ -165,6 +167,7 @@ export function VolunteersModule({ onModuleChange }: VolunteersModuleProps) {
     const focusEventId = sessionStorage.getItem(UCOS_ASSIGN_EVENT_ID);
     if (!focusEventId || events.length === 0) return;
     sessionStorage.removeItem(UCOS_ASSIGN_EVENT_ID);
+    setOpsBoardEventId(focusEventId);
     setAssignForm((f) => ({
       ...f,
       entityType: 'Event',
@@ -234,6 +237,12 @@ export function VolunteersModule({ onModuleChange }: VolunteersModuleProps) {
         notes: '',
       });
       setFilterStatus('Active');
+      if (assignForm.entityType === 'Event' && assignForm.entityId) {
+        setOpsBoardEventId(assignForm.entityId);
+        setBoardRefreshKey((k) => k + 1);
+      } else {
+        setBoardRefreshKey((k) => k + 1);
+      }
       await fetchData();
     } catch (e: any) {
       setAssignError(e?.message || 'Failed to assign role');
@@ -366,6 +375,19 @@ export function VolunteersModule({ onModuleChange }: VolunteersModuleProps) {
     </div>
   ) : null;
 
+  const eventBoardRows = React.useMemo(() => {
+    if (!opsBoardEventId) return undefined;
+    return responsibilities
+      .filter((r) => r.entityType === 'Event' && r.entityId === opsBoardEventId)
+      .map((r) => ({
+        id: r.id,
+        memberId: r.memberId,
+        role: r.role,
+        status: r.status,
+        member: r.member ? { id: r.member.id, name: r.member.name } : undefined,
+      }));
+  }, [responsibilities, opsBoardEventId]);
+
   return (
     <>
     <PageLayout>
@@ -390,7 +412,7 @@ export function VolunteersModule({ onModuleChange }: VolunteersModuleProps) {
 
       {error && <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl px-5 py-4 text-sm font-medium">{error}</div>}
 
-      <VolunteerOpsBoard eventId={sessionStorage.getItem('ucos_assign_event_id') || undefined} />
+      <VolunteerOpsBoard eventId={opsBoardEventId} refreshKey={boardRefreshKey} localRows={eventBoardRows} />
 
       {/* Role Summary */}
       {!loading && roleGroups.length > 0 && (

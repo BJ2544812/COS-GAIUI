@@ -38,6 +38,8 @@ Central index for operators, administrators, and deployers.
 
 | Document | Audience | Purpose |
 |----------|----------|---------|
+| [docs/MODULE_LOCKS.md](docs/MODULE_LOCKS.md) | Engineers / product | **Platform lock status**, reopen rules, future-work protocol |
+| [docs/KNOWN_BACKLOG.md](docs/KNOWN_BACKLOG.md) | Engineers / product | Deferred enhancements (not blockers) |
 | [V1_SIGN_OFF_REPORT.md](V1_SIGN_OFF_REPORT.md) | Stakeholders | v1.0 sign-off summary |
 | [RELEASE_CANDIDATE_REPORT.md](RELEASE_CANDIDATE_REPORT.md) | Stakeholders | RC deliverables |
 | [PRODUCTION_READINESS_REPORT.md](PRODUCTION_READINESS_REPORT.md) | Stakeholders | Go-live hardening |

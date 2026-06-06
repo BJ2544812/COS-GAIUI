@@ -88,13 +88,24 @@ export function mergeLiveOpsConfig(
   };
 }
 
-export function parseDurationMinutes(duration: string): number {
-  const parts = duration.split(':').map((p) => parseInt(p, 10));
+/** Parse run-sheet duration strings. `MM:SS` → minutes:seconds (e.g. `05:00` = 5 min). Plain numbers = minutes. */
+export function parseDurationSeconds(duration: string): number {
+  const trimmed = (duration || '').trim();
+  if (!trimmed) return 5 * 60;
+
+  const parts = trimmed.split(':').map((p) => parseInt(p, 10));
+  if (parts.length === 3 && parts.every((p) => !Number.isNaN(p))) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
   if (parts.length >= 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1])) {
     return parts[0] * 60 + parts[1];
   }
-  const n = parseInt(duration, 10);
-  return Number.isNaN(n) ? 5 : n;
+  const n = parseInt(trimmed, 10);
+  return Number.isNaN(n) ? 5 * 60 : n * 60;
+}
+
+export function parseDurationMinutes(duration: string): number {
+  return parseDurationSeconds(duration) / 60;
 }
 
 export function segmentCountdownSeconds(
@@ -103,7 +114,7 @@ export function segmentCountdownSeconds(
 ): number | null {
   if (!segmentStartedAt) return null;
   const start = new Date(segmentStartedAt).getTime();
-  const totalSec = parseDurationMinutes(duration) * 60;
+  const totalSec = parseDurationSeconds(duration);
   const elapsed = Math.floor((Date.now() - start) / 1000);
   return Math.max(0, totalSec - elapsed);
 }

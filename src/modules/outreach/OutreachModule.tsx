@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ModuleHeader, FeedbackBanner, PageLayout, ActionButton } from '@/components/modules/ModuleHeader';
 import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { OperationalGuidanceBanner } from '@/components/operations/OperationalGuidanceBanner';
+import { VisitorWorkflowBanner } from '@/components/operations/VisitorWorkflowBanner';
 import { OPS_EMPTY } from '@/lib/opsUi';
 
 type Dashboard = {
@@ -28,13 +29,26 @@ type Dashboard = {
   }>;
 };
 
-export function OutreachModule() {
+export function OutreachModule({ onModuleChange }: { onModuleChange?: (m: import('@/types').ERPModule) => void }) {
   const [dash, setDash] = React.useState<Dashboard | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [visitorName, setVisitorName] = React.useState('');
   const [visitorEmail, setVisitorEmail] = React.useState('');
   const [saving, setSaving] = React.useState(false);
+  const [scanning, setScanning] = React.useState(false);
+
+  const runMissedAttendanceScan = async () => {
+    setScanning(true);
+    try {
+      await apiRequest('outreach/scan/missed-attendance', { method: 'POST', body: {} });
+      await load();
+    } catch (e) {
+      setError(formatApiError(e));
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const load = React.useCallback(async () => {
     try {
@@ -90,18 +104,25 @@ export function OutreachModule() {
   return (
     <PageLayout>
       <ModuleHeader
-        title="Outreach & follow-up"
-        subtitle="Visitor tracking, repeat detection, pastoral assignments, and follow-up lifecycle"
+        title="Visitors & Outreach"
+        subtitle="Canonical guest register and follow-up queue — attendance check-ins sync here automatically"
         icon={Users}
         status="live"
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={scanning} onClick={() => void runMissedAttendanceScan()}>
+              {scanning ? 'Scanning…' : 'Scan missed attendance'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
+              Refresh
+            </Button>
+          </div>
         }
       />
 
       {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
+
+      <VisitorWorkflowBanner variant="outreach" onModuleChange={onModuleChange} />
 
       {dash && (
         <>
@@ -139,7 +160,9 @@ export function OutreachModule() {
                 <CardTitle className="flex items-center gap-2 text-lg font-black">
                   <UserPlus className="w-5 h-5" /> Register visitor
                 </CardTitle>
-                <CardDescription>First-time and repeat guests are detected automatically.</CardDescription>
+                <CardDescription>
+                  First-time and repeat guests are detected automatically. Attendance visitor check-ins also appear here.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <input
@@ -162,6 +185,11 @@ export function OutreachModule() {
                 >
                   {saving ? 'Saving…' : 'Register & queue follow-up'}
                 </Button>
+                {onModuleChange && (
+                  <Button type="button" variant="outline" className="w-full" onClick={() => onModuleChange('members')}>
+                    Guest ready for membership? Open Members intake
+                  </Button>
+                )}
               </CardContent>
             </Card>
 

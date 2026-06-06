@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { RunSheetSegment } from '@/lib/eventLifecycle';
 import {
@@ -30,10 +30,12 @@ type SermonOption = { id: string; title: string; speaker?: string | null };
 function SortableRow({
   item,
   onChange,
+  onRemove,
   sermons,
 }: {
   item: RunSheetSegment;
   onChange: (next: RunSheetSegment) => void;
+  onRemove: () => void;
   sermons?: SermonOption[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -100,6 +102,17 @@ function SortableRow({
         </td>
       )}
       {!showSermon && sermons && sermons.length > 0 && <td className="px-2 py-2" />}
+      <td className="px-2 py-2 w-12">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 min-h-[36px] min-w-[36px]"
+          aria-label={`Remove segment ${item.item}`}
+          title="Remove segment"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </td>
     </tr>
   );
 }
@@ -119,6 +132,19 @@ export function SortableRunSheet({
   );
   const hasSermonCol = Boolean(sermons && sermons.length > 0);
 
+  const addSegment = () => {
+    onChange([
+      ...rows,
+      {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        time: '09:00',
+        duration: '05:00',
+        item: 'New segment',
+        owner: '',
+      },
+    ]);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -129,6 +155,7 @@ export function SortableRunSheet({
   };
 
   return (
+    <div className="space-y-3">
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <table className="w-full text-left font-sans">
         <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
@@ -140,21 +167,39 @@ export function SortableRunSheet({
             <th className="px-2 py-3">Media</th>
             <th className="px-2 py-3">Owner</th>
             {hasSermonCol && <th className="px-2 py-3">Sermon</th>}
+            <th className="px-2 py-3 w-12"><span className="sr-only">Remove</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50 text-sm">
           <SortableContext items={rows.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-            {rows.map((item) => (
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={hasSermonCol ? 8 : 7} className="px-4 py-8 text-center text-sm text-slate-500">
+                  No segments yet. Add the first item in your order of service.
+                </td>
+              </tr>
+            ) : (
+              rows.map((item) => (
               <SortableRow
                 key={item.id}
                 item={item}
                 sermons={sermons}
                 onChange={(next) => onChange(rows.map((r) => (r.id === item.id ? next : r)))}
+                onRemove={() => onChange(rows.filter((r) => r.id !== item.id))}
               />
-            ))}
+            ))
+            )}
           </SortableContext>
         </tbody>
       </table>
     </DndContext>
+    <button
+      type="button"
+      onClick={addSegment}
+      className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 min-h-[44px]"
+    >
+      Add segment
+    </button>
+    </div>
   );
 }

@@ -18,16 +18,18 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { INTAKE_SPIRITUAL_TRACK_LABELS, type IntakeFormData } from './buildMemberPayload';
+import { VisitorWorkflowBanner } from '@/components/operations/VisitorWorkflowBanner';
 
 interface MemberIntakeProps {
   onCancel: () => void;
+  onModuleChange?: (module: import('@/types').ERPModule) => void;
   onSave: (
     data: IntakeFormData & Record<string, unknown>,
     files: { profile?: File | null; family?: File | null },
   ) => Promise<void>;
 }
 
-export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
+export function MemberIntake({ onCancel, onSave, onModuleChange }: MemberIntakeProps) {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [step, setStep] = React.useState(1);
@@ -93,6 +95,8 @@ export function MemberIntake({ onCancel, onSave }: MemberIntakeProps) {
           ))}
         </div>
       </div>
+
+      <VisitorWorkflowBanner variant="intake" onModuleChange={onModuleChange} />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="md:col-span-1 space-y-2">
