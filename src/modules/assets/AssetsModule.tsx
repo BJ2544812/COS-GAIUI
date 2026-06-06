@@ -277,33 +277,14 @@ export function AssetsModule({ embedded = false }: { embedded?: boolean } = {}) 
            </Card>
 
            <div className="space-y-6">
-              <Card className="rounded-[2.5rem] bg-slate-900 text-white p-6 space-y-4">
-                 <div className="w-12 h-12 rounded-2xl bg-[var(--chart-primary)]/20 flex items-center justify-center text-[var(--brand-secondary)]">
+              <Card className="rounded-3xl border border-slate-100 shadow-sm p-6 space-y-3">
+                 <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
                     <Wrench className="w-6 h-6" />
                  </div>
-                 <h3 className="font-bold text-lg">Health Index</h3>
-                 <p className="text-xs text-slate-400">Current maintenance status reflects a priority level of "Normal".</p>
-                 <div className="space-y-2 pt-2">
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                       <span>Wear Level</span>
-                       <span>24%</span>
-                    </div>
-                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <div className="h-full bg-emerald-500 w-[24%]" />
-                    </div>
-                 </div>
-              </Card>
-
-              <Card className="rounded-[2.5rem] border-none shadow-sm p-6 text-left">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Recommended Tasks</h4>
-                 <div className="space-y-3">
-                    {['Oil Change (Vehicle)', 'Filter Cleaning (HVAC)', 'Bulb Replacement', 'Brake Check'].map((task, i) => (
-                       <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl group cursor-pointer hover:bg-slate-100 transition-all">
-                          <div className="w-2 h-2 rounded-full bg-slate-300 group-hover:bg-[var(--chart-primary)] transition-colors"></div>
-                          <span className="text-xs font-bold text-slate-600">{task}</span>
-                       </div>
-                    ))}
-                 </div>
+                 <h3 className="font-semibold text-lg text-slate-900">Maintenance history</h3>
+                 <p className="text-sm text-slate-500 leading-relaxed">
+                   Scheduled and completed maintenance will appear here. Plan your first task using the form.
+                 </p>
               </Card>
            </div>
         </div>
@@ -412,26 +393,18 @@ export function AssetsModule({ embedded = false }: { embedded?: boolean } = {}) 
                  </div>
               </Card>
 
-              <Card className="rounded-3xl border-slate-100 shadow-sm bg-slate-900 text-white p-6 space-y-6 text-left">
+              <Card className="rounded-3xl border-slate-100 shadow-sm p-6 space-y-4 text-left">
                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                       <Clock className="w-5 h-5 text-[var(--brand-secondary)]" />
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                       <Clock className="w-5 h-5 text-indigo-600" />
                     </div>
                     <div>
-                       <p className="text-[10px] font-bold text-[color:var(--brand-primary)]/80 uppercase tracking-widest">Upcoming Service</p>
-                       <p className="text-sm font-bold">April 15, 2024</p>
+                       <p className="text-xs font-medium text-slate-500">Next scheduled service</p>
+                       <p className="text-sm font-medium text-slate-900">None planned yet</p>
                     </div>
                  </div>
-                 <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                       <span className="text-slate-400">Component Health</span>
-                       <span className="text-emerald-400">88%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                       <div className="h-full bg-[var(--chart-primary)] w-[88%]" />
-                    </div>
-                 </div>
-                 <Button className="w-full bg-[var(--chart-primary)] hover:opacity-90 h-11 rounded-xl uppercase tracking-widest font-black text-[10px]">Add Log Entry</Button>
+                 <p className="text-sm text-slate-500">Log maintenance when work is completed to build a service history for this asset.</p>
+                 <Button className="w-full h-11 rounded-xl" onClick={() => setView('maintenance')}>Schedule maintenance</Button>
               </Card>
            </div>
         </div>

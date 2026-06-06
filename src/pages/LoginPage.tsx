@@ -349,12 +349,6 @@ export function LoginPage() {
 
           <div className="text-center space-y-2">
              <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.4em]">Proprietary Ministry Technology</p>
-             {import.meta.env.DEV && (
-               <p className="text-[9px] font-semibold text-white/30 max-w-xs mx-auto leading-relaxed">
-                 Pilot UAT: <span className="text-white/50">admin</span> / admin123 · role accounts demo123 after{' '}
-                 <span className="text-white/50">seed:demo-roles</span>
-               </p>
-             )}
           </div>
        </div>
 

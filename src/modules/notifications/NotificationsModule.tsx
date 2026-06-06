@@ -215,26 +215,11 @@ export function NotificationsModule({ onModuleChange }: { onModuleChange?: (m: E
                </CardContent>
             </Card>
 
-            <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 overflow-hidden relative">
-               <div className="absolute top-0 right-0 p-8 opacity-5">
-                  <BarChart3 size={100} />
-               </div>
-               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6">Delivery Volume</h3>
-               <div className="flex items-end gap-1 h-32">
-                  {[30, 45, 25, 60, 80, 55, 90, 70, 40, 65, 85, 100].map((h, i) => (
-                     <div key={i} className="flex-1 bg-indigo-500/10 rounded-t-sm group-hover:bg-indigo-500/30 transition-all" style={{ height: `${h}%` }} />
-                  ))}
-               </div>
-               <div className="mt-6 space-y-4">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                     <span className="text-slate-500">Peak Delivery</span>
-                     <span className="text-slate-900">09:00 AM</span>
-                  </div>
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                     <span className="text-slate-500">Bounce Rate</span>
-                     <span className="text-rose-600">0.02%</span>
-                  </div>
-               </div>
+            <Card className="border-none shadow-sm rounded-3xl bg-white p-8">
+               <h3 className="text-sm font-medium text-slate-500 mb-2">Delivery insights</h3>
+               <p className="text-sm text-slate-600 leading-relaxed">
+                 Delivery analytics will appear here once campaigns have been sent. Compose a message to get started.
+               </p>
             </Card>
          </div>
       </div>

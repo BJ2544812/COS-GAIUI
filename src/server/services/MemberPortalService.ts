@@ -34,6 +34,7 @@ export class MemberPortalService {
 
     const memberId = user.memberId;
     const since90 = new Date(Date.now() - 90 * 86400000);
+    const yearStart = new Date(new Date().getFullYear(), 0, 1);
 
     const orgSetting = await prisma.setting.findUnique({
       where: { tenantId_key: { tenantId, key: 'organization' } },
@@ -45,6 +46,7 @@ export class MemberPortalService {
       member,
       attendance,
       donations,
+      givingYtdAgg,
       responsibilities,
       upcomingEvents,
       tasks,
@@ -77,6 +79,10 @@ export class MemberPortalService {
         orderBy: { date: 'desc' },
         take: 10,
         select: { id: true, amount: true, date: true, fund: { select: { name: true } } },
+      }),
+      prisma.donation.aggregate({
+        where: { tenantId, donorId: memberId, date: { gte: yearStart } },
+        _sum: { amount: true },
       }),
       prisma.memberResponsibility.findMany({
         where: { tenantId, memberId, status: 'Active' },
@@ -134,7 +140,13 @@ export class MemberPortalService {
       where: { tenantId, memberId, checkInTime: { gte: since90 } },
     });
 
-    const givingTotal = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+    const givingTotalYtd = Number(givingYtdAgg._sum.amount ?? 0);
+    const givingRecentTotal = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+
+    const portalNotifications = notifications.filter((n) => {
+      if (n.title === 'Your giving statement is ready' && givingTotalYtd <= 0) return false;
+      return true;
+    });
 
     return {
       linked: true,
@@ -165,7 +177,8 @@ export class MemberPortalService {
           date: d.date.toISOString(),
           fund: d.fund?.name ?? 'General',
         })),
-        totalRecent: givingTotal,
+        totalRecent: givingTotalYtd > 0 ? givingTotalYtd : givingRecentTotal,
+        yearToDate: givingTotalYtd,
       },
       volunteer: responsibilities.map((r) => ({
         id: r.id,
@@ -187,7 +200,7 @@ export class MemberPortalService {
         dueDate: t.dueDate?.toISOString() ?? null,
         priority: t.priority,
       })),
-      notifications,
+      notifications: portalNotifications,
       smallGroups: groups.map((g) => ({
         id: g.group.id,
         name: g.group.name,

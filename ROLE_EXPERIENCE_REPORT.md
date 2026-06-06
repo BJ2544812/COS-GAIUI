@@ -1,279 +1,466 @@
-# Ultimate Church OS — Role Experience & Permission Rationalization Report
+# Role Experience Report — Browser Truth
 
-**Date:** 2026-06-01  
-**Program:** Role Experience & Permission Rationalization (Phases 1–14)  
-**Principle:** Permissions gate access; **experience** shapes what each role sees first.
+**Date:** 6 June 2026  
+**Method:** Live login as each role at `http://127.0.0.1:3001`  
+**Credentials:** `LOGIN_MATRIX.md` — staff `demo123`, admin `admin123`  
+**Artifact:** `scratch/truth-discovery-roles.json`
 
----
-
-## Executive summary
-
-The platform now applies a **role-centric experience layer** (`src/lib/roleExperience.ts`) on top of existing RBAC. Each staff login receives:
-
-- A **role-appropriate landing module** (not generic `/admin`)
-- A **dashboard tuned** to their lens (pastoral, finance, operations)
-- **Navigation group ordering** focused on their daily work
-- **Quick-action bar** shortcuts for their role
-- **Church-friendly labels** (no engineering badges)
-
-Demo accounts were renamed and expanded to match real church titles. Full matrices and gaps are below.
+**Phase 0 re-validation:** 6 June 2026 — after P0 stabilization fixes (no UI redesign)
 
 ---
 
-## Phase 1 — Role inventory
+## Phase 0 — P0 Fix Validation
 
-### Roles in product (seed + templates)
+| P0 item | Fix | Browser result |
+|---------|-----|----------------|
+| Volunteer Coordinator landing | `landingModule: volunteers`; Volunteers added to sidebar | ✓ Lands `/admin?module=volunteers` — Playwright 13/13 |
+| Youth Pastor landing | `landingModule: events`; youth-specific Sunday copy when opened from nav | ✓ Lands `/admin?module=events` — Playwright 13/13 |
+| Test artifacts on Home | `operationalEventFilter` on API + Home command center | ✓ Admin Home: no "Usability Sunday" / "Frontend Validation" entries |
+| Member giving inconsistency | YTD aggregate + demo seed donations for Meera Kurian | ✓ Portal: Recent giving **12,700** + "giving statement ready" (consistent) |
+| QR check-in placeholder | Working `QRCodeSVG` → `/member-login`; "Coming soon" removed | ✓ Kiosk toggle shows scannable QR + My Church copy |
 
-| Church role | Demo user | Password | Archetype |
-|-------------|-----------|----------|-----------|
-| Super Admin | `admin` | admin123 | super_admin |
-| Senior Pastor | `pastor` | demo123 | senior_pastor |
-| Church Administrator | `churchadmin` | demo123 | church_admin |
-| Worship Pastor | `worship` | demo123 | ministry_leader |
-| Volunteer Coordinator | `volunteers` | demo123 | volunteer_coordinator |
-| Finance Manager | `finance` | demo123 | finance |
-| HR Manager | `hradmin` | demo123 | hr |
-| Communications Manager | `secretary` | demo123 | communications |
-| Ministry Leader (events) | `events` | demo123 | ministry_leader |
-| Campus Admin | `campus` | demo123 | church_admin |
-| Member (congregant) | — | — | member_portal |
-
-### Roles requested but not separate DB templates yet
-
-| Role | Status |
-|------|--------|
-| Associate Pastor | Map to Senior Pastor or Ministry Leader via Permissions UI |
-| Youth Pastor | Same as Worship Pastor / Ministry Leader |
-| Accountant | Same as Finance Manager |
-| Small Group Leader | Ministry Leader permissions subset |
-| Staff (generic) | `Staff` template in alternate seed |
-| Guest | Public website only (no login) |
+**Automated regression:** `npx playwright test e2e/role-experience.spec.ts` — **13/13 passed**
 
 ---
 
-## Phase 2 — Role experience matrix (login → daily use)
+## Roles Tested
 
-| Role | Lands on | Dashboard view | Dashboard lens | Quick bar |
-|------|----------|----------------|----------------|-----------|
-| Super Admin | Home | Operations | Executive (+ all lenses) | Sunday ops default |
-| Church Administrator | Home | Operations | Operations | Events / Sunday |
-| Senior Pastor | Home | Executive | Pastoral | Care / people |
-| Finance Manager | Finance → Vouchers | Executive | Finance | Giving / Finance |
-| HR Manager | HR & Staff | Personal | Operations | HR / Staff |
-| Worship / Ministry Leader | Sunday Service | Operations | Operations | Live / check-in |
-| Volunteer Coordinator | Volunteers | Operations | Operations | Team / Sunday |
-| Communications | Communications | Personal | Operations | Comms / alerts |
-| Member (portal-only) | `/portal` | — | — | Hidden |
-
----
-
-## Phase 3 — Senior Pastor experience
-
-**Intent:** Church health, people, ministry, stewardship.
-
-| Area | Implementation |
-|------|----------------|
-| Visibility | Members, pathways, pastoral care, giving, events, attendance, analytics |
-| Landing | Home dashboard, **Pastoral** lens auto-selected |
-| Nav order | Identity → Insights → Operations → Finance |
-| Shortcuts | Members, pastoral care, giving, events |
-
-**Permissions (demo):** `manage_members`, `manage_discipleship`, `manage_communication`, `manage_analytics`, `manage_attendance`, `manage_events`, `manage_giving`
-
-**Gap:** No dedicated “high-level finance only” permission — treasurer detail hidden unless `manage_finance` granted.
+| Role | Username | Password | Login result |
+|------|----------|----------|--------------|
+| Administrator | admin | admin123 | ✓ |
+| Senior Pastor | pastor | demo123 | ✓ |
+| Pastor (Associate) | associate | demo123 | ✓ |
+| Worship Leader | worship | demo123 | ✓ |
+| Youth Pastor | youth | demo123 | ✓ — lands Events |
+| Finance Officer | finance | demo123 | ✓ |
+| Treasurer | accountant | demo123 | ✓ (no dedicated Treasurer role in seed) |
+| Counter Team | counter | demo123 | ✓ |
+| Volunteer Coordinator | volunteers | demo123 | ✓ — lands Volunteers |
+| Staff | staffdesk | demo123 | ✓ |
+| Member | member | demo123 | ✓ via `/member-login` → `/portal` |
 
 ---
 
-## Phase 4 — Church Administrator experience
+## Administrator (`admin`)
 
-**Intent:** Full operations — events, attendance, volunteers, communications.
+### Where do they land?
+`/admin?module=dashboard` — **Home (operations lens)**
 
-| Area | Implementation |
-|------|----------------|
-| Landing | Home, **Operations** command view |
-| Nav order | Operations group first |
-| Quick bar | Sunday, attendance, events, volunteers |
+### What do they see?
+- Heading: **Church leadership**
+- Full sidebar: 22 modules across 7 groups
+- Setup progress 7/8, onboarding checklist, demo walkthrough prompts
+- Operations home: real services/events only — **test usability events filtered from This week**
+- Upcoming events show legitimate calendar items (Sunday Worship, Prayer Meeting, Youth Fellowship, etc.)
 
-**Demo user:** `churchadmin` — `manage_settings` + events + members + attendance
+### What can they do?
+Everything — all modules, Church Admin, Roles & Access, Finance, HR, Website, Activity Log.
 
----
+### Confusing?
+- Evaluator widgets on Home ("Show me what to test next", "Explore Ultimate Church OS")
+- Product name inconsistency (Kingdom OS vs Ultimate Church OS)
+- Too many equal-weight stat cards
 
-## Phase 5 — Finance experience
+### Beautiful?
+- Comprehensive command center when test data removed
+- Quick ops bar (Sunday, Check-in, People, Alerts)
 
-**Intent:** Not overwhelmed by ministry modules; finance-first.
+### Ugly?
+- ALL CAPS labels
+- Setup progress still visible after go-live
 
-| Area | Implementation |
-|------|----------------|
-| Landing | **Finance** tab vouchers |
-| Nav order | **Finance** group first |
-| Dashboard | Finance lens; executive giving stats only |
-| Quick bar | Giving, Finance, Budgets, Payroll |
+### Should NOT be visible?
+- Pilot UAT credentials on login page (to all users)
+- Internal voucher source codes (`gcc-v2`)
 
-**Gap:** Budget vs live voucher actuals (known platform limitation).
+### Missing?
+- Nothing access-wise — role is all-powerful
 
----
-
-## Phase 6 — HR experience
-
-**Intent:** Staffing desk first.
-
-| Area | Implementation |
-|------|----------------|
-| Landing | **HR & Staff** |
-| Nav order | Identity (HR) before operations |
-| Quick bar | HR, Staff directory, People |
-
-**Gap:** Offboarding wizard, leave approval notifications (operational readiness items).
+### Breaks?
+- Nothing — full access works
 
 ---
 
-## Phase 7 — Ministry leader experience
+## Senior Pastor (`pastor`)
 
-**Intent:** Events, Sunday, worship — not ERP complexity.
+### Where do they land?
+`/admin?module=dashboard` — **Home (pastoral lens)**
 
-| Area | Implementation |
-|------|----------------|
-| Landing | **Sunday Service** |
-| Quick bar | Live, check-in, events, worship |
-| Hidden | Finance, platform admin (by permission) |
+### What do they see?
+- Heading: **Pastoral leadership**
+- Subtitle: Church health, people, ministry, stewardship
+- Tabs: My day, Overview, This week, People & care
+- Follow-up priority list (inactive members, guests without tasks)
+- Stats: attendance/giving signals (49, ₹2,30,410)
+- Sidebar: 15 items — **no Finance module, no Settings**
 
----
+### What can they do?
+Members, Small Groups, Pastoral Care, Outreach, Events, Sunday, Attendance, Sermons, Communications, Notifications, Giving (view), HR, Home, Reports, Training.
 
-## Phase 8 — Member experience
+### Confusing?
+- Setup progress widget still visible to pastor
+- "49" repeated three times in stat area — unclear labels
+- Giving access without Finance — OK but no giving detail depth
 
-| Area | Implementation |
-|------|----------------|
-| Route | `/portal` — separate from staff ERP |
-| Staff link | “Church office” only if user has staff permissions |
-| Pure members | “My church” header; no admin back-link |
-| Data | Requires `User.memberId` linked to `Member` |
+### Beautiful?
+- Pastoral follow-up priority list with human names and reasons
+- People & care tab focus
 
-**Gap:** Dedicated member-only login surface (today uses same staff login).
+### Ugly?
+- ERP-style MY DAY / OVERVIEW tabs
 
----
+### Should NOT be visible?
+- Setup/evaluator cards after church is live
+- HR & Staff (debatably — pastors may want volunteer staff view only)
 
-## Phase 9 — Dashboard rationalization
+### Missing?
+- Cannot access Settings/Structure (may need read-only church config)
+- No dedicated pastoral care queue module entry — buried in Home
 
-| Dashboard | Who | What changed |
-|-----------|-----|--------------|
-| Home (operations) | Admin, ops roles | Role title + subtitle on dashboard |
-| Home (executive) | Pastor, finance | Auto lens; filtered lens tabs |
-| Home (personal) | HR, communications | Task-focused |
-| Member portal | Members | Community layout (existing) |
-
-“Command” tab renamed **Operations** on dashboard.
-
----
-
-## Phase 10 — Navigation rationalization
-
-| Mechanism | Behavior |
-|-----------|----------|
-| Permissions | Unchanged — `canSeeItem` still enforces access |
-| Group order | Role-specific (`sortNavGroups`) |
-| Documents | `manage_documents` OR `manage_assets` (secretary fix) |
-| Badges | No Beta/Soon in nav (prior program) |
-
-**Not done:** Separate physical sidebars per role (unnecessary duplication). Order + landing achieves focus.
+### Breaks?
+- Nothing observed
 
 ---
 
-## Phase 11 — Workflow review
+## Pastor — Associate (`associate`)
 
-| Workflow | Role targeting | Status |
-|----------|----------------|--------|
-| Voucher approve/post | Finance | Permission-gated |
-| Prayer assignment notify | Pastoral / assignee | Implemented (event worker) |
-| Leave approval | HR | API exists; UX polish pending |
-| Sunday check-in | Ops / volunteers | Live |
+### Where do they land?
+`/admin?module=dashboard` — pastoral lens (same as Senior Pastor)
 
-**Recommendation:** Route notification types by role archetype in a future pass.
+### What do they see?
+- Narrower sidebar: 10 items
+- No Communications, Notifications, Outreach, Reports, Giving
 
----
+### What can they do?
+Members, Small Groups, Pastoral Care, Events, Sunday, Attendance, Sermons, HR, Home.
 
-## Phase 12 — Product polish
+### Confusing?
+- Nearly identical to Senior Pastor on Home but fewer nav items — unclear differentiation
 
-- Role titles on dashboard (e.g. “Finance & stewardship”)
-- Portal copy: “Church office” vs “My church”
-- Operations vs Command terminology fixed
+### Beautiful / Ugly?
+Same as Senior Pastor.
 
----
+### Should NOT be visible?
+HR & Staff — associate pastor rarely needs payroll access.
 
-## Phase 13 — Testing
+### Missing?
+Outreach and Communications for follow-up-heavy associate role.
 
-| Check | Command |
-|-------|---------|
-| Typecheck | `npm run lint` — **PASS** |
-| Role landing E2E | `npx playwright test e2e/role-experience.spec.ts` — **7/7 PASS** (2026-06-01) |
-| Production rollout roles | `e2e/production-rollout.spec.ts` |
-| Smoke | `e2e/smoke.spec.ts` |
-
-Re-seed demo roles after pull: `npm run seed:demo-roles`
+### Breaks?
+Nothing.
 
 ---
 
-## Phase 14 — Matrices
+## Worship Leader (`worship`)
 
-### Permission matrix (module keys)
+### Where do they land?
+`/admin?module=sunday-mode` — **Sunday Service cockpit** ✓ Excellent
 
-| Module key | Modules |
-|------------|---------|
-| `manage_members` | Members, families, volunteers, pathways, pastoral care |
-| `manage_events` | Events, Sunday, worship, sermons |
-| `manage_attendance` | Attendance |
-| `manage_finance` | Finance, budgets, vendors |
-| `manage_giving` | Giving |
-| `manage_hr` | HR & Staff |
-| `manage_communication` | Communications, notifications, outreach |
-| `manage_analytics` | Home, reports |
-| `manage_settings` | Settings, structure, admin, permissions, website |
-| `manage_documents` | Compliance documents (with assets) |
+### What do they see?
+- Heading: **Sunday Service**
+- Live service selector (test events filtered from picker)
+- Run sheet, team readiness, live sync indicator
+- Sidebar: Events, Sunday Service, Attendance, Sermons, Home (5 items)
 
-### Navigation matrix (visible if permitted)
+### What can they do?
+Run live service, select active worship service, manage teams, check-in flow, jump to Events.
 
-See `AppShell.tsx` `GROUPS` + `canSeeItem`.
+### Confusing?
+- Planning still requires leaving Sunday module for Events
 
-### Implemented improvements (this program)
+### Beautiful?
+- **Best role experience in product** — focused, operational, clear purpose
+- "Your live-service control center" subtitle works
 
-1. `src/lib/roleExperience.ts` — archetypes, landing, nav order, quick ops
-2. Post-login redirect by role (`LoginPage`, `App.tsx`)
-3. Dashboard auto-view/lens + role shortcuts
-4. Role-ordered sidebar groups
-5. Role-specific `QuickOpsBar`
-6. Documents permission fix for communications role
-7. Member portal staff vs member chrome
-8. Expanded `seed-demo-roles.ts` with church role names
-9. `e2e/role-experience.spec.ts`
+### Ugly?
+- "Not ready · 0%" on some services without next-step guidance
 
-### Remaining gaps
+### Should NOT be visible?
+Test/draft usability services in production picker — **filtered in Phase 0**
 
-| Priority | Item |
-|----------|------|
-| P1 | Associate / Youth pastor distinct templates |
-| P2 | Member-only login URL |
-| P3 | Notification routing by role |
-| P4 | Role template wizard in Settings |
-| P5 | Demo Church + Academy (deferred per program scope) |
+### Missing?
+Rehearsal schedule, setlist editor (PDF Module 6)
+
+### Breaks?
+Nothing — core Sunday flow works
 
 ---
 
-## Success criteria
+## Youth Pastor (`youth`)
 
-| Criterion | Met? |
-|-----------|------|
-| Senior Pastor feels leadership-focused | **Yes** (pastoral lens, people shortcuts) |
-| Administrator feels operations-focused | **Yes** (ops view, events-first nav) |
-| Finance feels accounting-focused | **Yes** (finance landing, finance-first nav) |
-| HR feels staffing-focused | **Yes** (HR landing) |
-| Ministry leaders avoid ERP clutter | **Yes** (Sunday landing, limited perms) |
-| Members avoid ERP | **Mostly** (portal separate; shared login remains) |
-| Role-centric vs module-centric | **Yes** (experience layer) |
+### Where do they land?
+`/admin?module=events` — **Events workspace** ✓ (Phase 0 fix)
+
+### What do they see?
+- Heading: **Youth ministry** / Events calendar
+- Subtitle: Youth events, attendance, and team coordination
+- Sidebar: Events, Sunday Service, Attendance, Members, Pastoral Care, Home (7 items)
+- If opened from nav: Sunday Service shows youth-specific intro copy (not worship-leader default)
+
+### What can they do?
+Manage youth events, attendance, member/pastoral follow-up, Sunday support when needed.
+
+### Confusing?
+- Youth event quick-access from Home still absent — must use Events module
+- Sunday module still available with worship tooling — secondary path
+
+### Beautiful?
+Events workspace is appropriate landing for youth ministry coordination.
+
+### Ugly?
+N/A for landing — persona copy fixed when Sunday is opened.
+
+### Should NOT be visible?
+Worship-specific "live-service control center for today's worship" as default youth landing — **fixed**
+
+### Missing?
+Youth-specific dashboard tile on Home, youth group roster shortcut.
+
+### Breaks?
+**Resolved** — youth pastor no longer treated as worship pastor on login.
 
 ---
 
-## Related files
+## Finance Officer (`finance`)
 
-- `src/lib/roleExperience.ts`
-- `OPERATIONAL_READINESS_REPORT.md`
-- `src/server/scripts/seed-demo-roles.ts`
-- `TESTER_GUIDE.md`
+### Where do they land?
+`/admin?module=finance&tab=vouchers` — **Finance vouchers** ✓
+
+### What do they see?
+- Heading: **Finance**
+- Subtitle: "Calm books for your church"
+- 119 vouchers, 7 awaiting review
+- Sidebar: Giving, Finance, Home, HR (4 items)
+
+### What can they do?
+Full finance workspace, giving module, HR/payroll access, voucher approve/post.
+
+### Confusing?
+- 12 finance tabs — steep learning curve
+- Lands on vouchers not overview — good for accountant, harsh for new treasurer
+
+### Beautiful?
+- Finance copy tone is excellent
+- Voucher registry layout professional
+
+### Ugly?
+- Internal filter values visible
+- Tab bar density
+
+### Should NOT be visible?
+Members, Events — correctly hidden ✓
+
+### Missing?
+Simple "today's offerings" view for non-accountant finance officer
+
+### Breaks?
+Nothing — finance workflow operational
+
+---
+
+## Treasurer (`accountant`)
+
+### Where do they land?
+`/admin?module=finance&tab=vouchers` — same as Finance Officer
+
+### What do they see?
+- Narrower sidebar: Giving, Finance, Home (3 items) — **no HR**
+
+### What can they do?
+Vouchers, giving, reports — no payroll HR tab.
+
+### Confusing?
+- No separate "Treasurer" role in seed — accountant used as proxy
+- Identical landing to Finance Manager
+
+### Beautiful / Ugly?
+Same as finance.
+
+### Should NOT be visible?
+HR — correctly hidden for accountant ✓
+
+### Missing?
+Treasurer-specific simplified dashboard (PDF implies finance role variants)
+
+### Breaks?
+Nothing.
+
+---
+
+## Counter Team (`counter`)
+
+### Where do they land?
+`/admin?module=attendance` — **Attendance** ✓
+
+### What do they see?
+- TOTAL ATTENDANCES 697, open sessions
+- Session list with test conferences **filtered**
+- **Self check-in kiosk** toggle — scannable QR to `/member-login` (no "Coming soon")
+
+### What can they do?
+Create sessions, open check-in, visitor quick-entry, export, show QR kiosk for members.
+
+### Confusing?
+- Must open a session and toggle kiosk — QR not visible until session selected
+- Must click session before check-in — extra step
+
+### Beautiful?
+- Check-in flow once inside session is clean
+- Large touch-friendly inputs
+- QR kiosk card with clear My Church instructions
+
+### Ugly?
+N/A — placeholder removed in Phase 0
+
+### Should NOT be visible?
+Events module editing — has Events/Sunday in nav but role is check-in focused
+
+### Missing?
+Dedicated full-screen kiosk mode (PDF ideal); current QR opens member login for welcome-team handoff
+
+### Breaks?
+Nothing for manual check-in or QR display
+
+---
+
+## Volunteer Coordinator (`volunteers`)
+
+### Where do they land?
+`/admin?module=volunteers` — **Volunteers module** ✓ (Phase 0 fix)
+
+### What do they see?
+- Volunteer coordination workspace (not member directory)
+- Sidebar includes **Volunteers** in Operations group
+- Events, Sunday, Attendance, Members, Small Groups, Home also available
+
+### What can they do?
+Manage volunteer rosters, assignments, Sunday team coverage from dedicated module.
+
+### Confusing?
+- Coverage gaps still surfaced on Home — may duplicate Volunteers module views
+
+### Beautiful?
+Correct landing aligns role name with first screen.
+
+### Ugly?
+N/A — landing bug resolved.
+
+### Should NOT be visible?
+Full member directory as default landing — **fixed**
+
+### Missing?
+Assignment queue as Home widget; burnout/shortage alerts integrated into Volunteers landing
+
+### Breaks?
+**Resolved** — Playwright and browser confirm `/module=volunteers`
+
+---
+
+## Staff (`staffdesk`)
+
+### Where do they land?
+`/admin?module=dashboard` — **Home (office lens)**
+
+### What do they see?
+- Heading: **Church office**
+- "Your first day" 4-step onboarding card
+- Sidebar: Members, Pastoral Care, Events, Sunday, Home (5 items)
+
+### What can they do?
+Front-desk member lookup, events calendar, Sunday support view, alerts.
+
+### Confusing?
+- First-day card + operations home redundant
+- Scratch pad "LOCAL ONLY — NOT SYNCED" visible — unfinished
+
+### Beautiful?
+First-day steps are helpful for genuine new staff.
+
+### Ugly?
+Setup progress still showing.
+
+### Should NOT be visible?
+Evaluator/test prompts.
+
+### Missing?
+Simple visitor registration shortcut on Home (must go to Outreach).
+
+### Breaks?
+Nothing.
+
+---
+
+## Member (`member` → Meera Kurian)
+
+### Where do they land?
+`/portal` — **Member portal** ✓
+
+### What do they see?
+- Heading: **Meera Kurian** — Chennai · Member
+- Stats: 14 check-ins (90d), **12,700 recent giving**, 0 active roles
+- Upcoming events (VBS, prayer, youth)
+- Small group: Married Couples — Church Lane
+- Sermons with Watch links
+- Prayer request form + recent requests
+- Notification: giving statement ready — **consistent with YTD total**
+
+### What can they do?
+Submit prayer, watch sermons, view events, link to public giving, sign out.
+
+### Confusing?
+- Submit prayer disabled until text entered — no hint
+- Duplicate VBS notification cards
+
+### Beautiful?
+- **Warmest UI in product** — human, readable, church-appropriate
+- Clear church identity header
+
+### Ugly?
+Empty active roles stat (0 roles) feels abandoned
+
+### Should NOT be visible?
+Staff admin links — correctly absent ✓
+
+### Missing?
+Messaging, volunteer schedule confirm, profile edit, self QR check-in completion, recurring giving, document download
+
+### Breaks?
+**Resolved** — giving total and statement notification now align
+
+---
+
+## Role Experience Scorecard
+
+| Role | Landing correct? | Nav appropriate? | 5-sec comprehension? | Would enjoy? |
+|------|------------------|------------------|----------------------|--------------|
+| Administrator | ✓ | ✓ (too broad) | Partial (Home cleaner) | N/A |
+| Senior Pastor | ✓ | Mostly ✓ | Partial | Partial |
+| Associate Pastor | ✓ | Partial | Partial | Partial |
+| Worship Leader | ✓✓ | ✓✓ | ✓ | Yes |
+| Youth Pastor | **✓** | Partial | Partial | Partial |
+| Finance Officer | ✓ | ✓ | Partial | Partial |
+| Treasurer | ✓ | ✓ | Partial | Partial |
+| Counter Team | ✓ | Partial | Partial | Partial |
+| Volunteer Coord | **✓** | **✓** | Partial | Partial |
+| Staff | ✓ | ✓ | ✓ | Yes |
+| Member | ✓ | N/A (portal) | ✓ | Partial |
+
+---
+
+## Cross-Role Observations
+
+1. **Best experience:** Worship Leader → Sunday Service cockpit  
+2. **Phase 0 resolved:** Volunteer Coordinator → Volunteers; Youth Pastor → Events; Member giving; Home test artifacts; QR kiosk  
+3. **Most improved needed (Phase 2+):** Youth Home shortcuts, Member portal depth, Pastor Home simplification  
+4. **Role filtering works:** Finance cannot see Members; Pastor cannot see Settings  
+5. **No Volunteer role** in seed — only Volunteer Coordinator (staff), not congregation volunteer login  
+
+---
+
+## Phase 0 Gate
+
+**Status: PASS** — All five P0 items verified in browser and/or Playwright. Safe to proceed to Phase 1 (Dummy Data Cleanup) when approved.
+
+---
+
+*Browser-verified 6 June 2026. Phase 0 stabilization applied; reports updated post-fix.*

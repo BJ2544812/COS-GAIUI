@@ -37,6 +37,7 @@ import {
   type EventPublicFormState,
 } from '@/components/events/EventPublicPublishingFields';
 import { getEventPublicProfile, publicRegistrationCount, isPublishedToWebsite } from '@/lib/eventPublicProfile';
+import { filterOperationalTestArtifacts } from '@/lib/operationalEventFilter';
 import {
   EVENT_CREATE_TYPE_OPTIONS,
   defaultCreateTypeOptionId,
@@ -170,7 +171,7 @@ export function EventsModule({
       setListLoading(true);
       const json = await apiRequest<unknown>('events', { method: 'GET' });
       const rows = parseApiResponse<{ id: string; name: string; type: string; date: string; status?: string; opsConfig?: unknown; attendanceSessions?: Array<{ _count?: { attendances: number } }> }[]>(json);
-      setListEvents(mapRowsToCards(rows));
+      setListEvents(mapRowsToCards(filterOperationalTestArtifacts(rows ?? [])));
     } catch (e) {
       setEventsError(formatApiError(e));
       setListEvents([]);

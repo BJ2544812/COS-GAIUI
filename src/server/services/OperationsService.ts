@@ -6,6 +6,11 @@ import {
 } from '../utils/operationalReadiness.js';
 import { EventBus } from '../events/eventBus.js';
 import { VolunteerOpsService } from './VolunteerOpsService.js';
+import {
+  filterOperationalTestArtifacts,
+  filterOperationalTestTaskTitles,
+  isOperationalTestArtifact,
+} from '../../lib/operationalEventFilter.js';
 
 type RunSheetRow = { id?: string };
 
@@ -32,14 +37,14 @@ export class OperationsService {
     const lens = resolveOperationalLens({ role: user.role, permissions: user.permissions });
 
     const [
-      upcomingEvents,
-      todayServices,
-      volunteerGaps,
-      myTasks,
-      teamTasks,
-      overdueTasks,
+      upcomingEventsRaw,
+      todayServicesRaw,
+      volunteerGapsRaw,
+      myTasksRaw,
+      teamTasksRaw,
+      overdueTasksRaw,
       recentActivity,
-      openSessions,
+      openSessionsRaw,
       unreadCount,
       recentNotifications,
     ] = await Promise.all([
@@ -54,6 +59,16 @@ export class OperationsService {
       OperationsRepository.getUnreadNotificationCount(tenantId, user.id, user.role),
       OperationsRepository.getRecentNotifications(tenantId, user.id, user.role),
     ]);
+
+    const upcomingEvents = filterOperationalTestArtifacts(upcomingEventsRaw);
+    const todayServices = filterOperationalTestArtifacts(todayServicesRaw);
+    const volunteerGaps = filterOperationalTestArtifacts(volunteerGapsRaw);
+    const myTasks = filterOperationalTestTaskTitles(myTasksRaw);
+    const teamTasks = filterOperationalTestTaskTitles(teamTasksRaw);
+    const overdueTasks = filterOperationalTestTaskTitles(overdueTasksRaw);
+    const openSessions = openSessionsRaw.filter(
+      (s) => !isOperationalTestArtifact(s.event?.name ?? s.name ?? ''),
+    );
 
     const eventsWithReadiness = await Promise.all(
       upcomingEvents.map(async (ev) => {

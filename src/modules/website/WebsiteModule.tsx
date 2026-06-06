@@ -432,11 +432,21 @@ const PreviewGivingCta = ({ config, branding, onClick, isSelected }: any) => (
 );
 
 const PreviewStatsBar = ({ config, onClick, isSelected }: any) => {
-  const stats = config.stats || [
-    { label: 'Weekly Attendance', value: '2,500+' },
-    { label: 'Small Groups', value: '120+' },
-    { label: 'Community Impact', value: '$45k+' }
-  ];
+  const stats = config.stats?.length ? config.stats : null;
+  if (!stats) {
+    return (
+      <div
+        onClick={onClick}
+        className={cn(
+          'py-16 bg-slate-50 text-slate-500 group cursor-pointer border-4 border-dashed border-slate-200 relative text-center',
+          THEME.transition,
+          isSelected && 'border-indigo-500 shadow-lg z-20',
+        )}
+      >
+        <p className="text-sm font-medium">Add statistics in the page editor — e.g. weekly attendance or small groups.</p>
+      </div>
+    );
+  }
   return (
     <div onClick={onClick} className={cn(
       "py-20 bg-slate-900 text-white group cursor-pointer border-4 border-transparent relative",

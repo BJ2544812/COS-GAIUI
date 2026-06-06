@@ -53,6 +53,8 @@ import {
   readAttendanceEventContext,
   UCOS_OPEN_ATTENDANCE_SESSION_ID,
 } from '@/lib/attendanceNavigation';
+import { isOperationalTestArtifact } from '@/lib/operationalEventFilter';
+import { QRCodeSVG } from 'qrcode.react';
 import type { ERPModule } from '@/types';
 
 export function AttendanceModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
@@ -87,7 +89,13 @@ export function AttendanceModule({ onModuleChange }: { onModuleChange?: (m: ERPM
     try {
       setAttendanceError(null);
       const res = await apiRequest<any>('attendance/sessions');
-      setSessions(parseApiResponse(res) || []);
+      const rows = parseApiResponse(res) || [];
+      setSessions(
+        rows.filter(
+          (s: { name?: string; event?: { name?: string } }) =>
+            !isOperationalTestArtifact(s.name) && !isOperationalTestArtifact(s.event?.name),
+        ),
+      );
     } catch (err) {
       setAttendanceError(formatApiError(err));
     }
@@ -372,7 +380,7 @@ export function AttendanceModule({ onModuleChange }: { onModuleChange?: (m: ERPM
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
            <div className="lg:col-span-8 space-y-10">
-              {showQR && (
+              {showQR && currentSession && (
                 <Card className="border-none shadow-2xl rounded-[4rem] bg-slate-950 text-white p-16 text-center space-y-8 animate-in zoom-in-95 duration-500 overflow-hidden relative">
                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent"></div>
                    <div className="relative z-10 space-y-6 max-w-lg mx-auto">
@@ -382,12 +390,21 @@ export function AttendanceModule({ onModuleChange }: { onModuleChange?: (m: ERPM
                       <div className="space-y-2">
                         <h2 className="text-3xl font-black tracking-tighter uppercase leading-none">Self check-in kiosk</h2>
                         <p className="text-slate-400 font-medium text-sm leading-relaxed">
-                          Public QR check-in is coming soon. Use manual member search or visitor quick-entry below for this session.
+                          Members scan to open My Church. Welcome team completes check-in for{' '}
+                          <span className="text-white font-semibold">{currentSession.name}</span> using search below.
                         </p>
                       </div>
-                      <Badge className="bg-amber-500/20 text-amber-200 border-amber-400/30 px-6 py-2 font-black uppercase tracking-widest text-[10px]">
-                        Coming soon
-                      </Badge>
+                      <div className="bg-white rounded-3xl p-6 inline-block">
+                        <QRCodeSVG
+                          value={`${window.location.origin}/member-login`}
+                          size={200}
+                          level="M"
+                          includeMargin
+                        />
+                      </div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                        Session · {currentSession.name}
+                      </p>
                    </div>
                 </Card>
               )}

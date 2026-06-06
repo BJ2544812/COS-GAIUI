@@ -4,6 +4,14 @@ import { EVENT_STATUS_LABELS } from '@/lib/eventLifecycle';
 export const SUNDAY_COCKPIT_INTRO =
   'Your live-service control center for today’s worship — attendance, teams, flow, and alerts in one place.';
 
+export const YOUTH_SUNDAY_COCKPIT_INTRO =
+  'Your youth gathering control center — attendance, teams, flow, and alerts for the next generation.';
+
+export function getSundayCockpitIntro(roleArchetype?: string): string {
+  if (roleArchetype === 'youth_pastor') return YOUTH_SUNDAY_COCKPIT_INTRO;
+  return SUNDAY_COCKPIT_INTRO;
+}
+
 export type TeamBucketId = 'worship' | 'media' | 'welcome' | 'children' | 'prayer';
 
 export const TEAM_BUCKETS: Array<{ id: TeamBucketId; label: string; match: (role: string) => boolean }> = [

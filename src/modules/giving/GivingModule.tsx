@@ -815,11 +815,6 @@ export function GivingModule({ onModuleChange }: GivingModuleProps) {
                   )}
                </TableBody>
             </Table>
-            <div className="p-6 text-center border-t border-slate-50">
-               <Button disabled variant="ghost" className="text-xs font-semibold text-slate-400">
-                  <History className="mr-2 w-4 h-4" /> Full export coming soon
-               </Button>
-            </div>
       </SectionCard>
       </>
       )}

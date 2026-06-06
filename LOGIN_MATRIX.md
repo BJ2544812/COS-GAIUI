@@ -19,13 +19,13 @@
 |----------|----------|------|-------------|---------|------------------------|
 | `pastor` | `demo123` | Senior Pastor | Ravi Nair | Dashboard (Pastoral) | Church health, care, events, giving overview |
 | `associate` | `demo123` | Associate Pastor | David Kurian | Dashboard (Pastoral) | Pastoral care, events, members |
-| `youth` | `demo123` | Youth Pastor | Anita George | Sunday Mode | Youth events & attendance |
+| `youth` | `demo123` | Youth Pastor | Anita George | Events | Youth events & attendance |
 | `churchadmin` | `demo123` | Church Administrator | Sarah Thomas | Dashboard (Operations) | Members, events, attendance, comms |
 | `worship` | `demo123` | Worship Pastor | Thomas Menon | Sunday Mode | Worship services & teams |
 | `finance` | `demo123` | Finance Manager | James Joseph | Finance | Donations, vouchers, payroll, reports |
 | `accountant` | `demo123` | Accountant | Daniel Nair | Finance | Vouchers, giving, budgets |
 | `hradmin` | `demo123` | HR Manager | Susan Joseph | HR | Staff records, payroll |
-| `volunteers` | `demo123` | Volunteer Coordinator | Kevin Joseph | Events / Volunteers | Volunteer assignments |
+| `volunteers` | `demo123` | Volunteer Coordinator | Kevin Joseph | Volunteers | Volunteer assignments |
 | `secretary` | `demo123` | Communications Manager | Rachel Thomas | Communication | Campaigns, documents |
 | `groupleader` | `demo123` | Small Group Leader | Priya Paul | Members / Groups | Home group leader |
 | `staffdesk` | `demo123` | Staff | Philip Thomas | Events | Front-desk events & members |

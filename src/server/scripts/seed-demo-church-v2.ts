@@ -103,6 +103,38 @@ async function linkPortalUser(tenantId: string) {
       verified: true,
     },
   });
+
+  await ensurePortalMemberGiving(tenantId, portalMember.id);
+}
+
+async function ensurePortalMemberGiving(tenantId: string, memberId: string) {
+  const existing = await prisma.donation.count({ where: { tenantId, donorId: memberId } });
+  if (existing > 0) return;
+
+  const fund = await prisma.fund.findFirst({ where: { tenantId }, orderBy: { name: 'asc' } });
+  const now = new Date();
+  const gifts = [
+    { amount: 5000, monthsAgo: 2 },
+    { amount: 3500, monthsAgo: 1 },
+    { amount: 4200, monthsAgo: 0 },
+  ];
+
+  for (const gift of gifts) {
+    const date = new Date(now.getFullYear(), now.getMonth() - gift.monthsAgo, 15);
+    const reference = `${TAG}-portal-gift-${gift.monthsAgo}`;
+    if (await prisma.donation.findFirst({ where: { tenantId, reference } })) continue;
+    await prisma.donation.create({
+      data: {
+        tenantId,
+        donorId: memberId,
+        ...(fund ? { fundId: fund.id } : {}),
+        amount: gift.amount,
+        date,
+        method: 'UPI',
+        reference,
+      },
+    });
+  }
 }
 
 async function main() {

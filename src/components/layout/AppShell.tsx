@@ -57,6 +57,7 @@ const GROUPS: GroupDef[] = [
       { id: 'events',          label: 'Events',            icon: Star,           permission: 'manage_events',       status: 'operational' },
       { id: 'sunday-mode',     label: 'Sunday Service',    icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
       { id: 'attendance',      label: 'Attendance',        icon: CalendarCheck,  permission: 'manage_attendance',   status: 'operational' },
+      { id: 'volunteers',      label: 'Volunteers',        icon: Users,          permission: 'manage_members',      status: 'live' },
     ],
   },
   {
@@ -364,15 +365,17 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-3">
+            {import.meta.env.DEV && import.meta.env.VITE_SHOW_WALKTHROUGH === 'true' ? (
             <button
               type="button"
               onClick={() => setShowWalkthrough(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
-              title="Explore Ultimate Church OS by role"
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              title="Product tour (development only)"
             >
               <Compass className="w-4 h-4" />
-              Explore Ultimate Church OS
+              Product tour
             </button>
+            ) : null}
 
             {/* Search */}
             <button

@@ -28,6 +28,38 @@ import { VolunteerHealthPanel } from '@/components/intelligence/VolunteerHealthP
 import { RealtimeStatusBar } from '@/components/operations/RealtimeStatusBar';
 import { OperationalGuidanceBanner } from '@/components/operations/OperationalGuidanceBanner';
 import type { CommandCenterPayload } from '@/lib/operationsTypes';
+import {
+  filterOperationalTestArtifacts,
+  filterOperationalTestTaskTitles,
+} from '@/lib/operationalEventFilter';
+
+function sanitizeCommandCenter(payload: CommandCenterPayload): CommandCenterPayload {
+  const todayServices = filterOperationalTestArtifacts(payload.todayServices);
+  const upcomingEvents = filterOperationalTestArtifacts(payload.upcomingEvents);
+  const volunteerGaps = filterOperationalTestArtifacts(payload.volunteerGaps);
+  const pendingApprovals = filterOperationalTestArtifacts(payload.pendingApprovals);
+  const myTasks = filterOperationalTestTaskTitles(payload.myTasks);
+  const teamTasks = filterOperationalTestTaskTitles(payload.teamTasks);
+  const overdueTasks = filterOperationalTestTaskTitles(payload.overdueTasks);
+  return {
+    ...payload,
+    todayServices,
+    upcomingEvents,
+    volunteerGaps,
+    pendingApprovals,
+    myTasks,
+    teamTasks,
+    overdueTasks,
+    summary: {
+      ...payload.summary,
+      todayServiceCount: todayServices.length,
+      upcomingEventCount: upcomingEvents.length,
+      volunteerGapCount: volunteerGaps.length,
+      pendingApprovalCount: pendingApprovals.length,
+      overdueTaskCount: overdueTasks.length,
+    },
+  };
+}
 
 const LENS_LABELS: Record<string, string> = {
   super_admin: 'All campuses',
@@ -54,8 +86,11 @@ type OperationalInsights = {
 
 export function OperationsCommandCenter({
   onModuleChange,
+  compact = false,
 }: {
   onModuleChange?: import('@/types').ModuleNavigate;
+  /** Calmer Home layout — fewer stats, no duplicate intelligence panels */
+  compact?: boolean;
 }) {
   const [data, setData] = React.useState<CommandCenterPayload | null>(null);
   const [insights, setInsights] = React.useState<OperationalInsights | null>(null);
@@ -72,7 +107,7 @@ export function OperationsCommandCenter({
         apiRequest<unknown>(`operations/command-center${q}`, { method: 'GET' }),
         apiRequest<unknown>(`operations/operational-insights${q}`, { method: 'GET' }).catch(() => null),
       ]);
-      setData(parseApiResponse<CommandCenterPayload>(cc));
+      setData(sanitizeCommandCenter(parseApiResponse<CommandCenterPayload>(cc)));
       if (ins) setInsights(parseApiResponse<OperationalInsights>(ins));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not load your church week overview');
@@ -131,9 +166,13 @@ export function OperationsCommandCenter({
               {LENS_LABELS[data.lens] ?? data.lens}
             </Badge>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">This week at church</h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            Services, events, volunteers, tasks, and attendance — everything you need for the week ahead.
+          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">
+            {compact ? 'What needs attention' : 'This week at church'}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {compact
+              ? 'Services, volunteers, and tasks that need a decision today.'
+              : 'Services, events, volunteers, tasks, and attendance for the week ahead.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -157,7 +196,7 @@ export function OperationsCommandCenter({
         </div>
       </div>
 
-      <MinistryIntelligenceStrip campusId={campusId || undefined} />
+      {!compact && <MinistryIntelligenceStrip campusId={campusId || undefined} />}
 
       <OperationalGuidanceBanner
         hintId={s.volunteerGapCount > 0 ? 'volunteer-gap' : 'sunday-prep'}
@@ -166,21 +205,23 @@ export function OperationsCommandCenter({
 
       {error && <p className="text-sm text-amber-700 font-medium">{error}</p>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className={cn('grid gap-3', compact ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6')}>
         {[
-          { label: "Today's services", value: s.todayServiceCount, icon: Calendar, tone: 'text-indigo-600' },
-          { label: 'Upcoming events', value: s.upcomingEventCount, icon: Calendar, tone: 'text-slate-600' },
-          { label: 'Volunteer gaps', value: s.volunteerGapCount, icon: Users, tone: s.volunteerGapCount ? 'text-rose-600' : 'text-emerald-600' },
-          { label: 'Pending approvals', value: s.pendingApprovalCount, icon: Clock, tone: 'text-amber-600' },
-          { label: 'Overdue tasks', value: s.overdueTaskCount, icon: ListTodo, tone: s.overdueTaskCount ? 'text-rose-600' : 'text-slate-500' },
-          { label: 'Unread alerts', value: s.unreadNotificationCount, icon: Bell, tone: 'text-indigo-600' },
-        ].map((stat) => (
+          { label: "Today's services", value: s.todayServiceCount, icon: Calendar, tone: 'text-indigo-600', show: true },
+          { label: 'Volunteer gaps', value: s.volunteerGapCount, icon: Users, tone: s.volunteerGapCount ? 'text-rose-600' : 'text-emerald-600', show: !compact || s.volunteerGapCount > 0 },
+          { label: 'Pending approvals', value: s.pendingApprovalCount, icon: Clock, tone: 'text-amber-600', show: !compact || s.pendingApprovalCount > 0 },
+          { label: 'Overdue tasks', value: s.overdueTaskCount, icon: ListTodo, tone: s.overdueTaskCount ? 'text-rose-600' : 'text-slate-500', show: !compact || s.overdueTaskCount > 0 },
+          { label: 'Upcoming events', value: s.upcomingEventCount, icon: Calendar, tone: 'text-slate-600', show: !compact },
+          { label: 'Unread alerts', value: s.unreadNotificationCount, icon: Bell, tone: 'text-indigo-600', show: !compact || s.unreadNotificationCount > 0 },
+        ]
+          .filter((stat) => stat.show)
+          .map((stat) => (
           <Card key={stat.label} className="border-slate-100 shadow-sm rounded-2xl">
             <CardContent className="p-4 flex items-center gap-3">
               <stat.icon className={cn('w-5 h-5 shrink-0', stat.tone)} />
               <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
-                <p className="text-xl font-black text-slate-900">{stat.value}</p>
+                <p className="text-xs text-slate-400">{stat.label}</p>
+                <p className="text-xl font-semibold text-slate-900">{stat.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -197,7 +238,7 @@ export function OperationsCommandCenter({
         </Card>
       )}
 
-      {insights && (
+      {!compact && insights && (
         <Card className="border-indigo-100 bg-indigo-50/40 rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-black">This week&apos;s watchlist</CardTitle>
@@ -320,7 +361,7 @@ export function OperationsCommandCenter({
                 No upcoming events on this campus. Create one from Events or Worship Services.
               </p>
             ) : (
-              data.upcomingEvents.slice(0, 8).map((ev) => (
+              data.upcomingEvents.slice(0, compact ? 4 : 8).map((ev) => (
                 <button
                   key={ev.id}
                   type="button"
@@ -365,9 +406,11 @@ export function OperationsCommandCenter({
         </Card>
       )}
 
+      {!compact && (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <VolunteerHealthPanel compact />
       </div>
+      )}
 
       <WorkflowCommandPanel
         myTasks={data.myTasks}

@@ -20,6 +20,9 @@ import type { LiveOpsConfig, LiveOpsPayload } from '@/lib/liveOps';
 import { segmentCountdownSeconds } from '@/lib/liveOps';
 import type { RunSheetSegment } from '@/lib/eventLifecycle';
 import { EVENT_STATUS_COLORS } from '@/lib/eventLifecycle';
+import { usePermissions } from '@/context/AuthContext';
+import { getRoleExperience } from '@/lib/roleExperience';
+import { filterOperationalTestArtifacts } from '@/lib/operationalEventFilter';
 import type { ERPModule } from '@/types';
 import { openAttendanceForEvent } from '@/lib/attendanceNavigation';
 import { openWorshipServices } from '@/lib/sundayServicesNavigation';
@@ -29,7 +32,7 @@ import { RealtimeStatusBar } from '@/components/operations/RealtimeStatusBar';
 import { InlineTextCapture } from '@/components/operations/InlineTextCapture';
 import type { PresenceOperator } from '@/hooks/useRealtimeOps';
 import {
-  SUNDAY_COCKPIT_INTRO,
+  getSundayCockpitIntro,
   buildAttentionRows,
   formatServiceDate,
   formatServiceTime,
@@ -75,6 +78,11 @@ function CockpitSection({
 }
 
 export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('@/types').ModuleNavigate }) {
+  const { user } = usePermissions();
+  const cockpitIntro = React.useMemo(
+    () => getSundayCockpitIntro(user ? getRoleExperience(user).archetype : undefined),
+    [user],
+  );
   const [services, setServices] = React.useState<ServiceRow[]>([]);
   const [servicesLoaded, setServicesLoaded] = React.useState(false);
   const [eventId, setEventId] = React.useState<string | null>(null);
@@ -90,7 +98,9 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
     try {
       const j = await apiRequest<unknown>('events', { method: 'GET' });
       const all = parseApiResponse<ServiceRow[]>(j) || [];
-      const svc = all.filter((e) => e.type === 'Service').sort((a, b) => +new Date(a.date) - +new Date(b.date));
+      const svc = filterOperationalTestArtifacts(all)
+        .filter((e) => e.type === 'Service')
+        .sort((a, b) => +new Date(a.date) - +new Date(b.date));
       setServices(svc);
       const focus = sessionStorage.getItem(UCOS_LIVE_SERVICE_ID);
       if (focus && svc.some((s) => s.id === focus)) {
@@ -238,7 +248,7 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
             <Radio className="w-7 h-7 text-indigo-600" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sunday Service</h1>
-          <p className="text-sm text-slate-600 font-medium leading-relaxed">{SUNDAY_COCKPIT_INTRO}</p>
+          <p className="text-sm text-slate-600 font-medium leading-relaxed">{cockpitIntro}</p>
         </div>
         <Card className="rounded-2xl border-indigo-100 bg-indigo-50/50">
           <CardContent className="p-6 space-y-4 text-left">
@@ -280,7 +290,7 @@ export function SundayModeModule({ onModuleChange }: { onModuleChange?: import('
                 <span className="text-xs font-semibold uppercase tracking-wide text-indigo-200">Live service cockpit</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Sunday Service</h1>
-              <p className="text-sm text-indigo-100 font-medium max-w-2xl leading-relaxed">{SUNDAY_COCKPIT_INTRO}</p>
+              <p className="text-sm text-indigo-100 font-medium max-w-2xl leading-relaxed">{cockpitIntro}</p>
             </div>
             <div className="flex flex-wrap items-end gap-2 shrink-0">
               <RealtimeStatusBar

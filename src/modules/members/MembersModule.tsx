@@ -542,15 +542,9 @@ export function MembersModule({ onModuleChange, user: _user }: MembersModuleProp
                          </div>
                        </TableCell>
                        <TableCell>
-                         <div className="flex flex-col gap-1.5 w-32">
-                           <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
-                             <span>Progress</span>
-                             <span className="text-indigo-500">{member.growthStage || 'Visitor'}</span>
-                           </div>
-                           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                             <div className="h-full bg-indigo-500 w-[40%] rounded-full" />
-                           </div>
-                         </div>
+                         <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                           {member.growthStage || 'Visitor'}
+                         </span>
                        </TableCell>
                        <TableCell className="pr-6">
                          <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-indigo-600 transition-all ml-auto">
