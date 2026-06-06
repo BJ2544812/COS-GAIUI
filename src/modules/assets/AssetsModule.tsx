@@ -29,7 +29,7 @@ import { ModuleTabs } from '@/components/modules/ModuleTabs';
 
 const EMPTY_FORM = { name: '', category: 'Technical Equipment', value: '', location: '', serialNumber: '', notes: '', status: 'Active' };
 
-export function AssetsModule() {
+export function AssetsModule({ embedded = false }: { embedded?: boolean } = {}) {
   const { settings } = useSettings();
   const [activeTab, setActiveTab] = React.useState<'assets' | 'documents'>('assets');
   const [view, setView] = React.useState<'list' | 'details' | 'create' | 'maintenance'>('list');
@@ -441,6 +441,7 @@ export function AssetsModule() {
 
   return (
     <PageLayout>
+      {!embedded && (
       <ModuleHeader
         title="Assets & documents"
         subtitle="Equipment registry, assignments, and linked documents."
@@ -451,7 +452,14 @@ export function AssetsModule() {
           ) : undefined
         }
       />
+      )}
+      {embedded && view === 'list' && activeTab === 'assets' && (
+        <div className="flex justify-end mb-4">
+          <ActionButton label="Add asset" icon={Plus} variant="primary" onClick={() => setView('create')} />
+        </div>
+      )}
       {assetsError && <p className="text-sm text-rose-600 font-medium">{assetsError}</p>}
+      {!embedded && (
       <ModuleTabs
         tabs={[
           { id: 'assets', label: 'Physical assets' },
@@ -461,8 +469,9 @@ export function AssetsModule() {
         onChange={(id) => setActiveTab(id as 'assets' | 'documents')}
         aria-label="Assets sections"
       />
+      )}
 
-      {activeTab === 'documents' ? (
+      {!embedded && activeTab === 'documents' ? (
         <DocumentsModule />
       ) : (
       <>

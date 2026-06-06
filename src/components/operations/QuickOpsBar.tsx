@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { ERPModule } from '@/types';
 import { labelForQuickOp } from '@/lib/roleExperience';
+import { UCOS_OPEN_NEXT_SERVICE } from '@/lib/eventWorkspaceNavigation';
 
 const UCOS_LIVE_SERVICE_ID = 'ucos_live_service_id';
 
@@ -78,7 +79,7 @@ export function QuickOpsBar({
   modules,
 }: {
   activeModule: ERPModule;
-  onModuleChange: (m: ERPModule) => void;
+  onModuleChange: (m: ERPModule, tab?: string) => void;
   hidden?: boolean;
   modules?: ERPModule[];
 }) {
@@ -88,7 +89,7 @@ export function QuickOpsBar({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 md:left-64 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] safe-area-pb"
+      className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] safe-area-pb"
       aria-label="Quick operations"
     >
       <div className="flex justify-around items-stretch max-w-4xl mx-auto px-1">
@@ -105,6 +106,11 @@ export function QuickOpsBar({
                   if (!last) {
                     /* user picks service inside Sunday Service */
                   }
+                }
+                if (id === 'sunday-services' || id === 'worship' || id === 'services') {
+                  sessionStorage.setItem(UCOS_OPEN_NEXT_SERVICE, '1');
+                  onModuleChange('events');
+                  return;
                 }
                 onModuleChange(id);
               }}

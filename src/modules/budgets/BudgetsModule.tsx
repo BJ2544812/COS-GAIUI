@@ -24,12 +24,19 @@ function n(v: unknown): number {
 export function BudgetsModule({
   onModuleChange,
   initialTab,
+  embedded = false,
+  hideEventFinance = false,
+  lockedTab,
 }: {
   onModuleChange?: (m: ERPModule) => void;
   initialTab?: 'funds' | 'budgets' | 'event-finance';
+  embedded?: boolean;
+  hideEventFinance?: boolean;
+  /** When embedded in Finance workspace, parent owns tab — render one section only. */
+  lockedTab?: 'funds' | 'budgets' | 'event-finance';
 }) {
   const { settings } = useSettings();
-  const [tab, setTab] = React.useState<'funds' | 'budgets' | 'event-finance'>(initialTab ?? 'funds');
+  const [tab, setTab] = React.useState<'funds' | 'budgets' | 'event-finance'>(lockedTab ?? initialTab ?? 'funds');
   React.useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
@@ -107,40 +114,38 @@ export function BudgetsModule({
     return { restricted, designated, unrestricted, budget, actual, utilization };
   }, [fundRows, budgetReport]);
 
-  return (
-    <PageLayout>
-      <ModuleHeader
-        title="Funds, Budgets & Event Finance"
-        subtitle="Fund transparency, budget limits, and how events affect your finances."
-        status="live"
-        icon={PieChart}
-        actions={
-          <>
-            <ActionButton label="Accounting" icon={CreditCard} variant="secondary" onClick={() => onModuleChange?.('finance')} />
-            <ActionButton label="Giving" icon={Heart} variant="secondary" onClick={() => onModuleChange?.('giving')} />
-            <ActionButton label="Refresh" icon={CalendarClock} variant="primary" onClick={() => void load()} />
-          </>
-        }
-      />
+  React.useEffect(() => {
+    if (lockedTab) setTab(lockedTab);
+    else if (initialTab) setTab(initialTab);
+  }, [initialTab, lockedTab]);
 
+  const activeTab = lockedTab ?? tab;
+  const budgetTabs = [
+    { id: 'funds', label: 'Fund dashboard' },
+    { id: 'budgets', label: 'Budget workspace' },
+    ...(hideEventFinance ? [] : [{ id: 'event-finance', label: 'Event finance' }]),
+  ] as const;
+
+  const inner = (
+    <>
       {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
-      <ModuleTabs
-        tabs={[
-          { id: 'funds', label: 'Fund dashboard' },
-          { id: 'budgets', label: 'Budget workspace' },
-          { id: 'event-finance', label: 'Event finance' },
-        ]}
-        activeId={tab}
-        onChange={(id) => setTab(id as typeof tab)}
-        aria-label="Budget sections"
-      />
+      {!lockedTab && !embedded && (
+        <ModuleTabs
+          tabs={[...budgetTabs]}
+          activeId={activeTab}
+          onChange={(id) => setTab(id as typeof tab)}
+          aria-label="Budget sections"
+        />
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Restricted Funds" value={fmt(totals.restricted)} icon={Target} />
-        <StatCard label="Designated Funds" value={fmt(totals.designated)} icon={CircleDollarSign} />
-        <StatCard label="Unrestricted Funds" value={fmt(totals.unrestricted)} icon={CircleDollarSign} />
-        <StatCard label="Budget Utilization" value={`${totals.utilization.toFixed(1)}%`} icon={CalendarClock} />
-      </div>
+      {!embedded && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard label="Restricted Funds" value={fmt(totals.restricted)} icon={Target} />
+          <StatCard label="Designated Funds" value={fmt(totals.designated)} icon={CircleDollarSign} />
+          <StatCard label="Unrestricted Funds" value={fmt(totals.unrestricted)} icon={CircleDollarSign} />
+          <StatCard label="Budget Utilization" value={`${totals.utilization.toFixed(1)}%`} icon={CalendarClock} />
+        </div>
+      )}
 
       {loading ? (
         <SectionCard title="Loading">
@@ -148,7 +153,7 @@ export function BudgetsModule({
         </SectionCard>
       ) : null}
 
-      {!loading && tab === 'funds' && (
+      {!loading && activeTab === 'funds' && (
         <SectionCard title="Fund Accounting Dashboard" subtitle="Opening, receipts, spending, transfers, and closing balances">
           <div className="space-y-2">
             {fundRows.length === 0 ? (
@@ -182,7 +187,7 @@ export function BudgetsModule({
         </SectionCard>
       )}
 
-      {!loading && tab === 'budgets' && (
+      {!loading && activeTab === 'budgets' && (
         <SectionCard title="Budget Workspace" subtitle="Budget vs actual by dimensions with strict/soft tracking visibility">
           {budgetReport?.rows?.length ? (
             <div className="space-y-3">
@@ -208,7 +213,7 @@ export function BudgetsModule({
         </SectionCard>
       )}
 
-      {!loading && tab === 'event-finance' && (
+      {!loading && activeTab === 'event-finance' && !hideEventFinance && (
         <SectionCard title="Event Finance Workspace" subtitle="Per-event accounting statement and P&L visibility">
           <div className="space-y-3">
             {eventStatements.length === 0 ? (
@@ -239,6 +244,29 @@ export function BudgetsModule({
           </div>
         </SectionCard>
       )}
+    </>
+  );
+
+  if (embedded || lockedTab) {
+    return <div className="space-y-6">{inner}</div>;
+  }
+
+  return (
+    <PageLayout>
+      <ModuleHeader
+        title="Funds, Budgets & Event Finance"
+        subtitle="Fund transparency, budget limits, and how events affect your finances."
+        status="live"
+        icon={PieChart}
+        actions={
+          <>
+            <ActionButton label="Accounting" icon={CreditCard} variant="secondary" onClick={() => onModuleChange?.('finance')} />
+            <ActionButton label="Giving" icon={Heart} variant="secondary" onClick={() => onModuleChange?.('giving')} />
+            <ActionButton label="Refresh" icon={CalendarClock} variant="primary" onClick={() => void load()} />
+          </>
+        }
+      />
+      {inner}
     </PageLayout>
   );
 }

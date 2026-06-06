@@ -118,7 +118,7 @@ test.describe('Deep workflow persistence and trust', () => {
     await page.getByTestId('nav-finance').click();
     await expect(page.getByRole('heading', { name: 'Finance', exact: true })).toBeVisible();
 
-    await page.getByRole('main').getByRole('button', { name: 'Vouchers', exact: true }).click();
+    await page.getByRole('tab', { name: 'Vouchers', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Voucher Registry' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reset Filters' })).toBeVisible();
   });
@@ -126,8 +126,8 @@ test.describe('Deep workflow persistence and trust', () => {
   test('finance reconciliation tab exposes bank statement workflow', async ({ page }) => {
     await login(page);
     await page.getByTestId('nav-finance').click();
-    await page.getByRole('main').getByRole('button', { name: 'Reconciliation', exact: true }).click();
-    await expect(page.getByText('Bank statement reconciliation')).toBeVisible();
+    await page.getByRole('tab', { name: 'Reconciliation', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Bank statement reconciliation' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start session' })).toBeVisible();
   });
 });

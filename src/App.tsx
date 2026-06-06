@@ -12,19 +12,19 @@ import {
   isCanonicalAdminModule,
   normalizeAdminModule,
   parseAdminSearchParams,
+  resolveAdminNavigation,
 } from '@/lib/adminNavigation';
 import type { FinanceWorkspaceTab } from '@/lib/financeNavigation';
+import { normalizeFinanceTab } from '@/lib/financeNavigation';
 
 import { DashboardModule } from './modules/dashboard/DashboardModule';
 import { MembersModule } from './modules/members/MembersModule';
 import { DiscipleshipModule } from './modules/discipleship/DiscipleshipModule';
-import { StructureModule } from './modules/structure/StructureModule';
 import { AttendanceModule } from './modules/attendance/AttendanceModule';
 import { EventsModule } from './modules/events/EventsModule';
 import { SundayModeModule } from './modules/sunday/SundayModeModule';
 import { GivingModule } from './modules/giving/GivingModule';
 import { FinanceModule } from './modules/finance/FinanceModule';
-import { AssetsModule } from './modules/assets/AssetsModule';
 import { DocumentsModule } from './modules/documents/DocumentsModule';
 import { CommunicationModule } from './modules/communication/CommunicationModule';
 import { OutreachModule } from './modules/outreach/OutreachModule';
@@ -39,9 +39,7 @@ import { FamiliesModule } from './modules/families/FamiliesModule';
 import { VolunteersModule } from './modules/volunteers/VolunteersModule';
 import { SmallGroupsModule } from './modules/small-groups/SmallGroupsModule';
 import { PathwaysModule } from './modules/pathways/PathwaysModule';
-import { SundayServicesModule, WorshipPlanningRedirect } from './modules/sunday-services/SundayServicesModule';
-import { BudgetsModule } from './modules/budgets/BudgetsModule';
-import { VendorsModule } from './modules/vendors/VendorsModule';
+import { WorshipPlanningRedirect, StructureSettingsRedirect } from './modules/sunday-services/SundayServicesModule';
 import { SermonsModule } from './modules/sermons/SermonsModule';
 import { WorkflowMonitoringModule } from './modules/workflow/WorkflowMonitoringModule';
 import { AuditLogsModule } from './modules/audit/AuditLogsModule';
@@ -139,6 +137,17 @@ function MainApp() {
   }, []);
 
   React.useEffect(() => {
+    if (!location.pathname.startsWith('/admin')) return;
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('module');
+    if (!raw) return;
+    const resolved = resolveAdminNavigation(raw, params.get('tab') || undefined);
+    if (resolved.module !== raw || (resolved.tab && resolved.tab !== params.get('tab'))) {
+      navigate(buildAdminPath(resolved), { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  React.useEffect(() => {
     if (!user) return;
     if (!location.pathname.startsWith('/admin')) return;
     if (!isStaffUser(user)) {
@@ -148,7 +157,7 @@ function MainApp() {
     if (!location.search) {
       const last = localStorage.getItem('church_erp_last_module');
       if (last) {
-        navigate(buildAdminPath(normalizeAdminModule(last)), { replace: true });
+        navigate(buildAdminPath(resolveAdminNavigation(last)), { replace: true });
       } else {
         navigate(resolvePostLoginPath(user), { replace: true });
       }
@@ -211,8 +220,7 @@ function MainApp() {
 
   const navigateAdmin = React.useCallback(
     (module: ERPModule, tab?: string) => {
-      const normalized = normalizeAdminModule(module);
-      const state = { module: normalized.module, tab: tab ?? normalized.tab };
+      const state = resolveAdminNavigation(module, tab);
       setActiveModule(state.module);
       setAdminTab(state.tab);
       if (isCanonicalAdminModule(state.module)) {
@@ -237,10 +245,21 @@ function MainApp() {
     if (!canAccessModule(activeModule)) return <AccessDenied module={activeModule} />;
 
     const mc = navigateAdmin;
-    const financeTab = activeModule === 'finance' ? (adminTab as FinanceWorkspaceTab | undefined) : undefined;
-    const budgetsTab =
-      activeModule === 'budgets' && adminTab && ['funds', 'budgets', 'event-finance'].includes(adminTab)
-        ? (adminTab as 'funds' | 'budgets' | 'event-finance')
+    const financeTab =
+      activeModule === 'finance' || activeModule === 'budgets' || activeModule === 'vendors' || activeModule === 'assets'
+        ? normalizeFinanceTab(
+            activeModule === 'finance'
+              ? adminTab
+              : activeModule === 'budgets'
+                ? adminTab === 'funds'
+                  ? 'funds'
+                  : 'budgets'
+                : activeModule === 'vendors'
+                  ? adminTab === 'payroll'
+                    ? 'payroll'
+                    : 'vendors'
+                  : 'assets',
+          )
         : undefined;
 
     return (
@@ -283,32 +302,28 @@ function MainApp() {
             case 'discipleship':
               return <DiscipleshipModule />;
             case 'events':
-              return <EventsModule onModuleChange={mc} />;
+              return <EventsModule onModuleChange={mc} initialTab={adminTab} />;
             case 'sunday-services':
             case 'services':
-              return <SundayServicesModule onModuleChange={mc} initialTab={adminTab} />;
-            case 'attendance':
-              return <AttendanceModule />;
-            case 'sunday-mode':
-              return <SundayModeModule onModuleChange={mc} />;
             case 'worship':
               return <WorshipPlanningRedirect onModuleChange={mc} />;
+            case 'attendance':
+              return <AttendanceModule onModuleChange={mc} />;
+            case 'sunday-mode':
+              return <SundayModeModule onModuleChange={mc} />;
             case 'outreach':
-              return <OutreachModule />;
+              return <OutreachModule onModuleChange={mc} />;
             case 'structure':
-              return <StructureModule />;
+              return <StructureSettingsRedirect onModuleChange={mc} />;
             case 'giving':
               return <GivingModule onModuleChange={mc} />;
             case 'finance':
-              return <FinanceModule onModuleChange={mc} user={user} initialTab={financeTab} />;
             case 'budgets':
-              return <BudgetsModule onModuleChange={mc} initialTab={budgetsTab} />;
+            case 'vendors':
             case 'assets':
-              return <AssetsModule />;
+              return <FinanceModule onModuleChange={mc} user={user} initialTab={financeTab} />;
             case 'documents':
               return <DocumentsModule />;
-            case 'vendors':
-              return <VendorsModule onModuleChange={mc} />;
             case 'sermons':
               return <SermonsModule onModuleChange={mc} />;
             case 'communication':
@@ -326,7 +341,7 @@ function MainApp() {
             case 'audit-logs':
               return <AuditLogsModule onModuleChange={mc} />;
             case 'settings':
-              return <SettingsModule />;
+              return <SettingsModule initialSection={adminTab} />;
             case 'permissions':
               return <PermissionsModule />;
             case 'admin-center':

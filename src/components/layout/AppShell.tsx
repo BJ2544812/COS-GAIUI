@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  BarChart3, Users, Layers, CalendarCheck, ShieldCheck,
+  BarChart3, Users, CalendarCheck, ShieldCheck,
   Library, Building2, Star,
   FileBox, Globe, ChevronRight, Search, Bell,
   User, Settings, MessageCircle, Heart, CreditCard,
-  Target, Network, Mic2, Music4,
+  Target, Network, Mic2,
   Cpu, ScrollText, GraduationCap, Compass,
   X, CheckCircle2, TrendingUp, ChevronDown,
   Briefcase, Menu
@@ -48,28 +48,22 @@ const GROUPS: GroupDef[] = [
       { id: 'members',      label: 'Members',          icon: Users,          permission: 'manage_members',      status: 'live' },
       { id: 'small-groups', label: 'Small Groups',     icon: Network,        permission: 'manage_members',      status: 'live' },
       { id: 'discipleship', label: 'Pastoral Care',    icon: Target,         permission: 'manage_members',      status: 'live' },
+      { id: 'outreach',     label: 'Visitors & Outreach', icon: Globe,       permission: 'manage_outreach',     status: 'live' },
     ],
   },
   {
     label: 'Operations', color: 'text-sky-500',
     items: [
-      { id: 'sunday-services', label: 'Sunday & Services', icon: Music4,         permission: 'manage_events',       status: 'live' },
-      { id: 'sunday-mode',     label: 'Sunday Service',    icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
       { id: 'events',          label: 'Events',            icon: Star,           permission: 'manage_events',       status: 'operational' },
+      { id: 'sunday-mode',     label: 'Sunday Service',    icon: CalendarCheck,  permission: 'manage_events',       status: 'live' },
       { id: 'attendance',      label: 'Attendance',        icon: CalendarCheck,  permission: 'manage_attendance',   status: 'operational' },
-      { id: 'outreach',    label: 'Visitors & Outreach', icon: Globe,        permission: 'manage_outreach',       status: 'live' },
-      { id: 'structure',   label: 'Church Structure',  icon: Layers,         permission: 'manage_settings',     status: 'partial' },
     ],
   },
   {
-    label: 'Finance', color: 'text-emerald-500',
+    label: 'Giving & Finance', color: 'text-emerald-500',
     items: [
       { id: 'giving',    label: 'Giving', icon: Heart,      permission: 'manage_giving',   status: 'live' },
       { id: 'finance',   label: 'Finance',   icon: CreditCard,    permission: 'manage_finance',  status: 'live' },
-      { id: 'budgets',   label: 'Budgets', icon: Target,     permission: 'manage_finance',  status: 'operational' },
-      { id: 'vendors',   label: 'Vendors & Payroll', icon: Library,   permission: 'manage_finance',  status: 'operational' },
-      { id: 'assets',    label: 'Assets',       icon: Building2,     permission: 'manage_assets',   status: 'live' },
-      { id: 'documents', label: 'Church Documents', icon: FileBox, permission: 'manage_assets',   status: 'live' },
     ],
   },
   {
@@ -100,6 +94,7 @@ const GROUPS: GroupDef[] = [
     label: 'Platform', color: 'text-slate-500',
     items: [
       { id: 'settings',        label: 'Settings',         icon: Settings,    permission: 'manage_settings', status: 'live' },
+      { id: 'documents',       label: 'Church Documents', icon: FileBox,     permission: 'manage_assets',   status: 'live' },
       { id: 'admin-center',    label: 'Church Admin',     icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
       { id: 'permissions',     label: 'Roles & Access',   icon: ShieldCheck, permission: 'manage_settings', status: 'live' },
       { id: 'hr',              label: 'HR & Staff',       icon: Briefcase,   permission: 'manage_hr',       status: 'live' },
@@ -255,7 +250,7 @@ export function AppShell({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 pb-24 md:pb-4 space-y-0.5">
           {orderedGroups.map(group => {
             const visibleItems = group.items.filter(
               (item) => canSeeItem(item) && shouldShowInSidebar(roleExp, item.id as import('@/types').ERPModule),
@@ -468,7 +463,14 @@ export function AppShell({
           </div>
         )}
 
-        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 pb-24 md:pb-8 overflow-y-auto overflow-x-hidden">
+        <main
+          className={cn(
+            'flex-1 min-w-0 p-4 md:p-6 lg:p-8 overflow-y-auto overflow-x-hidden',
+            roleExp?.showQuickOps === false
+              ? 'pb-4 md:pb-8'
+              : 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] md:pb-8',
+          )}
+        >
           {children}
         </main>
       </div>
@@ -485,10 +487,10 @@ export function AppShell({
       {showCommandPalette && (
         <CommandPaletteOverlay
           onClose={() => setShowCommandPalette(false)}
-          onModuleChange={(m) => {
+          onModuleChange={(m, tab) => {
             const label = GROUPS.flatMap((g) => g.items).find((i) => i.id === m)?.label ?? m;
             import('@/lib/recentActivity').then(({ recordRecentModule }) => recordRecentModule(m, label));
-            onModuleChange(m);
+            onModuleChange(m, tab);
           }}
           visibleModules={GROUPS.flatMap((g) => g.items).filter(canSeeItem)}
         />
@@ -503,7 +505,7 @@ function CommandPaletteOverlay({
   visibleModules,
 }: {
   onClose: () => void;
-  onModuleChange: (m: ERPModule) => void;
+  onModuleChange: (m: ERPModule, tab?: string) => void;
   visibleModules: ModuleItem[];
 }) {
   const [query, setQuery] = React.useState('');
@@ -605,8 +607,13 @@ function CommandPaletteOverlay({
                   type="button"
                   onClick={() => {
                     onClose();
-                    sessionStorage.setItem('ucos_open_event_id', ev.id);
-                    onModuleChange(ev.type === 'Service' ? 'services' : 'events');
+                    if (ev.type === 'Service') {
+                      sessionStorage.setItem('ucos_open_service_event_id', ev.id);
+                      onModuleChange('events');
+                    } else {
+                      sessionStorage.setItem('ucos_open_event_id', ev.id);
+                      onModuleChange('events');
+                    }
                   }}
                   className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-50 text-left text-sm font-bold text-slate-900 truncate"
                 >

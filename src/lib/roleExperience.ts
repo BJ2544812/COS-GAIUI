@@ -14,6 +14,7 @@ export type RoleArchetype =
   | 'accountant'
   | 'hr'
   | 'ministry_leader'
+  | 'counter_team'
   | 'youth_pastor'
   | 'volunteer_coordinator'
   | 'communications'
@@ -151,6 +152,10 @@ export function resolveRoleArchetype(input: RoleUser): RoleArchetype {
     return 'communications';
   }
 
+  if (role.includes('COUNTER')) {
+    return 'counter_team';
+  }
+
   if (
     role.includes('WORSHIP') ||
     role.includes('YOUTH') ||
@@ -217,15 +222,13 @@ const EXPERIENCE_BY_ARCHETYPE: Record<RoleArchetype, Omit<RoleExperience, 'arche
       'members',
       'small-groups',
       'discipleship',
+      'outreach',
       'communication',
       'notifications',
       'settings',
       'website',
       'analytics',
-      'structure',
       'sermons',
-      'sunday-services',
-      'outreach',
       'admin-center',
       'permissions',
       'audit-logs',
@@ -250,33 +253,33 @@ const EXPERIENCE_BY_ARCHETYPE: Record<RoleArchetype, Omit<RoleExperience, 'arche
   },
   finance: {
     title: 'Finance & stewardship',
-    subtitle: 'Gifts, vouchers, budgets, and reports — your daily desk.',
+    subtitle: 'Vouchers, funds, vendors, payroll, and month-end books — one workspace.',
     landingModule: 'finance',
     landingTab: 'vouchers',
     dashboardView: 'executive',
     dashboardLens: 'finance',
     visibleLenses: ['finance'],
-    modulePriority: ['giving', 'finance', 'budgets', 'vendors', 'assets', 'analytics', 'dashboard', 'profile'],
-    navGroupOrder: ['Finance', 'Insights & Audit', 'Identity', 'Operations', 'Engagement', 'Website', 'Platform'],
-    quickOps: ['giving', 'finance', 'budgets', 'vendors', 'notifications', 'dashboard'],
+    modulePriority: ['giving', 'finance', 'analytics', 'dashboard', 'profile'],
+    navGroupOrder: ['Giving & Finance', 'Insights & Audit', 'Identity', 'Operations', 'Engagement', 'Website', 'Platform'],
+    quickOps: ['giving', 'finance', 'notifications', 'dashboard'],
     showQuickOps: true,
-    dashboardShortcuts: ['giving', 'finance', 'budgets', 'vendors'],
+    dashboardShortcuts: ['giving', 'finance'],
     preferPortal: false,
   },
   accountant: {
     title: 'Accounting desk',
-    subtitle: 'Record vouchers, reconcile giving, and prepare reports for the treasurer.',
+    subtitle: 'Registry-first vouchers, reconciliation, and CA exports.',
     landingModule: 'finance',
     landingTab: 'vouchers',
     dashboardView: 'executive',
     dashboardLens: 'finance',
     visibleLenses: ['finance'],
-    modulePriority: ['finance', 'giving', 'budgets', 'vendors', 'dashboard', 'profile'],
-    navGroupOrder: ['Finance', 'Insights & Audit'],
-    quickOps: ['finance', 'giving', 'budgets', 'dashboard'],
+    modulePriority: ['finance', 'giving', 'dashboard', 'profile'],
+    navGroupOrder: ['Giving & Finance', 'Insights & Audit'],
+    quickOps: ['finance', 'giving', 'dashboard'],
     showQuickOps: true,
-    dashboardShortcuts: ['finance', 'giving', 'budgets', 'vendors'],
-    sidebarAllowList: ['dashboard', 'giving', 'finance', 'budgets', 'vendors', 'analytics'],
+    dashboardShortcuts: ['finance', 'giving'],
+    sidebarAllowList: ['dashboard', 'giving', 'finance', 'analytics'],
     focusedHome: true,
     preferPortal: false,
   },
@@ -301,11 +304,27 @@ const EXPERIENCE_BY_ARCHETYPE: Record<RoleArchetype, Omit<RoleExperience, 'arche
     dashboardView: 'operations',
     dashboardLens: 'operations',
     visibleLenses: ['operations', 'pastoral'],
-    modulePriority: ['sunday-mode', 'sunday-services', 'attendance', 'members', 'small-groups', 'sermons', 'events', 'profile'],
+    modulePriority: ['sunday-mode', 'events', 'attendance', 'members', 'small-groups', 'sermons', 'profile'],
     navGroupOrder: ['Operations', 'Identity', 'Engagement', 'Insights & Audit', 'Finance', 'Website', 'Platform'],
-    quickOps: ['sunday-mode', 'sunday-services', 'attendance', 'members', 'notifications'],
+    quickOps: ['sunday-mode', 'events', 'attendance', 'members', 'notifications'],
     showQuickOps: true,
-    dashboardShortcuts: ['sunday-mode', 'sunday-services', 'attendance'],
+    dashboardShortcuts: ['sunday-mode', 'events', 'attendance'],
+    preferPortal: false,
+  },
+  counter_team: {
+    title: 'Counter team',
+    subtitle: 'Check-in sessions, headcounts, and Sunday attendance.',
+    landingModule: 'attendance',
+    dashboardView: 'operations',
+    dashboardLens: 'operations',
+    visibleLenses: ['operations'],
+    modulePriority: ['attendance', 'sunday-mode', 'events', 'members', 'profile'],
+    navGroupOrder: ['Operations', 'Identity', 'Engagement'],
+    quickOps: ['attendance', 'sunday-mode', 'events', 'members', 'notifications'],
+    showQuickOps: true,
+    dashboardShortcuts: ['attendance', 'sunday-mode', 'events'],
+    sidebarAllowList: ['dashboard', 'attendance', 'sunday-mode', 'events', 'members', 'notifications'],
+    focusedHome: true,
     preferPortal: false,
   },
   youth_pastor: {
@@ -315,21 +334,21 @@ const EXPERIENCE_BY_ARCHETYPE: Record<RoleArchetype, Omit<RoleExperience, 'arche
     dashboardView: 'operations',
     dashboardLens: 'operations',
     visibleLenses: ['operations'],
-    modulePriority: ['sunday-mode', 'sunday-services', 'attendance', 'members', 'discipleship', 'sermons', 'events', 'profile'],
+    modulePriority: ['sunday-mode', 'events', 'attendance', 'members', 'discipleship', 'sermons', 'profile'],
     navGroupOrder: ['Operations', 'Identity', 'Engagement'],
-    quickOps: ['sunday-mode', 'sunday-services', 'attendance', 'members', 'notifications'],
+    quickOps: ['sunday-mode', 'events', 'attendance', 'members', 'notifications'],
     showQuickOps: true,
-    dashboardShortcuts: ['sunday-mode', 'sunday-services', 'attendance'],
+    dashboardShortcuts: ['sunday-mode', 'events', 'attendance'],
     sidebarAllowList: [
       'dashboard',
       'sunday-mode',
       'events',
       'attendance',
-      'sunday-services',
       'members',
       'discipleship',
       'sermons',
       'notifications',
+      'outreach',
     ],
     focusedHome: true,
     preferPortal: false,
@@ -456,6 +475,10 @@ export function sortNavGroups<T extends { label: string }>(groups: T[], order: s
 }
 
 export function shouldShowInSidebar(exp: RoleExperience | null, moduleId: ERPModule): boolean {
+  const mergedIntoFinance: ERPModule[] = ['budgets', 'vendors', 'assets', 'funds'];
+  if (mergedIntoFinance.includes(moduleId)) {
+    return exp?.sidebarAllowList?.includes(moduleId) ?? false;
+  }
   if (!exp?.sidebarAllowList?.length) return true;
   return exp.sidebarAllowList.includes(moduleId);
 }
@@ -473,8 +496,8 @@ export function labelForQuickOp(module: ERPModule): string {
     budgets: 'Budgets',
     vendors: 'Payroll',
     events: 'Events',
-    worship: 'Sunday & Services',
-    'sunday-services': 'Sunday & Services',
+    worship: 'Worship',
+    'sunday-services': 'Worship',
     members: 'People',
     'small-groups': 'Groups',
     communication: 'Comms',

@@ -30,17 +30,25 @@ import { formatCurrencyAmount } from '@/lib/formatCurrency';
 import { useSettings } from '@/context/SettingsContext';
 import { ERPModule } from '@/types';
 import { ActionButton, EmptyState, FeedbackBanner, ModuleHeader, PageLayout, ResponsiveTableWrap, SectionCard, StatCard } from '@/components/modules/ModuleHeader';
-import { ModuleTabs } from '@/components/modules/ModuleTabs';
+import { FinanceWorkspaceNav } from '@/components/finance/FinanceWorkspaceNav';
+import { VoucherRegistryHero } from '@/components/finance/VoucherRegistryHero';
+import { financeTabMeta } from '@/lib/financeWorkspaceSections';
 import { GatewaySettlementPanel } from '@/components/finance/GatewaySettlementPanel';
 import { BankReconciliationPanel } from '@/components/finance/BankReconciliationPanel';
-import { consumeFinanceTabIntent, type FinanceWorkspaceTab } from '@/lib/financeNavigation';
+import { consumeFinanceTabIntent, normalizeFinanceTab, type FinanceWorkspaceTab } from '@/lib/financeNavigation';
 import { VoucherCreateDialog } from '@/components/finance/VoucherCreateDialog';
+import { CaAuditExportsPanel } from '@/components/finance/CaAuditExportsPanel';
+import { FinanceLedgerPanel } from '@/components/finance/FinanceLedgerPanel';
+import { FinancePayrollPanel } from '@/components/finance/FinancePayrollPanel';
+import { BudgetsModule } from '@/modules/budgets/BudgetsModule';
+import { VendorsModule } from '@/modules/vendors/VendorsModule';
+import { AssetsModule } from '@/modules/assets/AssetsModule';
 
 type StatusTab = 'all' | 'draft' | 'approved' | 'posted' | 'reversed' | 'failed';
 type FinanceTab = FinanceWorkspaceTab;
 
 interface FinanceModuleProps {
-  onModuleChange?: (module: ERPModule) => void;
+  onModuleChange?: (module: ERPModule, tab?: string) => void;
   user?: any;
   /** Deep-link tab from `/admin?module=finance&tab=…` */
   initialTab?: FinanceTab;
@@ -71,12 +79,14 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
   const currency = settings.financial.currency;
   const permissions = (user?.permissions as string[] | undefined) ?? [];
   const canManageFinance = permissions.includes('manage_finance');
+  const canApproveVoucher = permissions.includes('approve_voucher');
+  const canPostVoucher = permissions.includes('post_voucher');
 
-  const [tab, setTab] = React.useState<FinanceTab>(() => initialTab ?? 'dashboard');
+  const [tab, setTab] = React.useState<FinanceTab>(() => normalizeFinanceTab(initialTab));
   const [showCreateVoucher, setShowCreateVoucher] = React.useState(false);
 
   React.useEffect(() => {
-    if (initialTab) setTab(initialTab);
+    if (initialTab) setTab(normalizeFinanceTab(initialTab));
   }, [initialTab]);
 
   React.useEffect(() => {
@@ -109,6 +119,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
   const [selectedVoucherLogs, setSelectedVoucherLogs] = React.useState<any[]>([]);
   const [selectedVoucherChecks, setSelectedVoucherChecks] = React.useState<any | null>(null);
   const [voucherBusy, setVoucherBusy] = React.useState<string | null>(null);
+  const voucherSearchRef = React.useRef<HTMLInputElement>(null);
 
   const fmt = React.useCallback(
     (value: number) => formatCurrencyAmount(value, currency, { maximumFractionDigits: 0 }),
@@ -393,13 +404,15 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
 
       <ModuleHeader
         title="Finance"
-        subtitle="Church books — vouchers, receipts, settlements, reports, and approvals."
+        subtitle="Calm books for your church — start with vouchers, then vendors and month-end reports."
         icon={BookOpen}
         actions={
           <>
             <ActionButton label="Refresh" icon={RefreshCw} variant="secondary" onClick={() => void fetchEverything()} />
             <ActionButton label="New voucher" icon={Receipt} variant="primary" onClick={() => setShowCreateVoucher(true)} />
-            <ActionButton label="Open vouchers" icon={Receipt} variant="secondary" onClick={() => setTab('vouchers')} />
+            {tab !== 'vouchers' && (
+              <ActionButton label="Vouchers" icon={Receipt} variant="secondary" onClick={() => setTab('vouchers')} />
+            )}
           </>
         }
       />
@@ -416,23 +429,14 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
         }}
       />
 
-      <ModuleTabs
-        tabs={[
-          { id: 'dashboard', label: 'Dashboard' },
-          { id: 'vouchers', label: 'Vouchers' },
-          { id: 'receipts', label: 'Receipts' },
-          { id: 'settlements', label: 'Settlements' },
-          { id: 'reconciliation', label: 'Reconciliation' },
-          { id: 'reports', label: 'Reports' },
-          { id: 'approvals', label: 'Approvals' },
-          { id: 'documents', label: 'Document registry' },
-          { id: 'years', label: 'Financial years' },
-          { id: 'accounts', label: 'Accounts' },
-        ]}
-        activeId={tab}
-        onChange={(id) => setTab(id as FinanceTab)}
-        aria-label="Finance sections"
-      />
+      <FinanceWorkspaceNav activeTab={tab} onTabChange={(id) => setTab(normalizeFinanceTab(id))} />
+
+      {!loading && financeTabMeta(tab) && tab !== 'vouchers' && (
+        <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+          <p className="text-sm font-bold text-slate-800">{financeTabMeta(tab)?.label}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{financeTabMeta(tab)?.description}</p>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-6 animate-pulse">
@@ -447,7 +451,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
         </div>
       ) : null}
 
-      {!loading && tab === 'dashboard' && (
+      {!loading && tab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Current Bank Balance" value={fmt(totals.bankBalance)} icon={Landmark} />
@@ -595,14 +599,22 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
 
       {!loading && tab === 'vouchers' && (
         <div className="space-y-6">
+          <VoucherRegistryHero
+            totalCount={vouchers.length}
+            draftCount={voucherBuckets.draft}
+            onNewVoucher={() => setShowCreateVoucher(true)}
+            onFocusSearch={() => voucherSearchRef.current?.focus()}
+          />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              ['all', vouchers.length],
-              ['draft', voucherBuckets.draft],
-              ['approved', voucherBuckets.approved],
-              ['posted', voucherBuckets.posted],
-              ['reversed', voucherBuckets.reversed],
-            ].map(([key, value]) => (
+            {(
+              [
+                ['all', 'All', vouchers.length],
+                ['draft', 'Draft', voucherBuckets.draft],
+                ['approved', 'Approved', voucherBuckets.approved],
+                ['posted', 'Posted', voucherBuckets.posted],
+                ['reversed', 'Reversed', voucherBuckets.reversed],
+              ] as const
+            ).map(([key, label, value]) => (
               <button
                 key={key}
                 onClick={() => setStatusFilter(key as StatusTab)}
@@ -611,7 +623,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
                   statusFilter === key ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white',
                 )}
               >
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{key}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
                 <p className="mt-1 text-2xl font-black text-slate-900">{value}</p>
               </button>
             ))}
@@ -623,6 +635,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
                 <div className="relative">
                   <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <input
+                    ref={voucherSearchRef}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm"
@@ -717,7 +730,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
                               <Eye className="mr-1 h-3.5 w-3.5" />
                               View
                             </Button>
-                            {String(v.status || '').toLowerCase() === 'draft' && (
+                            {String(v.status || '').toLowerCase() === 'draft' && canApproveVoucher && (
                               <Button
                                 size="sm"
                                 className="h-8 text-xs"
@@ -727,7 +740,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
                                 {voucherBusy === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Approve'}
                               </Button>
                             )}
-                            {String(v.status || '').toLowerCase() === 'approved' && (
+                            {String(v.status || '').toLowerCase() === 'approved' && canPostVoucher && (
                               <Button
                                 size="sm"
                                 className="h-8 text-xs"
@@ -828,27 +841,56 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
         </div>
       )}
 
-      {!loading && tab === 'receipts' && (
-        <DocumentCenterPanel currency={currency} fmt={fmt} defaultKind="receipt" title="Donation receipts" />
+      {!loading && tab === 'ledgers' && (
+        <FinanceLedgerPanel accounts={accounts} currency={currency} />
       )}
 
-      {!loading && tab === 'settlements' && (
-        <GatewaySettlementPanel />
+      {!loading && tab === 'funds' && (
+        <BudgetsModule embedded lockedTab="funds" hideEventFinance onModuleChange={onModuleChange} />
+      )}
+
+      {!loading && tab === 'budgets' && (
+        <BudgetsModule embedded lockedTab="budgets" hideEventFinance onModuleChange={onModuleChange} />
+      )}
+
+      {!loading && tab === 'vendors' && (
+        <VendorsModule
+          embedded
+          onModuleChange={onModuleChange}
+          accounts={accounts}
+          funds={funds}
+          onRefresh={() => void fetchEverything()}
+        />
+      )}
+
+      {!loading && tab === 'payroll' && (
+        <FinancePayrollPanel
+          currency={currency}
+          onModuleChange={onModuleChange}
+          onRefresh={() => void fetchEverything()}
+        />
+      )}
+
+      {!loading && tab === 'assets' && (
+        <AssetsModule embedded />
       )}
 
       {!loading && tab === 'reconciliation' && (
-        <BankReconciliationPanel
-          accounts={accounts}
-          fmt={fmt}
-          donationReconciliation={donationReconciliation}
-          onOpenSettlements={() => setTab('settlements')}
-          onOpenVouchers={() => setTab('vouchers')}
-        />
+        <div className="space-y-8">
+          <GatewaySettlementPanel />
+          <BankReconciliationPanel
+            accounts={accounts}
+            fmt={fmt}
+            donationReconciliation={donationReconciliation}
+            onOpenSettlements={() => setTab('reconciliation')}
+            onOpenVouchers={() => setTab('vouchers')}
+          />
+        </div>
       )}
 
       {!loading && tab === 'reports' && (
         <div className="space-y-6">
-          <SectionCard title="Trial balance" subtitle="Current period">
+          <SectionCard title="Operational reports" subtitle="Trial balance snapshot — full month-end pack under CA & Audit">
             {trialBalance ? (
               <div className="text-sm space-y-2">
                 <p>Total debits: <strong>{fmt(n(trialBalance.totals?.debit))}</strong></p>
@@ -860,43 +902,17 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
             ) : (
               <p className="text-sm text-slate-500">No trial balance data.</p>
             )}
-          </SectionCard>
-          <SectionCard title="Accountant exports" subtitle="Books and registers for your CA or treasurer">
-            <Button variant="outline" onClick={() => onModuleChange?.('audit-logs')}>
-              <FileSearch className="mr-2 h-4 w-4" /> Open change history & reports
+            <Button variant="outline" className="mt-4" onClick={() => setTab('ca-audit')}>
+              <FileSearch className="mr-2 h-4 w-4" /> Open CA & Audit exports
             </Button>
           </SectionCard>
           <FinanceRecordsHealthPanel />
         </div>
       )}
 
-      {!loading && tab === 'approvals' && (
-        <SectionCard title="Pending approvals" subtitle="Items waiting for your decision">
-          {(approvalQueue || []).length === 0 ? (
-            <p className="text-sm text-slate-500">Nothing waiting for approval.</p>
-          ) : (
-            <div className="space-y-2">
-              {approvalQueue.map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4 flex flex-wrap justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-slate-900">{a.entityType}</p>
-                    <p className="text-xs text-slate-500">{a.moduleKey || 'finance'} · Level {a.currentLevel}/{a.minRequiredLevel}</p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => setTab('vouchers')}>Review vouchers</Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      )}
-
-      {!loading && tab === 'documents' && (
-        <DocumentCenterPanel currency={currency} fmt={fmt} />
-      )}
-
-      {!loading && tab === 'years' && (
+      {!loading && tab === 'ca-audit' && (
         <div className="space-y-6">
-          <SectionCard title="Financial year" subtitle="How your church calendar is set up">
+          <SectionCard title="Financial year" subtitle="Fiscal calendar and period lock">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs font-semibold text-slate-500">Year starts</p>
@@ -912,8 +928,13 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
               </div>
             </div>
           </SectionCard>
-          <Button variant="outline" onClick={() => onModuleChange?.('settings')}>Open system settings</Button>
+          <CaAuditExportsPanel />
+          <Button variant="outline" onClick={() => onModuleChange?.('settings')}>Open financial settings</Button>
         </div>
+      )}
+
+      {!loading && tab === 'document-center' && (
+        <DocumentCenterPanel currency={currency} fmt={fmt} title="Financial document center" />
       )}
 
       {!loading && tab === 'accounts' && (
@@ -947,7 +968,7 @@ export function FinanceModule({ onModuleChange, user, initialTab }: FinanceModul
           </SectionCard>
           <p className="text-sm text-slate-600">
             Select an account to filter the voucher registry. Year start and period lock are under{' '}
-            <button type="button" className="font-semibold text-indigo-600 underline" onClick={() => setTab('years')}>Financial Years</button>.
+            <button type="button" className="font-semibold text-indigo-600 underline" onClick={() => setTab('ca-audit')}>CA & Audit</button>.
           </p>
         </div>
       )}

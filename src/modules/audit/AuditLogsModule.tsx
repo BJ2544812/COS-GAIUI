@@ -1,33 +1,21 @@
 import React from 'react';
-import { ScrollText, Search, ShieldCheck, Clock, User, Download, FileCheck, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { ScrollText, Search, ShieldCheck, Clock, User, FileCheck, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ModuleHeader, ActionButton, FeedbackBanner, PageLayout, StatCard, SectionCard } from '@/components/modules/ModuleHeader';
-import { apiRequest, formatApiError, parseApiResponse, triggerBrowserDownload } from '@/lib/apiClient';
+import { ModuleHeader, ActionButton, FeedbackBanner, PageLayout, StatCard } from '@/components/modules/ModuleHeader';
+import { apiRequest, formatApiError, parseApiResponse } from '@/lib/apiClient';
 import { ERPModule } from '@/types';
 import { cn } from '@/lib/utils';
+import { navigateToFinanceTab } from '@/lib/financeNavigation';
 
-export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPModule) => void }) {
+export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPModule, tab?: string) => void }) {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [approvalQueue, setApprovalQueue] = React.useState<any[]>([]);
   const [query, setQuery] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [exporting, setExporting] = React.useState<string | null>(null);
-  const [exportMsg, setExportMsg] = React.useState<string | null>(null);
-
-  const CA_REPORTS: Array<{ type: string; title: string; description: string; group: string }> = [
-    { group: 'Books of Account', type: 'trial_balance', title: 'Trial Balance', description: 'Account-wise debit/credit columns for period-end review.' },
-    { group: 'Books of Account', type: 'ledger', title: 'Ledger', description: 'Running balance by account (select account in Finance for filtered export).' },
-    { group: 'Books of Account', type: 'day_book', title: 'Day Book', description: 'Chronological posted vouchers with amounts and narration.' },
-    { group: 'Books of Account', type: 'cash_bank_book', title: 'Cash & Bank Book', description: 'Asset account movements across posted vouchers.' },
-    { group: 'Fund & Ministry', type: 'fund_statements', title: 'Fund Statements', description: 'Opening, receipts, outflows and closing per designated fund.' },
-    { group: 'Fund & Ministry', type: 'event_pnl', title: 'Event P&L', description: 'Income, expenses and net position per event.' },
-    { group: 'Donor records', type: 'donor_statements', title: 'Donation Register', description: 'Donor-wise gift listing for reconciliation and 80G support.' },
-    { group: 'CA Handoff', type: 'tally_foundation', title: 'Tally Foundation Export', description: 'Voucher lines with account codes for external CA/Tally workflows.' },
-  ];
 
   React.useEffect(() => {
     const load = async () => {
@@ -60,70 +48,23 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
     );
   }, [logs, query]);
 
-  const runExport = async (type: string, title: string) => {
-    try {
-      setExporting(type);
-      setExportMsg(null);
-      const res = await apiRequest('finance/ca-exports', { method: 'POST', body: { type } });
-      const data = parseApiResponse<{ csv: string; rowCount: number; checksumSha256: string }>(res);
-      if (data.csv) {
-        const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8' });
-        triggerBrowserDownload(blob, `${type}-${new Date().toISOString().slice(0, 10)}.csv`);
-        setExportMsg(`${title}: ${data.rowCount} rows exported (SHA-256 logged).`);
-      }
-    } catch (e) {
-      setExportMsg(formatApiError(e));
-    } finally {
-      setExporting(null);
-    }
-  };
-
   return (
     <PageLayout>
       <ModuleHeader
         title="Change history"
-        subtitle="Who changed what in giving, finance, and church records — with exportable books of account."
+        subtitle="Who changed what in giving, finance, and church records."
         status="live"
         icon={ScrollText}
         actions={
-          <>
-            <ActionButton label="Trial Balance CSV" icon={FileSpreadsheet} variant="secondary" onClick={() => void runExport('trial_balance', 'Trial Balance')} />
-            <ActionButton label="Verify Integrity" icon={ShieldCheck} variant="primary" onClick={() => onModuleChange?.('finance')} />
-          </>
+          <ActionButton
+            label="Open Finance"
+            icon={ShieldCheck}
+            variant="primary"
+            onClick={() => navigateToFinanceTab(onModuleChange, 'ca-audit')}
+          />
         }
       />
       {error && <FeedbackBanner tone="error">{error}</FeedbackBanner>}
-      {exportMsg && <FeedbackBanner tone="success">{exportMsg}</FeedbackBanner>}
-
-      <SectionCard title="CA & statutory reports" subtitle="Grouped exports with verification checksum — open in Excel or share with your CA">
-        <div className="space-y-8">
-          {['Books of Account', 'Fund & Ministry', 'Donor records', 'CA Handoff'].map((group) => (
-            <div key={group} className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{group}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {CA_REPORTS.filter((r) => r.group === group).map((r) => (
-                  <div key={r.type} className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 flex flex-col gap-3">
-                    <div>
-                      <p className="text-sm font-black text-slate-900">{r.title}</p>
-                      <p className="text-xs text-slate-500 mt-1">{r.description}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-fit text-[10px] font-black uppercase tracking-widest"
-                      disabled={exporting !== null}
-                      onClick={() => void runExport(r.type, r.title)}
-                    >
-                      <Download className="w-3.5 h-3.5 mr-2" />
-                      {exporting === r.type ? 'Exporting…' : 'Download CSV'}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
          <StatCard label="Log integrity" value="Verified" icon={ShieldCheck} iconColor="text-emerald-600" iconBg="bg-emerald-50" />
@@ -137,14 +78,9 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
                <CardTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">System Activity Timeline</CardTitle>
                <CardDescription className="text-slate-400 font-bold uppercase tracking-widest text-[9px] mt-2">Live stream of finance and system changes</CardDescription>
             </div>
-            <div className="flex gap-4">
-               <div className="relative w-full md:w-64">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search logs..." className="h-12 pl-12 pr-6 rounded-xl bg-slate-50 border-none font-bold uppercase text-[10px] tracking-widest focus:ring-2 focus:ring-indigo-600" />
-               </div>
-               <Button disabled={exporting !== null} variant="outline" className="h-12 rounded-xl text-[10px] font-black uppercase tracking-widest px-6" onClick={() => void runExport('ledger', 'Ledger')}>
-                 <Download className="w-4 h-4 mr-2" /> Export Ledger
-               </Button>
+            <div className="relative w-full md:w-64">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search logs..." className="h-12 pl-12 pr-6 rounded-xl bg-slate-50 border-none font-bold uppercase text-[10px] tracking-widest focus:ring-2 focus:ring-indigo-600" />
             </div>
          </CardHeader>
          <CardContent className="p-0">
@@ -192,7 +128,7 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
                </div>
             )}
             <div className="p-8 border-t border-slate-50 bg-slate-50/10 text-center">
-               <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600" onClick={() => onModuleChange?.('finance')}>Open finance desk</Button>
+               <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600" onClick={() => navigateToFinanceTab(onModuleChange, 'vouchers')}>Open voucher registry</Button>
             </div>
          </CardContent>
       </Card>
@@ -223,4 +159,3 @@ export function AuditLogsModule({ onModuleChange }: { onModuleChange?: (m: ERPMo
     </PageLayout>
   );
 }
-
